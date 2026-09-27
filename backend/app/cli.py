@@ -19,6 +19,85 @@ BACKEND_ROOT = pathlib.Path(__file__).resolve().parents[1]
 DEMO_SOURCE_NAME = "demo (synthetic)"
 
 
+async def _reembed() -> dict[str, Any]:
+    """用当前 EMBEDDING_PROVIDER 重新嵌入所有已富化文档并重建聚类。
+
+    用途：
+      1) 从 hash 向量切到 local 语义向量后，需要重算向量与聚类；
+      2) 调整 VECTOR_DUP_THRESHOLD 后想看看聚类会变成什么样（不改阈值也能先观察）。
+    代价：会清空 embeddings / clusters / cluster_members 重建，可重复执行且幂等。
+    """
+    from sqlalchemy import delete, func, select
+
+    from app.db import session_scope
+    from app.embedding import get_embedder
+    from app.models.analysis import Analysis, Cluster, ClusterMember, Embedding
+    from app.models.document import Document
+    from app.pipeline.dedup import attach_cluster, embedding_text
+
+    embedder = get_embedder()
+    stats: dict[str, Any] = {
+        "embedder": embedder.name,
+        "embedded": 0,
+        "clusters": 0,
+        "multi_doc_clusters": 0,
+        "largest_cluster": 0,
+    }
+
+    async with session_scope() as session:
+        await session.execute(delete(Embedding))
+        await session.execute(delete(ClusterMember))
+        await session.execute(delete(Cluster))
+        await session.flush()
+
+        rows = (
+            await session.execute(
+                select(Analysis, Document)
+                .join(Document, Document.id == Analysis.document_id)
+                .where(Document.status == "enriched")
+                .order_by(
+                    func.coalesce(Document.published_at, Document.fetched_at).asc(),
+                    Document.id.asc(),
+                )
+            )
+        ).all()
+
+        for analysis, document in rows:
+            tags = list(analysis.tags or [])
+            vector = embedder.embed(
+                embedding_text(analysis.summary_zh, analysis.summary_en, tags, document.title)
+            )
+            session.add(
+                Embedding(
+                    analysis_id=analysis.id,
+                    document_id=document.id,
+                    model=embedder.name,
+                    dim=len(vector),
+                    vec=vector,
+                )
+            )
+            await session.flush()
+            await attach_cluster(session, document=document, vec=vector, key_terms=tags[:3])
+            stats["embedded"] = int(stats["embedded"]) + 1
+
+        await session.flush()
+        stats["clusters"] = int(
+            (await session.execute(select(func.count()).select_from(Cluster))).scalar_one()
+        )
+        stats["multi_doc_clusters"] = int(
+            (
+                await session.execute(
+                    select(func.count()).select_from(Cluster).where(Cluster.doc_count > 1)
+                )
+            ).scalar_one()
+        )
+        stats["largest_cluster"] = int(
+            (await session.execute(select(func.max(Cluster.doc_count)))).scalar_one() or 0
+        )
+
+    return stats
+
+
 def _load_yaml(path: pathlib.Path) -> dict[str, Any]:
     import yaml  # type: ignore[import-untyped]
 
@@ -208,6 +287,11 @@ def cmd_demo(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_reembed(args: argparse.Namespace) -> int:
+    print(json.dumps(asyncio.run(_reembed()), ensure_ascii=False))
+    return 0
+
+
 def cmd_migrate(args: argparse.Namespace) -> int:
     print(json.dumps(_migrate(), ensure_ascii=False))
     return 0
@@ -228,6 +312,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     demo = sub.add_parser("demo", help="用合成数据跑通采集与处理（CI 冒烟）")
     demo.set_defaults(func=cmd_demo)
+
+    reembed = sub.add_parser("reembed", help="用当前向量模型重新嵌入并重建聚类（幂等）")
+    reembed.set_defaults(func=cmd_reembed)
 
     migrate = sub.add_parser("migrate", help="执行数据库迁移到 head")
     migrate.set_defaults(func=cmd_migrate)

@@ -8,11 +8,13 @@ BACKEND := backend
 CACHE_ROOT := $(CURDIR)/.cache
 UV_CACHE_DIR ?= $(CACHE_ROOT)/uv
 BUILDX_CONFIG ?= $(CACHE_ROOT)/buildx
-export UV_CACHE_DIR
-export BUILDX_CONFIG
+# 模型权重同样默认落在 ~/.cache，受限沙箱下会被拒绝，一并重定向
+HF_HOME ?= $(CACHE_ROOT)/huggingface
+TORCH_HOME ?= $(CACHE_ROOT)/torch
+export UV_CACHE_DIR BUILDX_CONFIG HF_HOME TORCH_HOME
 
-.PHONY: help doctor bootstrap install lint typecheck test build verify openapi \
-        migrate seed demo dev dev-web logs dev-down smoke collect-once prod-config deploy \
+.PHONY: help doctor bootstrap install ml lint typecheck test build verify openapi \
+        migrate seed demo reembed dev dev-web logs dev-down smoke collect-once prod-config deploy \
         restore-drill clean
 
 help: ## 显示所有可用命令
@@ -24,6 +26,9 @@ doctor: ## 检查本机依赖、.env 与端口占用
 install: ## 安装前后端依赖
 	cd $(BACKEND) && uv sync
 	pnpm install
+
+ml: ## 安装本地语义向量依赖（sentence-transformers，体积较大）
+	cd $(BACKEND) && uv sync --extra ml
 
 bootstrap: install ## 安装依赖并准备 .env
 	@test -f .env || (cp .env.example .env && echo "已生成 .env，请填入 DEEPSEEK_API_KEY / ADMIN_API_KEY")
@@ -66,6 +71,9 @@ seed: ## 导入 infra/seed/sources.yaml 中的源
 
 demo: ## 用合成数据跑通采集→处理→聚类（不联网、不花钱）
 	cd $(BACKEND) && uv run python -m app.cli demo
+
+reembed: ## 用当前向量模型重新嵌入并重建聚类（需 uv sync --extra ml）
+	cd $(BACKEND) && uv run python -m app.cli reembed
 
 dev: ## 启动本地依赖服务（db + api + worker）
 	docker compose up -d --wait db api worker

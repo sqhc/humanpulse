@@ -23,6 +23,14 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     settings = get_settings()
     configure_logging(settings.log_level)
     log.info("api.start", version=__version__, env=settings.env)
+    if settings.is_prod and settings.embedding_provider == "hash":
+        log.warning(
+            "embedding.hash_in_production",
+            hint=(
+                "hash 向量没有语义能力，同事件聚类会失效；"
+                "请执行 uv sync --extra ml 并设置 EMBEDDING_PROVIDER=local"
+            ),
+        )
     yield
     await dispose()
     log.info("api.stop")

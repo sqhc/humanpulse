@@ -32,7 +32,14 @@ class LocalEmbedder:
         factory: Any = module.SentenceTransformer
         self._model: Any = factory(resolved)
         self.name = f"local-{resolved}"
-        raw_dim = self._model.get_sentence_embedding_dimension()
+        # sentence-transformers 6.x 把 get_sentence_embedding_dimension 改名为
+        # get_embedding_dimension；两个名字都试，避免被弃用警告刷屏。
+        get_dim: Any = getattr(self._model, "get_embedding_dimension", None) or getattr(
+            self._model, "get_sentence_embedding_dimension", None
+        )
+        if get_dim is None:
+            raise RuntimeError(f"无法从模型 {resolved} 获取向量维度")
+        raw_dim = get_dim()
         if raw_dim is None:
             raise RuntimeError(f"无法从模型 {resolved} 获取向量维度")
         self.dim = int(raw_dim)

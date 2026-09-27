@@ -78,3 +78,21 @@
 - 单进程内并发；多个 worker 副本仍会互相抢同一批（有 `skip_locked` 兜底，但吞吐不会叠加）。
 - 处理进度不可中断续跑：批次中途重启会让本批的 LLM 花费白费（已写入的 analysis 会保留，状态机保证不会重复计费同一条）。
 - 日报/周报尚未接入，Feed 是当前唯一出口。
+
+### 向量提供方的实测对比（同一批 430 条真实数据）
+
+| 配置 | 聚类总数 | 多文档聚类 | 最大聚类 |
+| --- | --- | --- | --- |
+| `EMBEDDING_PROVIDER=hash`（无 ML 依赖） | 322 | **1** | 2 |
+| `EMBEDDING_PROVIDER=local`（paraphrase-multilingual-MiniLM-L12-v2） | 305 | **10** | 6 |
+
+local 下聚到的事件都跨了多个来源，例如"南非枪击"6 条来自 6 个源、"伊朗/霍尔木兹"5 条来自 4 个源、
+"瑞士中立公投"3 条来自 3 个源——这才是"同一事件多来源覆盖"的可用形态。
+
+结论与约定：
+
+- **生产必须用 `local`**：`hash` 只保证链路可跑通，语义聚类实际失效；
+  API 在生产环境检测到 `hash` 时会打 `embedding.hash_in_production` 警告。
+- `uv sync --extra ml`（或 `make ml`）装 sentence-transformers；CI 不装，保持快与省。
+- 切换提供方或调整阈值后用 `make reembed` 重算向量与聚类（幂等，会重建 embeddings/clusters）。
+- 模型权重默认落在 `~/.cache/huggingface`，受限沙箱下会被拒绝；Makefile 已把 `HF_HOME`/`TORCH_HOME` 一并重定向到仓库内 `.cache/`。

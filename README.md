@@ -58,7 +58,8 @@ cd backend && uv sync && uv run uvicorn app.main:app --reload
 | `make collect-once` | 手动触发一次真实采集（需栈已起并导出 `ADMIN_API_KEY`） |
 
 切到真实模型：在 `.env` 里把 `LLM_PROVIDER` 设为 `deepseek`（默认）并填好 `DEEPSEEK_API_KEY`；
-需要真正的语义向量时执行 `uv sync --extra ml` 并把 `EMBEDDING_PROVIDER` 改成 `local`——默认的 `hash` 只用于开发与 CI，语义能力弱。
+**生产必须切换到语义向量**：执行 `make ml`（= `uv sync --extra ml`）并把 `EMBEDDING_PROVIDER` 改成 `local`，再用 `make reembed` 重算向量与聚类。
+默认的 `hash` 只保证链路跑通：同一批 430 条真实数据下，`hash` 只聚出 1 个多文档聚类，`local` 聚出 10 个（最大 6 条来自 6 个源）。
 
 ## API 一览（`/api/v1`）
 
