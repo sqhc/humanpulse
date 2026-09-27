@@ -43,6 +43,37 @@ pnpm run api-client:generate        # 重新生成 packages/api-client/src/gener
 - 提示词：`app/llm/prompts/*.md`，改动必须升版本号并说明动机。
 - 注释与文档：写"为什么"，不写"做了什么"。
 
+## 仓库自动化与凭据
+
+### 本机 push
+
+本机以 HTTPS 推送，凭据来自 macOS keychain（classic PAT，作用域 `repo`、`workflow`）。
+注意：`.github/workflows/**` 的改动需要 `workflow` 作用域，换 token 时不要漏。
+
+### 关于 DSH 的 GitHub MCP 连接
+
+当前该连接所用的 token 权限有限：**创建仓库返回 403**、**访问本私有仓库返回 404**。
+因此：
+
+- 建仓与推送走本机 git / REST（凭据同上）；
+- 若要用 MCP 工具管理 issues、PR、分支，需要给该连接换用具备 `repo` 作用域的 token，或把对应 GitHub App 安装到本仓库；
+- 在此之前，issue/PR 操作可继续用 `git` + GitHub 网页端完成。
+
+### CI/CD 需要的 Secrets 与 Variables
+
+在仓库 Settings → Secrets and variables → Actions 中配置：
+
+| 名称 | 类型 | 用途 |
+| --- | --- | --- |
+| `DEPLOY_HOST` | Secret | VPS 地址 |
+| `DEPLOY_USER` | Secret | SSH 用户 |
+| `DEPLOY_PATH` | Secret | VPS 上的仓库路径（如 `/opt/humanpulse`） |
+| `DEPLOY_SSH_KEY` | Secret | 部署用私钥（只授权该主机） |
+| `GHCR_TOKEN` | Secret | VPS 拉取私有镜像用的 PAT（`read:packages`） |
+| `DEPLOY_ENABLED` | **Variable** | 设为 `true` 才会在打 tag 后自动部署；默认不部署 |
+
+`GITHUB_TOKEN` 由 Actions 自动提供，用于推送镜像到 GHCR（workflow 已声明 `packages: write`）。
+
 ## 提交前自查清单
 
 - [ ] `make verify` 全绿
