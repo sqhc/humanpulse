@@ -19,17 +19,14 @@ dependencies = [
     "pgvector>=0.3",
     # 解析 infra/seed/sources.yaml
     "pyyaml>=6.0",
+    # RSS/Atom 解析：采集器的运行时必需项，故放在主依赖而非可选组
+    "feedparser>=6.0",
 ]
 
 [project.optional-dependencies]
 # 本地多语种向量模型（体积大：会拉 torch）；EMBEDDING_PROVIDER=local 时必须安装
 ml = [
     "sentence-transformers>=3.3",
-]
-# 采集器专用解析依赖（RSS/Atom）
-collect = [
-    "feedparser>=6.0",
-    "python-dateutil>=2.9",
 ]
 
 [dependency-groups]
