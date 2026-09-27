@@ -1,0 +1,149 @@
+{
+  "components": {
+    "schemas": {
+      "ComponentStatus": {
+        "properties": {
+          "detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detail"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "ok": {
+            "title": "Ok",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "name",
+          "ok"
+        ],
+        "title": "ComponentStatus",
+        "type": "object"
+      },
+      "HealthResponse": {
+        "properties": {
+          "env": {
+            "title": "Env",
+            "type": "string"
+          },
+          "service": {
+            "default": "humanpulse-api",
+            "title": "Service",
+            "type": "string"
+          },
+          "status": {
+            "const": "ok",
+            "default": "ok",
+            "title": "Status",
+            "type": "string"
+          },
+          "time": {
+            "description": "服务端 UTC 时间",
+            "format": "date-time",
+            "title": "Time",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "version",
+          "env",
+          "time"
+        ],
+        "title": "HealthResponse",
+        "type": "object"
+      },
+      "ReadyResponse": {
+        "properties": {
+          "components": {
+            "items": {
+              "$ref": "#/components/schemas/ComponentStatus"
+            },
+            "title": "Components",
+            "type": "array"
+          },
+          "status": {
+            "enum": [
+              "ready",
+              "degraded"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "components"
+        ],
+        "title": "ReadyResponse",
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "summary": "多源采集、AI 双语摘要与全球观察简报",
+    "title": "humanpulse API",
+    "version": "0.1.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/api/v1/health": {
+      "get": {
+        "operationId": "health_api_v1_health_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "存活探针",
+        "tags": [
+          "health"
+        ]
+      }
+    },
+    "/api/v1/ready": {
+      "get": {
+        "operationId": "ready_api_v1_ready_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReadyResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "503": {
+            "description": "依赖不可用"
+          }
+        },
+        "summary": "就绪探针（含数据库连通性）",
+        "tags": [
+          "health"
+        ]
+      }
+    }
+  }
+}

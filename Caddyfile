@@ -1,0 +1,24 @@
+# 生产入口：TLS + 静态站点 + API 反代
+# DOMAIN 由 docker-compose.prod.yml 从 .env 注入
+{$DOMAIN} {
+	encode zstd gzip
+
+	log {
+		output stdout
+		format console
+	}
+
+	handle /api/* {
+		reverse_proxy api:8000
+	}
+
+	handle {
+		reverse_proxy web:80
+	}
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+	}
+}

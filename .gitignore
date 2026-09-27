@@ -1,0 +1,39 @@
+# secrets & env
+.env
+.env.*
+!.env.example
+
+# python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+htmlcov/
+.coverage
+.uv-cache/
+uv.lock.bak
+
+# node
+node_modules/
+dist/
+dist-ssr/
+.vite/
+*.tsbuildinfo
+.eslintcache
+
+# runtime data
+uploads/
+ops/reports/
+*.dump
+pgdata/
+data/
+
+# os / editor
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json

@@ -1,0 +1,80 @@
+name: Deploy
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "要部署的镜像 tag（例如 v0.1.0）"
+        required: true
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: ghcr.io/${{ github.repository_owner }}/humanpulse
+
+jobs:
+  build-and-push:
+    name: 构建并推送镜像
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: 计算 tag
+        id: meta
+        run: echo "tag=${{ github.event.inputs.tag || github.ref_name }}" >> "$GITHUB_OUTPUT"
+      - name: 构建 api 镜像
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          push: true
+          tags: |
+            ${{ env.IMAGE_PREFIX }}-api:${{ steps.meta.outputs.tag }}
+            ${{ env.IMAGE_PREFIX }}-api:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: 构建 web 镜像
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./web/Dockerfile
+          push: true
+          tags: |
+            ${{ env.IMAGE_PREFIX }}-web:${{ steps.meta.outputs.tag }}
+            ${{ env.IMAGE_PREFIX }}-web:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    name: 部署到 VPS
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: [build-and-push]
+    # 默认不部署：在仓库 Settings → Variables 里把 DEPLOY_ENABLED 设为 true 才执行
+    if: vars.DEPLOY_ENABLED == 'true'
+    environment: production
+    steps:
+      - name: 通过 SSH 拉取镜像并重启
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script_stop: true
+          script: |
+            cd ${{ secrets.DEPLOY_PATH }}
+            git pull --ff-only
+            echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u ${{ github.repository_owner }} --password-stdin
+            TAG=${{ github.event.inputs.tag || github.ref_name }} docker compose -f docker-compose.prod.yml pull
+            TAG=${{ github.event.inputs.tag || github.ref_name }} docker compose -f docker-compose.prod.yml up -d --remove-orphans
+            docker compose -f docker-compose.prod.yml ps

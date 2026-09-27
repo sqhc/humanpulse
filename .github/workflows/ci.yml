@@ -1,0 +1,85 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: backend (ruff / mypy / pytest)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv python install 3.12
+      - run: uv sync --frozen
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+      - run: uv run mypy app
+      - run: uv run pytest
+
+  web:
+    name: web (eslint / tsc / vitest / build)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run lint
+      - run: pnpm run typecheck
+      - run: pnpm run test
+      - run: pnpm run build
+
+  contract:
+    name: openapi / api-client 无漂移
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: uv python install 3.12
+      - working-directory: backend
+        run: uv sync --frozen
+      - run: make openapi
+      - run: pnpm run api-client:generate
+      - name: 校验生成物与仓库一致
+        run: git diff --exit-code -- backend/openapi.json packages/api-client/src/generated
+
+  compose-smoke:
+    name: compose 冒烟
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: [backend]
+    steps:
+      - uses: actions/checkout@v4
+      - name: 准备 .env
+        run: cp .env.example .env
+      - name: 起栈并探活
+        run: make smoke
+      - name: 失败时输出日志
+        if: failure()
+        run: docker compose -f docker-compose.yml logs --tail=120 || true

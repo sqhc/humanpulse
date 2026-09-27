@@ -1,0 +1,154 @@
+# humanpulse 初始数据源清单
+# 由 `make seed` 导入（Phase 1 实现）。字段含义见 docs/adr/0002-data-source-policy.md。
+# license: 该源允许的用途；tier: 1=核心源 2=补充源 3=可选（需注册或有配额限制）
+
+defaults:
+  cadence_minutes: 60
+  enabled: true
+
+sources:
+  # ---- 通讯社 / 国际新闻（RSS/Atom，公开） ----
+  - name: Reuters World
+    kind: rss
+    url: https://www.reutersagency.com/feed/?best-topics=world&post_type=best
+    tier: 1
+    cadence_minutes: 30
+    license: 仅存元数据与短引用，附原文链接
+  - name: AP Top News
+    kind: rss
+    url: https://apnews.com/hub/ap-top-news?output=rss
+    tier: 1
+    cadence_minutes: 30
+    license: 仅存元数据与短引用，附原文链接
+  - name: Al Jazeera
+    kind: rss
+    url: https://www.aljazeera.com/xml/rss/all.xml
+    tier: 1
+    cadence_minutes: 30
+    license: 仅存元数据与短引用，附原文链接
+  - name: BBC World
+    kind: rss
+    url: https://feeds.bbci.co.uk/news/world/rss.xml
+    tier: 1
+    cadence_minutes: 30
+    license: 仅存元数据与短引用，附原文链接
+  - name: The Guardian World
+    kind: rss
+    url: https://www.theguardian.com/world/rss
+    tier: 2
+    cadence_minutes: 60
+    license: 仅存元数据与短引用，附原文链接
+  - name: DW Top Stories
+    kind: rss
+    url: https://rss.dw.com/rdf/rss-en-top
+    tier: 2
+    cadence_minutes: 60
+    license: 仅存元数据与短引用，附原文链接
+  - name: 新华网国际
+    kind: rss
+    url: http://www.xinhuanet.com/world/news_world.xml
+    tier: 2
+    cadence_minutes: 60
+    license: 仅存元数据与短引用，附原文链接
+  - name: 澎湃新闻
+    kind: rss
+    url: https://www.thepaper.cn/rss_newsDetail_25950.xml
+    tier: 3
+    cadence_minutes: 120
+    license: 仅存元数据与短引用，附原文链接
+
+  # ---- 科技 / 科学 ----
+  - name: Ars Technica
+    kind: rss
+    url: https://feeds.arstechnica.com/arstechnica/index
+    tier: 1
+    cadence_minutes: 120
+    license: 仅存元数据与短引用，附原文链接
+  - name: Nature News
+    kind: rss
+    url: https://www.nature.com/nature.rss
+    tier: 1
+    cadence_minutes: 360
+    license: 仅存元数据与短引用，附原文链接
+  - name: Science News
+    kind: rss
+    url: https://www.science.org/rss/news_current.xml
+    tier: 2
+    cadence_minutes: 360
+    license: 仅存元数据与短引用，附原文链接
+  - name: MIT Technology Review
+    kind: rss
+    url: https://www.technologyreview.com/feed/
+    tier: 2
+    cadence_minutes: 240
+    license: 仅存元数据与短引用，附原文链接
+  - name: Hacker News (front page)
+    kind: rss
+    url: https://hnrss.org/frontpage
+    tier: 3
+    cadence_minutes: 60
+    license: 公开聚合源
+
+  # ---- 人道 / 冲突数据（机构 API，免费） ----
+  - name: ReliefWeb Updates (OCHA)
+    kind: reliefweb
+    url: https://api.reliefweb.int/v1/reports
+    tier: 1
+    cadence_minutes: 120
+    params:
+      appname: humanpulse
+      profile: list
+      limit: 50
+      sort: "date:desc"
+    license: OCHA 公开 API，署名使用
+  - name: GDELT DOC 2.0 (conflict queries)
+    kind: gdelt
+    url: https://api.gdeltproject.org/api/v2/doc/doc
+    tier: 1
+    cadence_minutes: 60
+    params:
+      mode: artlist
+      format: json
+      maxrecords: 75
+      timespan: 60min
+      query: '(conflict OR ceasefire OR protest OR strike OR earthquake OR flood) sourcelang:english'
+    throttle_seconds: 5
+    license: GDELT 公开数据，引用 GDELT Project
+  - name: UCDP Georeferenced Events
+    kind: ucdp
+    url: https://ucdpapi.pcr.uu.se/api/gedevents/24.1
+    tier: 2
+    cadence_minutes: 1440
+    license: UCDP 公开数据，署名使用
+  # ACLED 需要注册获取 API key，且许可仅限非商业/研究用途；
+  # 若要启用，请在 .env 中配置 ACLED_API_KEY 并在 docs/adr/0002 记录用途。
+  # - name: ACLED
+  #   kind: acled
+  #   url: https://api.acleddata.com/acled/read
+  #   tier: 3
+  #   enabled: false
+  #   license: 非商业/研究用途
+
+  # ---- Phase 2 社交源（官方 API，需凭据） ----
+  # - name: Reddit r/worldnews
+  #   kind: reddit
+  #   url: https://oauth.reddit.com/r/worldnews/new
+  #   tier: 2
+  #   enabled: false
+  #   license: Reddit API 条款
+  # - name: Bluesky search
+  #   kind: bluesky
+  #   url: https://public.api.bsky.app/xrpc/app.bsky.feed.searchPosts
+  #   tier: 2
+  #   enabled: false
+  #   license: AT Protocol 公开接口
+  # - name: Mastodon (mastodon.social) tag timeline
+  #   kind: mastodon
+  #   url: https://mastodon.social/api/v1/timelines/tag/news
+  #   tier: 3
+  #   enabled: false
+  #   license: 实例公开 API
+
+# 明确不接入（政策原因）：
+# - X / Twitter：2025 起按量付费 API，未授权抓取有条款与法律风险；不在路线图内。
+# - 任何需要绕过 Cloudflare / 登录墙 / 反爬机制的抓取。
