@@ -1,0 +1,83 @@
+"""确定性假客户端：不联网，用于开发、CI 与离线演示。"""
+
+from __future__ import annotations
+
+import hashlib
+from decimal import Decimal
+
+from app.llm.base import AnalyzeResult, LlmUsage
+from app.llm.schema import AnalysisOut
+
+_TAGS = (
+    "conflict",
+    "science",
+    "labor",
+    "protest",
+    "policy",
+    "research",
+    "technology",
+    "rights",
+)
+_REGIONS = ("asia", "europe", "africa", "americas", "oceania", "global")
+
+
+def _collapse(text: str, limit: int) -> str:
+    """去掉换行与多余空白后截断，保证摘要稳定且单行可读。"""
+    flat = " ".join(text.split())
+    return flat[:limit]
+
+
+class FakeLlmClient:
+    """同名同文必得同果的确定性实现，保证测试与本地演示可复现。"""
+
+    provider = "fake"
+
+    def __init__(self, model: str = "fake") -> None:
+        self._model = model
+
+    async def analyze(
+        self,
+        *,
+        kind: str,
+        title: str,
+        text: str,
+        url: str,
+        model: str | None = None,
+    ) -> AnalyzeResult:
+        # 用内容哈希驱动所有派生结果，避免随机数或时间导致输出漂移。
+        seed = int.from_bytes(hashlib.sha256(text.encode("utf-8")).digest(), "big")
+        score = seed % 101
+
+        start = seed % len(_TAGS)
+        count = 2 + (seed >> 8) % 2
+        tags: list[str] = []
+        for offset in range(count):
+            tag = _TAGS[(start + offset) % len(_TAGS)]
+            if tag not in tags:
+                tags.append(tag)
+
+        # 可选 1 个地区，偶尔留空，让输出更接近真实模型的多样性。
+        regions: list[str] = []
+        if (seed >> 16) % 4 != 0:
+            regions.append(_REGIONS[(seed >> 24) % len(_REGIONS)])
+
+        entity_name = title.strip()[:20] or "unknown"
+        data = AnalysisOut(
+            relevant=True,
+            score=score,
+            summary_zh=_collapse(text, 60),
+            summary_en=_collapse(text, 60),
+            tags=tags,
+            regions=regions,
+            rationale=f"fake 客户端依据文本哈希生成的确定性结果（kind={kind}）",
+            # 传 dict 而非 EntityOut：schema 的 before 校验器只识别 str/dict。
+            entities=[{"name": entity_name, "kind": "event", "salience": 0.5}],
+        )
+        usage = LlmUsage(
+            provider=self.provider,
+            model=model or self._model,
+            tokens_in=max(1, len(text) // 4),
+            tokens_out=max(1, len(text) // 8),
+            cost_usd=Decimal(0),
+        )
+        return AnalyzeResult(data=data, usage=usage, repaired=False)

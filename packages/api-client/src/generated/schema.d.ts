@@ -4,6 +4,125 @@
  */
 
 export interface paths {
+    "/api/v1/admin/jobs/{job_name}/run": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 手动触发作业（管理员） */
+        post: operations["run_job_api_v1_admin_jobs__job_name__run_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 最近的采集批次（管理员） */
+        get: operations["list_runs_api_v1_admin_runs_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/usage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** LLM 用量与成本（管理员） */
+        get: operations["list_usage_api_v1_admin_usage_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/clusters": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 最近的聚类 */
+        get: operations["list_clusters_api_v1_clusters_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/clusters/{cluster_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 聚类详情 */
+        get: operations["get_cluster_api_v1_clusters__cluster_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/documents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Feed（游标分页） */
+        get: operations["list_documents_api_v1_documents_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/documents/{document_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 文档详情 */
+        get: operations["get_document_api_v1_documents__document_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/health": {
         parameters: {
             query?: never;
@@ -38,10 +157,158 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/sources": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 数据源列表 */
+        get: operations["list_sources_api_v1_sources_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sources/{source_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** 启用/停用或调整采集频率 */
+        patch: operations["update_source_api_v1_sources__source_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/takedown": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 提交内容删除/屏蔽申请 */
+        post: operations["create_takedown_api_v1_takedown_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/uploads": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 上传文本类材料（管理员） */
+        post: operations["upload_file_api_v1_uploads_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/uploads/text": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 粘贴文本入库（管理员） */
+        post: operations["upload_text_api_v1_uploads_text_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** Body_upload_file_api_v1_uploads_post */
+        Body_upload_file_api_v1_uploads_post: {
+            /**
+             * File
+             * @description txt / md / html / csv / json
+             */
+            file: string;
+            /** Note */
+            note?: string | null;
+            /**
+             * Rights Confirmed
+             * @default false
+             */
+            rights_confirmed: boolean;
+            /** Source Url */
+            source_url?: string | null;
+            /** Title */
+            title?: string | null;
+        };
+        /** ClusterDetailOut */
+        ClusterDetailOut: {
+            /** Canonical Document Id */
+            canonical_document_id?: number | null;
+            /** Doc Count */
+            doc_count: number;
+            /** Documents */
+            documents?: components["schemas"]["DocumentOut"][];
+            /**
+             * First Seen At
+             * Format: date-time
+             */
+            first_seen_at: string;
+            /** Id */
+            id: number;
+            /** Key Terms */
+            key_terms?: string[];
+            /**
+             * Last Seen At
+             * Format: date-time
+             */
+            last_seen_at: string;
+        };
+        /** ClusterOut */
+        ClusterOut: {
+            /** Canonical Document Id */
+            canonical_document_id?: number | null;
+            /** Doc Count */
+            doc_count: number;
+            /**
+             * First Seen At
+             * Format: date-time
+             */
+            first_seen_at: string;
+            /** Id */
+            id: number;
+            /** Key Terms */
+            key_terms?: string[];
+            /**
+             * Last Seen At
+             * Format: date-time
+             */
+            last_seen_at: string;
+        };
         /** ComponentStatus */
         ComponentStatus: {
             /** Detail */
@@ -50,6 +317,157 @@ export interface components {
             name: string;
             /** Ok */
             ok: boolean;
+        };
+        /** DocumentDetailOut */
+        DocumentDetailOut: {
+            /**
+             * Ai Generated
+             * @default true
+             */
+            ai_generated: boolean;
+            /** Author */
+            author?: string | null;
+            /** Canonical Url */
+            canonical_url: string;
+            /** Cluster Id */
+            cluster_id?: number | null;
+            /** Excerpt */
+            excerpt?: string | null;
+            /**
+             * Fetched At
+             * Format: date-time
+             */
+            fetched_at: string;
+            /** Id */
+            id: number;
+            /** Kind */
+            kind: string;
+            /** Language */
+            language?: string | null;
+            /** Published At */
+            published_at?: string | null;
+            /** Rationale */
+            rationale?: string | null;
+            /** Regions */
+            regions?: string[];
+            /** Rejection Reason */
+            rejection_reason?: string | null;
+            /** Score */
+            score?: number | null;
+            /**
+             * Siblings
+             * @description 同一 cluster 的其它报道（不同来源）
+             */
+            siblings?: components["schemas"]["DocumentOut"][];
+            /** Source Id */
+            source_id?: number | null;
+            /** Source Name */
+            source_name?: string | null;
+            /** Status */
+            status: string;
+            /** Summary En */
+            summary_en?: string | null;
+            /** Summary Zh */
+            summary_zh?: string | null;
+            /** Tags */
+            tags?: string[];
+            /** Title */
+            title: string;
+            /** Url */
+            url: string;
+        };
+        /** DocumentListOut */
+        DocumentListOut: {
+            /** Items */
+            items: components["schemas"]["DocumentOut"][];
+            /** Next Cursor */
+            next_cursor?: number | null;
+            /** Total Returned */
+            total_returned: number;
+        };
+        /** DocumentOut */
+        DocumentOut: {
+            /**
+             * Ai Generated
+             * @default true
+             */
+            ai_generated: boolean;
+            /** Author */
+            author?: string | null;
+            /** Canonical Url */
+            canonical_url: string;
+            /** Cluster Id */
+            cluster_id?: number | null;
+            /** Excerpt */
+            excerpt?: string | null;
+            /**
+             * Fetched At
+             * Format: date-time
+             */
+            fetched_at: string;
+            /** Id */
+            id: number;
+            /** Kind */
+            kind: string;
+            /** Language */
+            language?: string | null;
+            /** Published At */
+            published_at?: string | null;
+            /** Rationale */
+            rationale?: string | null;
+            /** Regions */
+            regions?: string[];
+            /** Rejection Reason */
+            rejection_reason?: string | null;
+            /** Score */
+            score?: number | null;
+            /** Source Id */
+            source_id?: number | null;
+            /** Source Name */
+            source_name?: string | null;
+            /** Status */
+            status: string;
+            /** Summary En */
+            summary_en?: string | null;
+            /** Summary Zh */
+            summary_zh?: string | null;
+            /** Tags */
+            tags?: string[];
+            /** Title */
+            title: string;
+            /** Url */
+            url: string;
+        };
+        /** FetchRunOut */
+        FetchRunOut: {
+            /** Error */
+            error?: string | null;
+            /** Finished At */
+            finished_at?: string | null;
+            /** Id */
+            id: number;
+            /** Items New */
+            items_new: number;
+            /** Items Rejected */
+            items_rejected: number;
+            /** Items Seen */
+            items_seen: number;
+            /** Source Id */
+            source_id: number;
+            /** Source Name */
+            source_name?: string | null;
+            /**
+             * Started At
+             * Format: date-time
+             */
+            started_at: string;
+            /** Status */
+            status: string;
+        };
+        /** HTTPValidationError */
+        HTTPValidationError: {
+            /** Detail */
+            detail?: components["schemas"]["ValidationError"][];
         };
         /** HealthResponse */
         HealthResponse: {
@@ -75,6 +493,48 @@ export interface components {
             /** Version */
             version: string;
         };
+        /** JobResultOut */
+        JobResultOut: {
+            /** Job */
+            job: string;
+            /** Stats */
+            stats: {
+                [key: string]: unknown;
+            };
+        };
+        /** LlmUsageOut */
+        LlmUsageOut: {
+            /** Calls */
+            calls: number;
+            /** Cost Usd */
+            cost_usd: number;
+            /** Day */
+            day: string;
+            /** Model */
+            model: string;
+            /** Provider */
+            provider: string;
+            /** Tokens In */
+            tokens_in: number;
+            /** Tokens Out */
+            tokens_out: number;
+        };
+        /** ManualTextIn */
+        ManualTextIn: {
+            /** Note */
+            note?: string | null;
+            /**
+             * Rights Confirmed
+             * @description 确认拥有该材料的收录权利
+             */
+            rights_confirmed: boolean;
+            /** Text */
+            text: string;
+            /** Title */
+            title: string;
+            /** Url */
+            url?: string | null;
+        };
         /** ReadyResponse */
         ReadyResponse: {
             /** Components */
@@ -85,6 +545,78 @@ export interface components {
              */
             status: "ready" | "degraded";
         };
+        /** SourceOut */
+        SourceOut: {
+            /** Cadence Minutes */
+            cadence_minutes: number;
+            /** Consecutive Failures */
+            consecutive_failures: number;
+            /** Enabled */
+            enabled: boolean;
+            /** Id */
+            id: number;
+            /** Kind */
+            kind: string;
+            /** Last Run At */
+            last_run_at?: string | null;
+            /** Last Status */
+            last_status?: string | null;
+            /** License Note */
+            license_note?: string | null;
+            /** Name */
+            name: string;
+            /** Tier */
+            tier: number;
+            /** Url */
+            url: string;
+        };
+        /** SourceUpdate */
+        SourceUpdate: {
+            /** Cadence Minutes */
+            cadence_minutes?: number | null;
+            /** Enabled */
+            enabled?: boolean | null;
+            /** Tier */
+            tier?: number | null;
+        };
+        /** TakedownIn */
+        TakedownIn: {
+            /** Reason */
+            reason: string;
+            /** Requester */
+            requester?: string | null;
+            /** Target Url */
+            target_url: string;
+        };
+        /** TakedownOut */
+        TakedownOut: {
+            /** Id */
+            id: number;
+            /** Status */
+            status: string;
+        };
+        /** UploadResultOut */
+        UploadResultOut: {
+            /** Document Id */
+            document_id: number;
+            /** Status */
+            status: string;
+            /** Upload Id */
+            upload_id: number;
+        };
+        /** ValidationError */
+        ValidationError: {
+            /** Context */
+            ctx?: Record<string, never>;
+            /** Input */
+            input?: unknown;
+            /** Location */
+            loc: (string | number)[];
+            /** Message */
+            msg: string;
+            /** Error Type */
+            type: string;
+        };
     };
     responses: never;
     parameters: never;
@@ -94,6 +626,246 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    run_job_api_v1_admin_jobs__job_name__run_post: {
+        parameters: {
+            query?: {
+                /** @description 忽略 cadence 立即采集 */
+                force?: boolean;
+                limit?: number | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+            };
+            path: {
+                job_name: "collect" | "process";
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobResultOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_runs_api_v1_admin_runs_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FetchRunOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_usage_api_v1_admin_usage_get: {
+        parameters: {
+            query?: {
+                days?: number;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LlmUsageOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_clusters_api_v1_clusters_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                min_docs?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClusterOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_cluster_api_v1_clusters__cluster_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                cluster_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClusterDetailOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_documents_api_v1_documents_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                /** @description 上一页最后一条的 id */
+                cursor?: number | null;
+                status?: string;
+                lang?: string | null;
+                kind?: string | null;
+                tag?: string | null;
+                region?: string | null;
+                min_score?: number | null;
+                cluster_id?: number | null;
+                since?: string | null;
+                until?: string | null;
+                q?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentListOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_document_api_v1_documents__document_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                document_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentDetailOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     health_api_v1_health_get: {
         parameters: {
             query?: never;
@@ -138,6 +910,177 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    list_sources_api_v1_sources_get: {
+        parameters: {
+            query?: {
+                enabled_only?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SourceOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_source_api_v1_sources__source_id__patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-API-Key"?: string | null;
+            };
+            path: {
+                source_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SourceUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SourceOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_takedown_api_v1_takedown_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TakedownIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TakedownOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    upload_file_api_v1_uploads_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-API-Key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_upload_file_api_v1_uploads_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UploadResultOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    upload_text_api_v1_uploads_text_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-API-Key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ManualTextIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UploadResultOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
             };
         };
     };

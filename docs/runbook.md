@@ -39,6 +39,23 @@ docker compose -f docker-compose.prod.yml ps
 
 DNS：把 `DOMAIN` 的 A 记录指向 VPS 公网 IP，Caddy 会自动申请证书（需 80/443 可达）。
 
+执行数据库迁移（每次部署新版本后都要跑）：
+
+```bash
+docker compose -f docker-compose.prod.yml exec api python -m app.cli migrate
+# 首次导入数据源清单：
+cp infra/seed/sources.yaml /tmp/ && docker compose -f docker-compose.prod.yml exec api \
+  sh -lc 'python -m app.cli seed --file /tmp/sources.yaml' 2>/dev/null || \
+  echo "提示：镜像内没有 infra/，可在宿主机执行 make seed（需能连到数据库）"
+```
+
+冒烟自检（不联网、不花钱，用合成数据验证整条流水线）：
+
+```bash
+docker compose -f docker-compose.prod.yml exec -T -e LLM_PROVIDER=fake -e EMBEDDING_PROVIDER=hash \
+  api python -m app.cli demo
+```
+
 ## 3. 发布与回滚
 
 发布：
@@ -53,7 +70,7 @@ ssh vps 'cd /opt/humanpulse && TAG=v0.1.0 make deploy'
 ```bash
 ssh vps 'cd /opt/humanpulse && TAG=v0.0.9 make deploy'
 # 若 schema 也需回退（极少见）：
-docker compose -f docker-compose.prod.yml exec api alembic downgrade -1
+docker compose -f docker-compose.prod.yml exec api python -m app.cli migrate --downgrade -1
 ```
 
 > 数据库迁移前务必先备份；`downgrade` 不可逆地丢数据。

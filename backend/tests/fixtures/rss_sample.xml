@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>Sample Feed</title>
+    <link>https://example.com/</link>
+    <description>测试用 RSS 源</description>
+    <item>
+      <title>First &amp; Foremost</title>
+      <link>https://example.com/a</link>
+      <description><![CDATA[<p>Hello <b>world</b> from <a href="https://example.com">us</a>.</p>]]></description>
+      <author>alice@example.com (Alice)</author>
+      <pubDate>Mon, 01 Jan 2024 12:00:00 GMT</pubDate>
+    </item>
+    <item>
+      <title>No link here</title>
+      <description>这条缺少 link，应被跳过</description>
+      <pubDate>Tue, 02 Jan 2024 12:00:00 GMT</pubDate>
+    </item>
+    <item>
+      <title>Third Entry</title>
+      <link>https://example.com/c</link>
+      <description><![CDATA[<div>Plain <i>italic</i> text</div>]]></description>
+      <pubDate>Wed, 03 Jan 2024 08:30:00 GMT</pubDate>
+    </item>
+  </channel>
+</rss>

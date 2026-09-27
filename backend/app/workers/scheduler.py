@@ -1,38 +1,66 @@
-"""后台 worker 入口。
+"""后台 worker：内置间隔调度（无额外依赖）。
 
-Phase 0 只维持进程存活（无任务注册）；Phase 1 起接入 APScheduler：
-采集、处理、日报/周报分别注册为独立任务。
+Phase 1 只需要"每 N 分钟跑一次"的语义；需要 cron 表达式或分布式调度时再换 APScheduler。
 """
 
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import signal
+from collections.abc import Awaitable, Callable
 
 import structlog
 
 from app.config import get_settings
+from app.db import session_scope
 from app.logging import configure_logging
+from app.workers.jobs import collect_all, run_process
 
-IDLE_SECONDS = 60.0
+log = structlog.get_logger("worker")
+
+
+async def _loop(
+    name: str,
+    interval_seconds: float,
+    job: Callable[[], Awaitable[None]],
+    stop: asyncio.Event,
+) -> None:
+    """按固定间隔执行作业；异常只记录，不终止循环。"""
+    while not stop.is_set():
+        try:
+            await job()
+        except Exception as exc:
+            log.error("worker.job_failed", job=name, error=str(exc)[:300])
+        with contextlib.suppress(TimeoutError):
+            await asyncio.wait_for(stop.wait(), timeout=interval_seconds)
 
 
 async def main() -> None:
     settings = get_settings()
     configure_logging(settings.log_level)
-    log = structlog.get_logger("worker")
-
     stop = asyncio.Event()
     loop = asyncio.get_running_loop()
     for sig in (signal.SIGINT, signal.SIGTERM):
         loop.add_signal_handler(sig, stop.set)
 
-    log.info("worker.start", jobs=[])
-    while not stop.is_set():
-        try:
-            await asyncio.wait_for(stop.wait(), timeout=IDLE_SECONDS)
-        except TimeoutError:
-            log.debug("worker.idle")
+    async def collect_job() -> None:
+        async with session_scope() as session:
+            await collect_all(session)
+
+    async def process_job() -> None:
+        async with session_scope() as session:
+            await run_process(session)
+
+    log.info(
+        "worker.start",
+        collect_interval_minutes=settings.collect_interval_minutes,
+        process_interval_minutes=settings.process_interval_minutes,
+    )
+    await asyncio.gather(
+        _loop("collect", settings.collect_interval_minutes * 60, collect_job, stop),
+        _loop("process", settings.process_interval_minutes * 60, process_job, stop),
+    )
     log.info("worker.stop")
 
 

@@ -3,8 +3,17 @@ SHELL := /bin/bash
 
 BACKEND := backend
 
+# 受限文件沙箱下，uv 与 buildx 的默认缓存目录（~/.cache/uv、~/.docker/buildx）不可写，
+# 统一重定向到仓库内 .cache/（已 gitignore）。需要时可覆盖：UV_CACHE_DIR=/x make verify
+CACHE_ROOT := $(CURDIR)/.cache
+UV_CACHE_DIR ?= $(CACHE_ROOT)/uv
+BUILDX_CONFIG ?= $(CACHE_ROOT)/buildx
+export UV_CACHE_DIR
+export BUILDX_CONFIG
+
 .PHONY: help doctor bootstrap install lint typecheck test build verify openapi \
-        migrate seed dev dev-web logs dev-down smoke prod-config deploy restore-drill clean
+        migrate seed demo dev dev-web logs dev-down smoke collect-once prod-config deploy \
+        restore-drill clean
 
 help: ## 显示所有可用命令
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2}'
@@ -49,11 +58,14 @@ compose-config: .env ## 校验 compose 文件语法
 verify: lint typecheck test build compose-config ## 上传前必须全绿
 	@echo "verify 全部通过"
 
-migrate: ## 执行数据库迁移
-	cd $(BACKEND) && uv run alembic upgrade head
+migrate: ## 执行数据库迁移（alembic upgrade head）
+	cd $(BACKEND) && uv run python -m app.cli migrate
 
-seed: ## 导入 infra/seed/sources.yaml 中的源（Phase 1）
+seed: ## 导入 infra/seed/sources.yaml 中的源
 	cd $(BACKEND) && uv run python -m app.cli seed --file ../infra/seed/sources.yaml
+
+demo: ## 用合成数据跑通采集→处理→聚类（不联网、不花钱）
+	cd $(BACKEND) && uv run python -m app.cli demo
 
 dev: ## 启动本地依赖服务（db + api + worker）
 	docker compose up -d --wait db api worker
@@ -69,6 +81,11 @@ dev-down: ## 停止本地服务
 
 smoke: ## 起栈 → 探活 → 收栈
 	@bash scripts/smoke.sh
+
+collect-once: ## 手动触发一次采集（需栈已起，且在环境中导出 ADMIN_API_KEY）
+	curl -fsS -X POST -H "X-API-Key: ${ADMIN_API_KEY:?请先导出 ADMIN_API_KEY}" \
+		"http://localhost:${API_PORT:-8000}/api/v1/admin/jobs/collect/run?force=true"
+	@echo
 
 prod-config: ## 渲染生产 compose（需 .env 中的 DOMAIN/TAG）
 	docker compose -f docker-compose.prod.yml config

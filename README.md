@@ -2,7 +2,7 @@
 
 > 一个观察人类冲突、科学技术发展与全球社会运动的追踪平台：多源采集 → 去重 → AI 双语摘要与评分 → 聚类 → 日报/周报 → Web 阅读。
 
-当前状态：**Phase 0（骨架）**。后端提供健康检查与配置骨架，前端提供可运行的阅读外壳，采集/摘要流水线自 Phase 1 起接入。
+当前状态：**Phase 1（后端闭环已可用）**。采集（RSS/GDELT/手动上传）→ SimHash 前置去重 → DeepSeek 双语摘要与评分 → 向量去重/聚类 → 读取接口全部打通，并有离线冒烟验证；Web 仍是最初的阅读外壳，Feed 页面接入是下一步。
 
 - 数据源政策：[docs/adr/0002-data-source-policy.md](docs/adr/0002-data-source-policy.md)
 - 架构决策：[docs/adr/](docs/adr/)
@@ -19,7 +19,8 @@ ReliefWeb/       DeepSeek 双语摘要+评分+标签 →   ├─ Web (React + V
 ```
 
 - 后端是唯一数据源；所有客户端复用同一份 REST 契约与 `packages/api-client` 生成的类型。
-- 存储：PostgreSQL + pgvector（文章、向量、简报同库）。
+- 存储：PostgreSQL + pgvector（文章、向量、聚类同库）。
+- 处理流水线每一步幂等可重跑：`documents.status` 走 `pending → enriched / rejected / deduped / failed`。
 - 部署：单台 VPS + docker compose + Caddy（[ADR-0004](docs/adr/0004-deployment.md)）。
 
 ## 快速开始
@@ -38,6 +39,8 @@ open http://localhost:8000/api/v1/health
 cd backend && uv sync && uv run uvicorn app.main:app --reload
 ```
 
+> 受限沙箱环境下，`make` 会把 uv / buildx 缓存重定向到仓库内 `.cache/`（说明见 [docs/contributing.md](docs/contributing.md)）。
+
 ## 常用命令
 
 | 命令 | 说明 |
@@ -45,11 +48,34 @@ cd backend && uv sync && uv run uvicorn app.main:app --reload
 | `make doctor` | 检查 uv / pnpm / node / docker / .env / 端口 |
 | `make bootstrap` | 安装依赖并准备 `.env` |
 | `make dev` / `make dev-web` | 起后端依赖服务 / 前端开发服务器 |
-| `make smoke` | 整套起栈 → 探活 `/api/v1/health` → 收栈 |
+| `make smoke` | 起栈 → 迁移 → 合成数据跑通流水线 → 校验读取接口 → 收栈（不联网） |
 | `make lint` / `typecheck` / `test` | 分别运行检查 |
 | `make verify` | **上传前必须全绿**：lint + typecheck + test + build + compose 校验 |
 | `make openapi` | 导出 `backend/openapi.json`（供 api-client 生成类型） |
-| `make migrate` | 执行 Alembic 迁移 |
+| `make migrate` | 执行 Alembic 迁移（`alembic upgrade head`） |
+| `make seed` | 把 `infra/seed/sources.yaml` 的源写入数据库 |
+| `make demo` | 用合成数据跑通采集→处理→聚类（`LLM_PROVIDER=fake`、不花钱） |
+| `make collect-once` | 手动触发一次真实采集（需栈已起并导出 `ADMIN_API_KEY`） |
+
+切到真实模型：在 `.env` 里把 `LLM_PROVIDER` 设为 `deepseek`（默认）并填好 `DEEPSEEK_API_KEY`；
+需要真正的语义向量时执行 `uv sync --extra ml` 并把 `EMBEDDING_PROVIDER` 改成 `local`——默认的 `hash` 只用于开发与 CI，语义能力弱。
+
+## API 一览（`/api/v1`）
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| GET | `/health`、`/ready` | 存活 / 就绪（含数据库连通性） |
+| GET | `/documents` | Feed：游标分页，可按 `status/lang/kind/tag/region/min_score/cluster_id/since/until/q` 过滤 |
+| GET | `/documents/{id}` | 详情：摘要、评分、标签 + 同一 cluster 的其它来源报道 |
+| GET | `/clusters`、`/clusters/{id}` | 聚类列表与详情（同一事件的多来源覆盖） |
+| GET | `/sources` | 数据源列表 |
+| PATCH | `/sources/{id}` | 启用/停用、调整采集频率（需 `X-API-Key`） |
+| POST | `/uploads`、`/uploads/text` | 手动上传文件 / 粘贴文本（需 `X-API-Key`，须确认收录权利） |
+| POST | `/admin/jobs/{collect,process}/run` | 手动触发采集或处理（需 `X-API-Key`） |
+| GET | `/admin/runs`、`/admin/usage` | 采集批次记录 / LLM 用量与成本（需 `X-API-Key`） |
+| POST | `/takedown` | 提交内容删除/屏蔽申请 |
+
+交互式文档：`http://localhost:8000/docs`。
 
 ## 目录结构
 
@@ -79,7 +105,7 @@ scripts/           doctor / smoke / deploy / restore-drill
 
 | 阶段 | 内容 | 状态 |
 | --- | --- | --- |
-| Phase 0 | 骨架、CI、compose、ADR、GitHub 仓库 | 进行中 |
-| Phase 1 | 数据模型、RSS/GDELT/手动上传、SimHash + DeepSeek 摘要 + 向量去重、Feed/详情 | 待开始 |
+| Phase 0 | 骨架、CI、compose、ADR、GitHub 仓库 | 已完成 |
+| Phase 1 | 数据模型、RSS/GDELT/手动上传、SimHash + DeepSeek 摘要 + 向量去重与聚类、读取接口 | 后端已完成；Web Feed 接入待做 |
 | Phase 2 | 日报/周报、管理台、Reddit/Bluesky/Mastodon/ReliefWeb、SSE、VPS 上线 | 待开始 |
 | Phase 3 | 视频简报、移动端、实体时间线、语义搜索、深度调查 agent | 待开始 |

@@ -1,0 +1,24 @@
+{
+  "articles": [
+    {
+      "url": "https://example.com/one",
+      "title": "GDELT One",
+      "seendate": "20260101T120000Z",
+      "domain": "example.com",
+      "language": "English"
+    },
+    {
+      "url": "https://example.com/two",
+      "title": "GDELT Two",
+      "seendate": "not-a-timestamp",
+      "domain": "example.org",
+      "language": "Chinese"
+    },
+    {
+      "title": "GDELT missing url",
+      "seendate": "20260101T130000Z",
+      "domain": "example.net",
+      "language": "English"
+    }
+  ]
+}

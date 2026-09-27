@@ -1,0 +1,224 @@
+"""DeepSeek Chat Completions 客户端：结构化分析 + 一次修复重试。"""
+
+from __future__ import annotations
+
+import json
+import os
+from decimal import Decimal, InvalidOperation
+from typing import Any
+
+import httpx
+from pydantic import ValidationError
+
+from app.config import Settings, get_settings
+from app.llm.base import AnalyzeResult, LlmError, LlmUsage
+from app.llm.prompts import load_prompt
+from app.llm.schema import AnalysisOut
+
+
+class _OutputError(RuntimeError):
+    """内部异常：模型输出无法解析为 AnalysisOut，用于触发一次修复重试。
+
+    故意不继承 LlmError，避免修复前的失败被当成最终错误直接抛出。
+    """
+
+
+def _to_int(value: object) -> int:
+    """把 OpenAI 兼容响应里的 token 计数安全地转成 int。"""
+    if isinstance(value, bool):
+        return 0
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float):
+        return int(value)
+    return 0
+
+
+def _price_per_million(env_name: str) -> Decimal:
+    """读取每百万 token 的美元单价；未配置或非法时按 0 处理。
+
+    单价必须按官方定价核对后通过环境变量注入，本项目不硬编码任何价格，
+    以免厂商调价后成本统计失真。
+    """
+    raw = os.environ.get(env_name, "").strip()
+    if not raw:
+        return Decimal(0)
+    try:
+        price = Decimal(raw)
+    except InvalidOperation:
+        return Decimal(0)
+    return price if price > 0 else Decimal(0)
+
+
+def _truncate(value: str, limit: int = 300) -> str:
+    """截断长文本，避免把整段模型输出原样写进日志或异常信息。"""
+    return value if len(value) <= limit else value[:limit] + "…"
+
+
+def _brief_validation_error(exc: ValidationError) -> str:
+    """把 pydantic 校验错误压缩成一行中文可读摘要。"""
+    parts: list[str] = []
+    for error in exc.errors()[:3]:
+        loc = ".".join(str(item) for item in error["loc"])
+        parts.append(f"{loc}: {error['msg']}")
+    return "; ".join(parts) or "未知校验错误"
+
+
+class DeepSeekClient:
+    """基于 DeepSeek /chat/completions 的分析客户端。"""
+
+    provider = "deepseek"
+
+    def __init__(
+        self,
+        settings: Settings | None = None,
+        *,
+        client: httpx.AsyncClient | None = None,
+    ) -> None:
+        self._settings = settings or get_settings()
+        # api key 为空不在构造时抛错，方便健康检查等场景先实例化；调用时再报错。
+        self._api_key = self._settings.deepseek_api_key.strip()
+        self._base_url = self._settings.deepseek_base_url.rstrip("/")
+        # 注入的 client 由调用方负责关闭（测试用 MockTransport）；未注入时按需创建。
+        self._client = client
+
+    async def analyze(
+        self,
+        *,
+        kind: str,
+        title: str,
+        text: str,
+        url: str,
+        model: str | None = None,
+    ) -> AnalyzeResult:
+        if not self._api_key:
+            raise LlmError(
+                "未配置 DEEPSEEK_API_KEY，无法调用 deepseek；请设置后重试或改用 fake provider"
+            )
+        chosen_model = model or self._settings.llm_model_bulk
+        # 模板用 str.format 填充，故 md 中除 {title}/{url}/{text} 外的花括号需双写。
+        prompt = load_prompt(kind).format(title=title, url=url, text=text)
+        messages: list[dict[str, str]] = [
+            {"role": "system", "content": prompt},
+            {"role": "user", "content": f"标题：{title}\n链接：{url}\n正文：\n{text}"},
+        ]
+
+        tokens_in = 0
+        tokens_out = 0
+        raw_output = ""
+        first_reason = ""
+        try:
+            raw_output, call_in, call_out = await self._chat(messages, chosen_model)
+            tokens_in += call_in
+            tokens_out += call_out
+            data = self._parse_output(raw_output)
+        except _OutputError as exc:
+            first_reason = str(exc)
+        except LlmError as exc:
+            first_reason = str(exc)
+        else:
+            return AnalyzeResult(
+                data=data,
+                usage=self._usage(chosen_model, tokens_in, tokens_out),
+                repaired=False,
+            )
+
+        # 只修复一次：把原始输出与错误摘要拼进新的 user 消息再请求。
+        repair_messages: list[dict[str, str]] = [
+            messages[0],
+            {
+                "role": "user",
+                "content": (
+                    f"{messages[1]['content']}\n\n"
+                    "上一次回复无法通过 JSON 校验。\n"
+                    f"错误摘要：{_truncate(first_reason)}\n"
+                    "请严格只输出一个 JSON 对象，不要 markdown 代码块，不要解释。\n"
+                    "上一次回复内容：\n"
+                    f"{_truncate(raw_output, 2000)}"
+                ),
+            },
+        ]
+        try:
+            raw_output, call_in, call_out = await self._chat(repair_messages, chosen_model)
+            tokens_in += call_in
+            tokens_out += call_out
+            data = self._parse_output(raw_output)
+        except (_OutputError, LlmError) as exc:
+            raise LlmError(
+                "deepseek 两次调用均失败："
+                f"首次原因={_truncate(first_reason)}；修复后原因={_truncate(str(exc))}"
+            ) from exc
+        return AnalyzeResult(
+            data=data,
+            usage=self._usage(chosen_model, tokens_in, tokens_out),
+            repaired=True,
+        )
+
+    async def _chat(self, messages: list[dict[str, str]], model: str) -> tuple[str, int, int]:
+        """发一次请求并取回 (content, prompt_tokens, completion_tokens)。"""
+        payload: dict[str, Any] = {
+            "model": model,
+            "messages": messages,
+            "response_format": {"type": "json_object"},
+            "temperature": 0.2,
+        }
+        url = f"{self._base_url}/chat/completions"
+        headers = {"Authorization": f"Bearer {self._api_key}"}
+        try:
+            response = await self._post(url, payload, headers)
+        except httpx.HTTPError as exc:
+            # 只暴露异常类型，避免把可能含 key 的请求细节带进对外信息。
+            raise LlmError(f"请求 deepseek 失败：{type(exc).__name__}") from exc
+        if response.status_code >= 400:
+            raise LlmError(
+                f"deepseek 返回 HTTP {response.status_code}：{_truncate(response.text, 200)}"
+            )
+        try:
+            body: Any = response.json()
+        except ValueError as exc:
+            raise LlmError("deepseek 响应不是合法 JSON") from exc
+        try:
+            content = body["choices"][0]["message"]["content"]
+            usage = body.get("usage") or {}
+            tokens_in = _to_int(usage.get("prompt_tokens"))
+            tokens_out = _to_int(usage.get("completion_tokens"))
+        except (KeyError, IndexError, TypeError) as exc:
+            raise LlmError("deepseek 响应缺少 choices[0].message.content") from exc
+        if not isinstance(content, str) or not content.strip():
+            raise LlmError("deepseek 返回了空的 message.content")
+        return content, tokens_in, tokens_out
+
+    async def _post(
+        self, url: str, payload: dict[str, Any], headers: dict[str, str]
+    ) -> httpx.Response:
+        if self._client is not None:
+            return await self._client.post(url, json=payload, headers=headers)
+        async with httpx.AsyncClient(timeout=self._settings.llm_timeout_seconds) as client:
+            return await client.post(url, json=payload, headers=headers)
+
+    def _parse_output(self, content: str) -> AnalysisOut:
+        """严格解析模型输出：只接受裸 JSON 对象，markdown 代码块等一律视为失败。"""
+        try:
+            payload = json.loads(content.strip())
+        except json.JSONDecodeError as exc:
+            raise _OutputError(f"输出不是合法 JSON（{exc.msg}）") from exc
+        if not isinstance(payload, dict):
+            raise _OutputError("输出 JSON 顶层必须是对象")
+        try:
+            return AnalysisOut.model_validate(payload)
+        except ValidationError as exc:
+            raise _OutputError(f"输出字段校验失败：{_brief_validation_error(exc)}") from exc
+
+    def _usage(self, model: str, tokens_in: int, tokens_out: int) -> LlmUsage:
+        price_in = _price_per_million("DEEPSEEK_PRICE_IN")
+        price_out = _price_per_million("DEEPSEEK_PRICE_OUT")
+        cost = (Decimal(tokens_in) * price_in + Decimal(tokens_out) * price_out) / Decimal(
+            1_000_000
+        )
+        return LlmUsage(
+            provider=self.provider,
+            model=model,
+            tokens_in=tokens_in,
+            tokens_out=tokens_out,
+            cost_usd=cost,
+        )

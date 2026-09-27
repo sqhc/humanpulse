@@ -15,15 +15,18 @@ dependencies = [
     "httpx>=0.27",
     "structlog>=24.4",
     "python-multipart>=0.0.12",
+    # pgvector 的 Python 绑定很小（纯类型适配），向量列与 HNSW 索引都依赖它
+    "pgvector>=0.3",
+    # 解析 infra/seed/sources.yaml
+    "pyyaml>=6.0",
 ]
 
 [project.optional-dependencies]
-# Phase 1 起使用：本地向量化（体积较大，按需安装）
+# 本地多语种向量模型（体积大：会拉 torch）；EMBEDDING_PROVIDER=local 时必须安装
 ml = [
     "sentence-transformers>=3.3",
-    "pgvector>=0.3",
 ]
-# 采集器专用解析依赖
+# 采集器专用解析依赖（RSS/Atom）
 collect = [
     "feedparser>=6.0",
     "python-dateutil>=2.9",

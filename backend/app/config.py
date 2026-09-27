@@ -29,23 +29,41 @@ class Settings(BaseSettings):
     # 数据库
     database_url: str = "postgresql+asyncpg://humanpulse:humanpulse@localhost:5432/humanpulse"
 
-    # LLM（Phase 1 起使用）
+    # LLM（模型名以 GET /models 实测为准，见 .env.example 注释）
+    llm_provider: str = "deepseek"  # deepseek | fake
     deepseek_api_key: str = ""
     deepseek_base_url: str = "https://api.deepseek.com"
-    llm_model_bulk: str = "deepseek-chat"
-    llm_model_brief: str = "deepseek-reasoner"
+    llm_model_bulk: str = "deepseek-flash"
+    llm_model_brief: str = "deepseek-v4-pro"
+    llm_timeout_seconds: float = Field(default=120.0, gt=0)
     llm_daily_token_budget: int = 2_000_000
 
-    # 流水线（Phase 1 起使用）
+    # 流水线
     store_fulltext: bool = False
     simhash_hamming_threshold: int = Field(default=3, ge=0, le=32)
     vector_dup_threshold: float = Field(default=0.85, ge=0.0, le=1.0)
     vector_dup_threshold_hot: float = Field(default=0.80, ge=0.0, le=1.0)
+    vector_dup_window_hours: int = Field(default=24, gt=0)
+    # hash = 无需下载模型的确定性向量（开发/CI 用，语义能力弱）
+    # local = sentence-transformers 多语种模型（生产用，需安装 ml 额外依赖）
+    embedding_provider: str = "hash"  # hash | local
     embedding_model: str = "paraphrase-multilingual-MiniLM-L12-v2"
+    embedding_dim: int = Field(default=384, gt=0)
 
     # 采集
     collector_user_agent: str = "humanpulse/0.1 (+https://github.com/sqhc/humanpulse)"
     http_proxy: str = ""
+    collector_timeout_seconds: float = Field(default=20.0, gt=0)
+    rss_max_items_per_feed: int = Field(default=30, gt=0)
+    gdelt_max_records: int = Field(default=75, gt=0)
+    gdelt_throttle_seconds: float = Field(default=5.0, ge=0)
+    uploads_dir: str = "uploads"
+    max_upload_mb: int = Field(default=25, gt=0)
+
+    # 后台 worker（内置间隔调度）
+    collect_interval_minutes: int = Field(default=30, gt=0)
+    process_interval_minutes: int = Field(default=2, gt=0)
+    process_batch_size: int = Field(default=20, gt=0)
 
     # 简报
     brief_timezone: str = "UTC"

@@ -9,7 +9,9 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /app
 
 COPY pyproject.toml uv.lock ./
-RUN uv sync --frozen --no-install-project --no-dev
+# collect 额外依赖（feedparser）是采集器的运行时必需项，必须装进镜像；
+# ml（sentence-transformers）保持可选，需要语义向量时再加 --extra ml
+RUN uv sync --frozen --no-install-project --no-dev --extra collect
 
 COPY app ./app
 COPY alembic.ini ./alembic.ini

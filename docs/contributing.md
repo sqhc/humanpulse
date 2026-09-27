@@ -52,12 +52,23 @@ pnpm run api-client:generate        # 重新生成 packages/api-client/src/gener
 
 ### 关于 DSH 的 GitHub MCP 连接
 
-当前该连接所用的 token 权限有限：**创建仓库返回 403**、**访问本私有仓库返回 404**。
-因此：
+权限已升级：现在可读取本私有仓库（commits / branches / 文件内容）。
+建仓仍走本机 REST（keychain 里的 classic PAT，作用域 `repo`、`workflow`），MCP 用于日常查看与管理。
 
-- 建仓与推送走本机 git / REST（凭据同上）；
-- 若要用 MCP 工具管理 issues、PR、分支，需要给该连接换用具备 `repo` 作用域的 token，或把对应 GitHub App 安装到本仓库；
-- 在此之前，issue/PR 操作可继续用 `git` + GitHub 网页端完成。
+### 受限沙箱下的缓存重定向
+
+在 workspace-write 沙箱里，`uv` 与 `docker buildx` 会尝试写 `~/.cache/uv`、`~/.docker/buildx`，
+这两个路径在写入白名单外会被拒绝。`Makefile` 因此把两者重定向到仓库内的 `.cache/`：
+
+```make
+UV_CACHE_DIR ?= $(CURDIR)/.cache/uv
+BUILDX_CONFIG ?= $(CURDIR)/.cache/buildx
+export UV_CACHE_DIR
+export BUILDX_CONFIG
+```
+
+- 两处都已在 `.gitignore` 中；可用 `UV_CACHE_DIR=/path make verify` 覆盖。
+- GitHub Actions 运行器没有该限制，因此 CI 配置里不需要任何相关设置。
 
 ### CI/CD 需要的 Secrets 与 Variables
 

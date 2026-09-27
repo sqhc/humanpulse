@@ -14,7 +14,9 @@ venv/
 *.egg-info/
 htmlcov/
 .coverage
+.cache/
 .uv-cache/
+.buildx/
 uv.lock.bak
 
 # node

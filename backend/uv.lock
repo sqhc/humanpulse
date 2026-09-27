@@ -514,9 +514,11 @@ dependencies = [
     { name = "asyncpg" },
     { name = "fastapi" },
     { name = "httpx" },
+    { name = "pgvector" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
     { name = "python-multipart" },
+    { name = "pyyaml" },
     { name = "sqlalchemy", extra = ["asyncio"] },
     { name = "structlog" },
     { name = "uvicorn", extra = ["standard"] },
@@ -528,7 +530,6 @@ collect = [
     { name = "python-dateutil" },
 ]
 ml = [
-    { name = "pgvector" },
     { name = "sentence-transformers" },
 ]
 
@@ -547,11 +548,12 @@ requires-dist = [
     { name = "fastapi", specifier = ">=0.115" },
     { name = "feedparser", marker = "extra == 'collect'", specifier = ">=6.0" },
     { name = "httpx", specifier = ">=0.27" },
-    { name = "pgvector", marker = "extra == 'ml'", specifier = ">=0.3" },
+    { name = "pgvector", specifier = ">=0.3" },
     { name = "pydantic", specifier = ">=2.9" },
     { name = "pydantic-settings", specifier = ">=2.6" },
     { name = "python-dateutil", marker = "extra == 'collect'", specifier = ">=2.9" },
     { name = "python-multipart", specifier = ">=0.0.12" },
+    { name = "pyyaml", specifier = ">=6.0" },
     { name = "sentence-transformers", marker = "extra == 'ml'", specifier = ">=3.3" },
     { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0.36" },
     { name = "structlog", specifier = ">=24.4" },

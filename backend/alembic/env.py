@@ -9,7 +9,9 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from alembic import context
 from app.config import get_settings
-from app.models.base import Base
+
+# 必须导入 app.models，Base.metadata 才包含全部表
+from app.models import Base
 
 config = context.config
 

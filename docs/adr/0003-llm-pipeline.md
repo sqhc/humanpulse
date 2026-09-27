@@ -49,5 +49,13 @@
 
 ## 后果
 
-- 需要本地算力（首次会下载数百 MB 模型）；`ml` 依赖组按需安装。
 - 早于 LLM 的去重省 token，但也可能误杀改写幅度大的同源报道——用 `rejection_reason` 保留可审计痕迹，阈值可调。
+- 聚类以"最先入库且评分最高者为 canonical"起步；评分变化后的重选举留到 Phase 2。
+
+## 实施记录（Phase 1）
+
+1. **模型名以实测为准**：`GET https://api.deepseek.com/models` 返回 `deepseek-flash`（V4.1-Flash，1M 上下文，支持图片输入）与 `deepseek-v4-pro`（V4-Pro）。文档初稿里的 `deepseek-chat`/`deepseek-reasoner` 已全部替换。单价不硬编码，用 `DEEPSEEK_PRICE_IN`/`DEEPSEEK_PRICE_OUT` 注入，未填则成本记 0。
+2. **向量提供方做成可切换**：`EMBEDDING_PROVIDER=hash` 用确定性哈希向量，无需下载模型，供开发/CI 使用；`local` 才是多语种 sentence-transformers 模型（需 `uv sync --extra ml`）。CI 冒烟固定用 `hash` + `LLM_PROVIDER=fake`，因此**CI 不联网、不产生费用**。hash 向量没有语义能力，不能据此评估去重质量——阈值标定必须在 `local` 下做。
+3. **实体表延后**：`entities`/`entity_mentions` 暂不建表，实体先以 JSONB 存在 `analyses.entities`；等 Phase 3 做实体时间线时再拆表并回填。这样避免在实体归一规则未定时锁死 schema。
+4. **不引入 APScheduler**：Phase 1 只需要固定间隔语义，worker 用内置 asyncio 循环实现（`app/workers/scheduler.py`），少一个依赖、行为可测；需要 cron 表达式或分布式调度时再替换。
+5. **SimHash 候选集在 Python 内比对**：只取近 3 天、最多 5000 条指纹。数据量上去后需改成数据库侧 popcount 或专用索引，否则会成为瓶颈。
