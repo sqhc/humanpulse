@@ -120,3 +120,28 @@ class LlmUsageOut(BaseModel):
     tokens_in: int
     tokens_out: int
     cost_usd: float
+
+
+class BriefListItem(BaseModel):
+    id: int
+    kind: str
+    period_start: datetime
+    period_end: datetime
+    title: str
+    model: str
+    created_at: datetime
+    item_count: int = 0
+
+
+class BriefOut(BaseModel):
+    id: int
+    kind: str
+    period_start: datetime
+    period_end: datetime
+    language: str
+    title: str
+    markdown: str
+    structured: dict[str, object] = Field(default_factory=dict)
+    model: str
+    created_at: datetime
+    item_count: int = 0

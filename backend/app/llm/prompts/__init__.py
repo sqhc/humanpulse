@@ -11,7 +11,21 @@ _DEFAULT_KIND = "news"
 # 只有这里登记的 kind 才会被直接读取，其余一律回退 news，避免路径拼接出意外文件。
 _KNOWN_KINDS = frozenset({"news", "discussion", "report"})
 
-__all__ = ["PROMPT_VERSION", "load_prompt"]
+__all__ = ["PROMPT_VERSION", "load_prompt", "load_template"]
+
+
+def load_template(name: str) -> str:
+    """按文件名读取任意模板（简报等非逐条分析场景）。
+
+    与 load_prompt 的区别：**不做 kind 回退**，找不到就报错——
+    否则简报模板会被悄悄替换成 news.md，导致 format 时缺字段（实测踩过）。
+    """
+    if not name or "/" in name or "\\" in name or name.startswith("."):
+        raise ValueError(f"非法的模板名：{name!r}")
+    path = _PROMPT_DIR / f"{name}.md"
+    if not path.is_file():
+        raise FileNotFoundError(f"提示词模板不存在：{path}")
+    return path.read_text(encoding="utf-8")
 
 
 def load_prompt(kind: str) -> str:

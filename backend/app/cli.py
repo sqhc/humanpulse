@@ -287,6 +287,19 @@ def cmd_demo(args: argparse.Namespace) -> int:
     return 0
 
 
+async def _brief(force: bool) -> dict[str, Any]:
+    from app.db import session_scope
+    from app.workers.jobs import run_brief
+
+    async with session_scope() as session:
+        return await run_brief(session, force=force)
+
+
+def cmd_brief(args: argparse.Namespace) -> int:
+    print(json.dumps(asyncio.run(_brief(args.force)), ensure_ascii=False))
+    return 0
+
+
 def cmd_reembed(args: argparse.Namespace) -> int:
     print(json.dumps(asyncio.run(_reembed()), ensure_ascii=False))
     return 0
@@ -315,6 +328,10 @@ def build_parser() -> argparse.ArgumentParser:
 
     reembed = sub.add_parser("reembed", help="用当前向量模型重新嵌入并重建聚类（幂等）")
     reembed.set_defaults(func=cmd_reembed)
+
+    brief_parser = sub.add_parser("brief", help="生成日报（默认当天已有则跳过）")
+    brief_parser.add_argument("--force", action="store_true")
+    brief_parser.set_defaults(func=cmd_brief)
 
     migrate = sub.add_parser("migrate", help="执行数据库迁移到 head")
     migrate.set_defaults(func=cmd_migrate)

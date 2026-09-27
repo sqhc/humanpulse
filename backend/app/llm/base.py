@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from decimal import Decimal
-from typing import Protocol
+from typing import Any, Protocol
 
 from app.llm.schema import AnalysisOut
 
@@ -43,6 +43,12 @@ class LlmClient(Protocol):
         self, *, kind: str, title: str, text: str, url: str, model: str | None = None
     ) -> AnalyzeResult:
         """把一条内容变成结构化分析；失败应抛 LlmError 而不是返回半成品。"""
+        ...
+
+    async def complete_json(
+        self, *, kind: str, system: str, user: str, model: str | None = None
+    ) -> tuple[dict[str, Any], LlmUsage, bool]:
+        """通用 JSON 调用（简报组稿等），返回 (payload, usage, repaired)。"""
         ...
 
 

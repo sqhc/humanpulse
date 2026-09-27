@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 from decimal import Decimal
+from typing import Any
 
 from app.llm.base import AnalyzeResult, LlmUsage
 from app.llm.schema import AnalysisOut
@@ -81,3 +82,52 @@ class FakeLlmClient:
             cost_usd=Decimal(0),
         )
         return AnalyzeResult(data=data, usage=usage, repaired=False)
+
+    async def complete_json(
+        self,
+        *,
+        kind: str,
+        system: str,
+        user: str,
+        model: str | None = None,
+    ) -> tuple[dict[str, Any], LlmUsage, bool]:
+        """确定性假简报：结构合法但不读正文，供 CI 与离线演示使用。"""
+        if kind == "brief":
+            payload: dict[str, Any] = {
+                "title_zh": "fake 日报（离线演示）",
+                "title_en": "fake daily brief (offline demo)",
+                "overview_zh": "这是一份由 fake 客户端生成的确定性日报，用于 CI 与离线演示。",
+                "overview_en": (
+                    "Deterministic brief produced by the fake client for CI and offline demos."
+                ),
+                "sections": [
+                    {
+                        "key": "conflict",
+                        "heading_zh": "冲突与安全",
+                        "heading_en": "Conflict & security",
+                        "bullets_zh": ["素材中存在冲突类记录（fake 客户端不读正文）。"],
+                        "bullets_en": [
+                            "Conflict-related records were present (contents not read)."
+                        ],
+                    },
+                    {
+                        "key": "science",
+                        "heading_zh": "科技与科学",
+                        "heading_en": "Science & technology",
+                        "bullets_zh": ["素材中存在科技类记录（fake 客户端不读正文）。"],
+                        "bullets_en": ["Science-related records were present (contents not read)."],
+                    },
+                ],
+                "closing_zh": "",
+                "closing_en": "",
+            }
+        else:
+            payload = {"kind": kind, "note": "fake 客户端只实现了 brief"}
+        usage = LlmUsage(
+            provider=self.provider,
+            model=model or self._model,
+            tokens_in=max(1, len(user) // 4),
+            tokens_out=64,
+            cost_usd=Decimal(0),
+        )
+        return payload, usage, False

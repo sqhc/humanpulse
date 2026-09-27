@@ -1,9 +1,10 @@
-"""DeepSeek Chat Completions 客户端：结构化分析 + 一次修复重试。"""
+"""DeepSeek Chat Completions 客户端：结构化输出 + 一次修复重试。"""
 
 from __future__ import annotations
 
 import json
 import os
+from collections.abc import Callable
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
@@ -17,7 +18,7 @@ from app.llm.schema import AnalysisOut
 
 
 class _OutputError(RuntimeError):
-    """内部异常：模型输出无法解析为 AnalysisOut，用于触发一次修复重试。
+    """内部异常：模型输出无法解析，用于触发一次修复重试。
 
     故意不继承 LlmError，避免修复前的失败被当成最终错误直接抛出。
     """
@@ -65,7 +66,7 @@ def _brief_validation_error(exc: ValidationError) -> str:
 
 
 class DeepSeekClient:
-    """基于 DeepSeek /chat/completions 的分析客户端。"""
+    """基于 DeepSeek /chat/completions 的客户端（逐条分析 + 通用 JSON 调用）。"""
 
     provider = "deepseek"
 
@@ -91,10 +92,7 @@ class DeepSeekClient:
         url: str,
         model: str | None = None,
     ) -> AnalyzeResult:
-        if not self._api_key:
-            raise LlmError(
-                "未配置 DEEPSEEK_API_KEY，无法调用 deepseek；请设置后重试或改用 fake provider"
-            )
+        self._require_key()
         chosen_model = model or self._settings.llm_model_bulk
         # 模板用 str.format 填充，故 md 中除 {title}/{url}/{text} 外的花括号需双写。
         prompt = load_prompt(kind).format(title=title, url=url, text=text)
@@ -102,28 +100,59 @@ class DeepSeekClient:
             {"role": "system", "content": prompt},
             {"role": "user", "content": f"标题：{title}\n链接：{url}\n正文：\n{text}"},
         ]
+        payload, usage, repaired = await self._call_with_repair(
+            messages, chosen_model, self._parse_analysis
+        )
+        return AnalyzeResult(
+            data=AnalysisOut.model_validate(payload), usage=usage, repaired=repaired
+        )
 
+    async def complete_json(
+        self,
+        *,
+        kind: str,
+        system: str,
+        user: str,
+        model: str | None = None,
+    ) -> tuple[dict[str, Any], LlmUsage, bool]:
+        """通用 JSON 调用：简报组稿等非逐条分析场景用（默认走更强的 brief 模型）。"""
+        self._require_key()
+        chosen_model = model or self._settings.llm_model_brief
+        messages: list[dict[str, str]] = [
+            {"role": "system", "content": system},
+            {"role": "user", "content": user},
+        ]
+        return await self._call_with_repair(messages, chosen_model, self._parse_object)
+
+    def _require_key(self) -> None:
+        if not self._api_key:
+            raise LlmError(
+                "未配置 DEEPSEEK_API_KEY，无法调用 deepseek；请设置后重试或改用 fake provider"
+            )
+
+    async def _call_with_repair(
+        self,
+        messages: list[dict[str, str]],
+        model: str,
+        parse: Callable[[str], dict[str, Any]],
+    ) -> tuple[dict[str, Any], LlmUsage, bool]:
+        """调用一次；解析失败时把错误摘要回灌，再试一次。"""
         tokens_in = 0
         tokens_out = 0
         raw_output = ""
         first_reason = ""
         try:
-            raw_output, call_in, call_out = await self._chat(messages, chosen_model)
+            raw_output, call_in, call_out = await self._chat(messages, model)
             tokens_in += call_in
             tokens_out += call_out
-            data = self._parse_output(raw_output)
+            payload = parse(raw_output)
         except _OutputError as exc:
             first_reason = str(exc)
         except LlmError as exc:
             first_reason = str(exc)
         else:
-            return AnalyzeResult(
-                data=data,
-                usage=self._usage(chosen_model, tokens_in, tokens_out),
-                repaired=False,
-            )
+            return payload, self._usage(model, tokens_in, tokens_out), False
 
-        # 只修复一次：把原始输出与错误摘要拼进新的 user 消息再请求。
         repair_messages: list[dict[str, str]] = [
             messages[0],
             {
@@ -133,26 +162,21 @@ class DeepSeekClient:
                     "上一次回复无法通过 JSON 校验。\n"
                     f"错误摘要：{_truncate(first_reason)}\n"
                     "请严格只输出一个 JSON 对象，不要 markdown 代码块，不要解释。\n"
-                    "上一次回复内容：\n"
-                    f"{_truncate(raw_output, 2000)}"
+                    f"上一次回复内容：\n{_truncate(raw_output, 2000)}"
                 ),
             },
         ]
         try:
-            raw_output, call_in, call_out = await self._chat(repair_messages, chosen_model)
+            raw_output, call_in, call_out = await self._chat(repair_messages, model)
             tokens_in += call_in
             tokens_out += call_out
-            data = self._parse_output(raw_output)
+            payload = parse(raw_output)
         except (_OutputError, LlmError) as exc:
             raise LlmError(
-                "deepseek 两次调用均失败："
-                f"首次原因={_truncate(first_reason)}；修复后原因={_truncate(str(exc))}"
+                f"deepseek 两次调用均失败：首次原因={_truncate(first_reason)}；"
+                f"修复后原因={_truncate(str(exc))}"
             ) from exc
-        return AnalyzeResult(
-            data=data,
-            usage=self._usage(chosen_model, tokens_in, tokens_out),
-            repaired=True,
-        )
+        return payload, self._usage(model, tokens_in, tokens_out), True
 
     async def _chat(self, messages: list[dict[str, str]], model: str) -> tuple[str, int, int]:
         """发一次请求并取回 (content, prompt_tokens, completion_tokens)。"""
@@ -162,8 +186,8 @@ class DeepSeekClient:
             "response_format": {"type": "json_object"},
             "temperature": 0.2,
         }
-        url = f"{self._base_url}/chat/completions"
-        headers = {"Authorization": f"Bearer {self._api_key}"}
+        url = self._base_url + "/chat/completions"
+        headers = {"Authorization": "Bearer " + self._api_key}
         try:
             response = await self._post(url, payload, headers)
         except httpx.HTTPError as exc:
@@ -196,7 +220,7 @@ class DeepSeekClient:
         async with httpx.AsyncClient(timeout=self._settings.llm_timeout_seconds) as client:
             return await client.post(url, json=payload, headers=headers)
 
-    def _parse_output(self, content: str) -> AnalysisOut:
+    def _parse_object(self, content: str) -> dict[str, Any]:
         """严格解析模型输出：只接受裸 JSON 对象，markdown 代码块等一律视为失败。"""
         try:
             payload = json.loads(content.strip())
@@ -204,8 +228,12 @@ class DeepSeekClient:
             raise _OutputError(f"输出不是合法 JSON（{exc.msg}）") from exc
         if not isinstance(payload, dict):
             raise _OutputError("输出 JSON 顶层必须是对象")
+        return payload
+
+    def _parse_analysis(self, content: str) -> dict[str, Any]:
+        payload = self._parse_object(content)
         try:
-            return AnalysisOut.model_validate(payload)
+            return AnalysisOut.model_validate(payload).model_dump()
         except ValidationError as exc:
             raise _OutputError(f"输出字段校验失败：{_brief_validation_error(exc)}") from exc
 

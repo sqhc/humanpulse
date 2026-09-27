@@ -13,6 +13,27 @@ export type DocumentListOut = components["schemas"]["DocumentListOut"];
 export type DocumentDetailOut = components["schemas"]["DocumentDetailOut"];
 export type ClusterOut = components["schemas"]["ClusterOut"];
 export type SourceOut = components["schemas"]["SourceOut"];
+export type BriefOut = components["schemas"]["BriefOut"];
+export type BriefListItem = components["schemas"]["BriefListItem"];
+
+/** 结构化简报内容（由服务端渲染 Markdown，前端按语言取字段）。 */
+export interface BriefSection {
+  key: string;
+  heading_zh: string;
+  heading_en: string;
+  bullets_zh: string[];
+  bullets_en: string[];
+}
+
+export interface BriefContentShape {
+  title_zh?: string;
+  title_en?: string;
+  overview_zh?: string;
+  overview_en?: string;
+  sections?: BriefSection[];
+  closing_zh?: string;
+  closing_en?: string;
+}
 
 /** Feed 查询参数（来自 OpenAPI 的 query 定义）。 */
 export type DocumentQuery = NonNullable<
@@ -87,6 +108,17 @@ export function createClient(options: ClientOptions = {}) {
     ) => request<ClusterOut[]>(`/api/v1/clusters${toQueryString(params)}`, { signal }),
     listSources: ({ signal }: RequestOptions = {}) =>
       request<SourceOut[]>("/api/v1/sources", { signal }),
+    /** 最新一期简报；后端还没有生成过时返回 null（404）。 */
+    getLatestBrief: async (kind = "daily", { signal }: RequestOptions = {}) => {
+      try {
+        return await request<BriefOut>(`/api/v1/briefs/latest?kind=${kind}`, { signal });
+      } catch (error) {
+        if (error instanceof ApiError && error.status === 404) {
+          return null;
+        }
+        throw error;
+      }
+    },
   };
 }
 

@@ -71,6 +71,10 @@ class Settings(BaseSettings):
     process_batch_size: int = Field(default=20, gt=0)
 
     # 简报
+    # 日报：几点生成、时间窗多长、最多选多少条素材（同一 cluster 只留一条代表）
+    brief_hour: int = Field(default=6, ge=0, le=23)
+    brief_lookback_hours: int = Field(default=24, gt=0, le=168)
+    brief_top_items: int = Field(default=12, gt=0, le=40)
     brief_timezone: str = "UTC"
     brief_daily_cron: str = "0 6 * * *"
 

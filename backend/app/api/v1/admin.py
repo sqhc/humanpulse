@@ -15,7 +15,7 @@ from app.models.document import FetchRun
 from app.models.ops import LlmUsageDay
 from app.models.source import Source
 from app.schemas.content import FetchRunOut, JobResultOut, LlmUsageOut
-from app.workers.jobs import collect_all, run_process
+from app.workers.jobs import collect_all, run_brief, run_process
 
 router = APIRouter(prefix="/admin")
 
@@ -24,16 +24,19 @@ SessionDep = Annotated[AsyncSession, Depends(get_session)]
 
 @router.post("/jobs/{job_name}/run", response_model=JobResultOut, summary="手动触发作业（管理员）")
 async def run_job(
-    job_name: Literal["collect", "process"],
+    job_name: Literal["collect", "process", "brief"],
     session: SessionDep,
     _admin: AdminDep,
     force: Annotated[bool, Query(description="忽略 cadence 立即采集")] = False,
     limit: Annotated[int | None, Query(ge=1, le=200)] = None,
 ) -> JobResultOut:
+    stats: dict[str, object]
     if job_name == "collect":
         stats = (await collect_all(session, force=force)).model_dump()
-    else:
+    elif job_name == "process":
         stats = (await run_process(session, limit=limit)).model_dump()
+    else:
+        stats = await run_brief(session, force=force)
     return JobResultOut(job=job_name, stats=stats)
 
 

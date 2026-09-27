@@ -4,6 +4,12 @@ export interface Messages {
   tagline: string;
   navFeed: string;
   navAbout: string;
+  navBriefs: string;
+  briefEmpty: string;
+  briefPeriod: string;
+  briefItems: string;
+  briefRaw: string;
+  briefNotice: string;
   feedTitle: string;
   aiSummaryNotice: string;
   filterLanguage: string;
@@ -56,6 +62,12 @@ export const messages: Record<Lang, Messages> = {
     tagline: "多源采集 · AI 双语摘要 · 全球观察",
     navFeed: "Feed",
     navAbout: "关于与方法",
+    navBriefs: "日报",
+    briefEmpty: "还没有生成日报。用 make brief 或等待 worker 到点自动生成。",
+    briefPeriod: "统计区间",
+    briefItems: "素材条数",
+    briefRaw: "查看 Markdown 原文",
+    briefNotice: "日报由大模型依据已筛选记录生成，可能存在错误；请以引用的原文为准。",
     feedTitle: "最新记录",
     aiSummaryNotice: "以下摘要与评分由大模型生成并标注，原文链接见详情页。",
     filterLanguage: "语言",
@@ -116,6 +128,14 @@ export const messages: Record<Lang, Messages> = {
     tagline: "Multi-source ingestion · bilingual AI briefs · global observation",
     navFeed: "Feed",
     navAbout: "About & method",
+    navBriefs: "Daily brief",
+    briefEmpty: "No brief has been generated yet. Run make brief, or wait for the worker.",
+    briefPeriod: "Period",
+    briefItems: "Items",
+    briefRaw: "View raw Markdown",
+    briefNotice: (
+      "The brief is AI-generated from filtered records and may contain errors; always check the linked originals."
+    ),
     feedTitle: "Latest records",
     aiSummaryNotice: "Summaries and scores below are AI-generated and labelled; original links are on the detail page.",
     filterLanguage: "Language",

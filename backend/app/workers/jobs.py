@@ -9,6 +9,7 @@ import structlog
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.briefs.daily import generate_daily_brief
 from app.collectors import get_collector
 from app.config import get_settings
 from app.models.document import FetchRun
@@ -112,6 +113,13 @@ async def collect_all(
 
     log.info("collect.done", **stats.model_dump(exclude={"per_source"}))
     return stats
+
+
+async def run_brief(session: AsyncSession, *, force: bool = False) -> dict[str, object]:
+    """生成日报。默认幂等（当天已有则跳过）；force=True 时强制作一份新的。"""
+    result = await generate_daily_brief(session, force=force)
+    await session.commit()
+    return result.as_dict()
 
 
 async def run_process(session: AsyncSession, *, limit: int | None = None) -> ProcessRunStats:

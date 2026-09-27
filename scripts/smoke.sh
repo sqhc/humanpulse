@@ -49,8 +49,12 @@ echo "== 合成数据跑通采集 → 处理 → 聚类 =="
 DEMO_JSON=$($COMPOSE exec -T -e LLM_PROVIDER=fake -e EMBEDDING_PROVIDER=hash api python -m app.cli demo | tail -1)
 echo "$DEMO_JSON"
 
+echo "== 生成日报（fake LLM，不联网）=="
+BRIEF_JSON=$($COMPOSE exec -T -e LLM_PROVIDER=fake -e EMBEDDING_PROVIDER=hash api python -m app.cli brief --force | tail -1)
+echo "$BRIEF_JSON"
+
 echo "== 校验读取接口 =="
-API_BASE="$BASE" DEMO_JSON="$DEMO_JSON" python3 - <<'PY'
+API_BASE="$BASE" DEMO_JSON="$DEMO_JSON" BRIEF_JSON="$BRIEF_JSON" python3 - <<'PY'
 import json
 import os
 import urllib.parse
@@ -58,6 +62,7 @@ import urllib.request
 
 base = os.environ["API_BASE"]
 demo = json.loads(os.environ["DEMO_JSON"])
+brief_job = json.loads(os.environ["BRIEF_JSON"])
 
 assert demo["ingest"]["new"] >= 2, f"采集未产生新文档: {demo}"
 assert demo["ingest"]["near_duplicate"] >= 1, f"SimHash 未拦截镜像: {demo}"
@@ -68,6 +73,11 @@ assert demo["clusters"] >= 1, f"未产生聚类: {demo}"
 def get(path: str):
     with urllib.request.urlopen(base + path, timeout=20) as resp:
         return json.load(resp)
+
+
+def get_text(path: str) -> str:
+    with urllib.request.urlopen(base + path, timeout=20) as resp:
+        return resp.read().decode("utf-8")
 
 
 documents = get("/documents?limit=5")
@@ -91,6 +101,21 @@ if tag:
     filtered = get(f"/documents?limit=5&tag={urllib.parse.quote(tag)}")
     assert filtered["total_returned"] >= 1, f"按标签过滤失败: {tag}"
 
+assert brief_job["created"] is True, f"日报未生成: {brief_job}"
+assert brief_job["item_count"] >= 2, f"日报素材不足: {brief_job}"
+
+brief = get("/briefs/latest")
+assert brief["markdown"].startswith("#"), "日报缺少标题"
+assert "## 来源清单" in brief["markdown"], "日报缺少来源清单"
+assert brief["structured"].get("sections"), "日报缺少结构化分组"
+
+english = get_text(f"/briefs/{brief['id']}/markdown?language=en")
+assert english.startswith("#"), "英文重渲染失败"
+assert "## Sources" in english or "## " in english, "英文重渲染缺少分组"
+
+briefs = get("/briefs?kind=daily&limit=5")
+assert len(briefs) >= 1, "简报列表为空"
+
 print(
     "接口校验通过：",
     {
@@ -98,6 +123,7 @@ print(
         "clusters": len(clusters),
         "sources": len(sources),
         "top_score": first["score"],
+        "brief_items": brief["item_count"],
         "ingest": demo["ingest"],
     },
 )

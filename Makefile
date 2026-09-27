@@ -14,7 +14,7 @@ TORCH_HOME ?= $(CACHE_ROOT)/torch
 export UV_CACHE_DIR BUILDX_CONFIG HF_HOME TORCH_HOME
 
 .PHONY: help doctor bootstrap install ml lint typecheck test build verify openapi \
-        migrate seed demo reembed dev dev-web logs dev-down smoke collect-once prod-config deploy \
+        migrate seed demo reembed brief dev dev-web logs dev-down smoke collect-once prod-config deploy \
         restore-drill clean
 
 help: ## 显示所有可用命令
@@ -71,6 +71,9 @@ seed: ## 导入 infra/seed/sources.yaml 中的源
 
 demo: ## 用合成数据跑通采集→处理→聚类（不联网、不花钱）
 	cd $(BACKEND) && uv run python -m app.cli demo
+
+brief: ## 生成日报（默认当天已有则跳过；FORCE=1 强制重跑）
+	cd $(BACKEND) && uv run python -m app.cli brief $(if $(FORCE),--force,)
 
 reembed: ## 用当前向量模型重新嵌入并重建聚类（需 uv sync --extra ml）
 	cd $(BACKEND) && uv run python -m app.cli reembed

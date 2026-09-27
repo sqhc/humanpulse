@@ -9,13 +9,14 @@ import asyncio
 import contextlib
 import signal
 from collections.abc import Awaitable, Callable
+from datetime import UTC, datetime
 
 import structlog
 
 from app.config import get_settings
 from app.db import session_scope
 from app.logging import configure_logging
-from app.workers.jobs import collect_all, run_process
+from app.workers.jobs import collect_all, run_brief, run_process
 
 log = structlog.get_logger("worker")
 
@@ -52,14 +53,23 @@ async def main() -> None:
         async with session_scope() as session:
             await run_process(session)
 
+    async def brief_job() -> None:
+        # 到点之后每 15 分钟探一次；生成函数本身幂等（当天已有就跳过）
+        if datetime.now(UTC).hour < settings.brief_hour:
+            return
+        async with session_scope() as session:
+            await run_brief(session)
+
     log.info(
         "worker.start",
         collect_interval_minutes=settings.collect_interval_minutes,
         process_interval_minutes=settings.process_interval_minutes,
+        brief_hour=settings.brief_hour,
     )
     await asyncio.gather(
         _loop("collect", settings.collect_interval_minutes * 60, collect_job, stop),
         _loop("process", settings.process_interval_minutes * 60, process_job, stop),
+        _loop("brief", 900.0, brief_job, stop),
     )
     log.info("worker.stop")
 
