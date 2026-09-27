@@ -1,6 +1,12 @@
 # humanpulse 初始数据源清单
-# 由 `make seed` 导入（Phase 1 实现）。字段含义见 docs/adr/0002-data-source-policy.md。
-# license: 该源允许的用途；tier: 1=核心源 2=补充源 3=可选（需注册或有配额限制）
+# 由 `make seed` 导入（按 name upsert；加 --prune 会把清单外的源停用）。
+#
+# 2026-09 逐个 curl 实测（结论见 docs/data-sources.md）：
+#   * 可用：下面 rss / gdelt 条目
+#   * 已移除：Reuters（feed 404）、AP（403）、澎湃（rss 404）、
+#     新华网 rss（返回 200 但是 2022 年的静态 XML，且无 pubDate——靠 max_item_age_days 也拦不住）
+#   * 需注册：ReliefWeb v2 要求 approved appname、ACLED 限非商业 → 默认关闭
+#   * 无采集器：UCDP → 默认关闭，等实现 collector 再启用
 
 defaults:
   cadence_minutes: 60
@@ -8,18 +14,6 @@ defaults:
 
 sources:
   # ---- 通讯社 / 国际新闻（RSS/Atom，公开） ----
-  - name: Reuters World
-    kind: rss
-    url: https://www.reutersagency.com/feed/?best-topics=world&post_type=best
-    tier: 1
-    cadence_minutes: 30
-    license: 仅存元数据与短引用，附原文链接
-  - name: AP Top News
-    kind: rss
-    url: https://apnews.com/hub/ap-top-news?output=rss
-    tier: 1
-    cadence_minutes: 30
-    license: 仅存元数据与短引用，附原文链接
   - name: Al Jazeera
     kind: rss
     url: https://www.aljazeera.com/xml/rss/all.xml
@@ -31,6 +25,24 @@ sources:
     url: https://feeds.bbci.co.uk/news/world/rss.xml
     tier: 1
     cadence_minutes: 30
+    license: 仅存元数据与短引用，附原文链接
+  - name: France 24
+    kind: rss
+    url: https://www.france24.com/en/rss
+    tier: 1
+    cadence_minutes: 30
+    license: 仅存元数据与短引用，附原文链接
+  - name: UN News
+    kind: rss
+    url: https://news.un.org/feed/subscribe/en/news/all/rss.xml
+    tier: 1
+    cadence_minutes: 60
+    license: 联合国公开新闻源，署名使用
+  - name: NPR World
+    kind: rss
+    url: https://feeds.npr.org/1004/rss.xml
+    tier: 2
+    cadence_minutes: 60
     license: 仅存元数据与短引用，附原文链接
   - name: The Guardian World
     kind: rss
@@ -44,18 +56,49 @@ sources:
     tier: 2
     cadence_minutes: 60
     license: 仅存元数据与短引用，附原文链接
-  - name: 新华网国际
+
+  # ---- 中文源 ----
+  - name: BBC 中文
     kind: rss
-    url: http://www.xinhuanet.com/world/news_world.xml
+    url: https://feeds.bbci.co.uk/zhongwen/simp/rss.xml
     tier: 2
     cadence_minutes: 60
     license: 仅存元数据与短引用，附原文链接
-  - name: 澎湃新闻
+  - name: 纽约时报中文网
     kind: rss
-    url: https://www.thepaper.cn/rss_newsDetail_25950.xml
+    url: https://cn.nytimes.com/rss/
+    tier: 2
+    cadence_minutes: 60
+    license: 仅存元数据与短引用，附原文链接
+  - name: RFI 中文
+    kind: rss
+    url: https://www.rfi.fr/cn/rss
     tier: 3
     cadence_minutes: 120
     license: 仅存元数据与短引用，附原文链接
+  - name: RFA 中文
+    kind: rss
+    url: https://www.rfa.org/mandarin/rss2.xml
+    tier: 3
+    cadence_minutes: 120
+    license: 仅存元数据与短引用，附原文链接
+
+  # ---- 冲突 / 人道 / 人权（议题专用） ----
+  - name: Crisis Group
+    kind: rss
+    url: https://www.crisisgroup.org/rss.xml
+    tier: 1
+    cadence_minutes: 180
+    license: 仅存元数据与短引用，附原文链接
+  # Amnesty 的 RSS 走 Cloudflare：curl 能拿到 200，但 Python httpx 客户端稳定 403
+  # （TLS 指纹被判定为非浏览器）。按 ADR-0002 不做事反爬绕过，因此停用。
+  - name: Amnesty International
+    kind: rss
+    url: https://www.amnesty.org/en/rss/
+    tier: 2
+    enabled: false
+    cadence_minutes: 240
+    license: 仅存元数据与短引用，附原文链接；Cloudflare 会拒绝非浏览器客户端
 
   # ---- 科技 / 科学 ----
   - name: Ars Technica
@@ -64,7 +107,7 @@ sources:
     tier: 1
     cadence_minutes: 120
     license: 仅存元数据与短引用，附原文链接
-  - name: Nature News
+  - name: Nature
     kind: rss
     url: https://www.nature.com/nature.rss
     tier: 1
@@ -82,73 +125,73 @@ sources:
     tier: 2
     cadence_minutes: 240
     license: 仅存元数据与短引用，附原文链接
+  - name: Rest of World
+    kind: rss
+    url: https://restofworld.org/feed/latest/
+    tier: 2
+    cadence_minutes: 240
+    license: 仅存元数据与短引用，附原文链接
+
+  # ---- 开发者社区（低权重） ----
   - name: Hacker News (front page)
     kind: rss
     url: https://hnrss.org/frontpage
     tier: 3
-    cadence_minutes: 60
+    cadence_minutes: 120
     license: 公开聚合源
 
-  # ---- 人道 / 冲突数据（机构 API，免费） ----
-  - name: ReliefWeb Updates (OCHA)
-    kind: reliefweb
-    url: https://api.reliefweb.int/v1/reports
-    tier: 1
-    cadence_minutes: 120
-    params:
-      appname: humanpulse
-      profile: list
-      limit: 50
-      sort: "date:desc"
-    license: OCHA 公开 API，署名使用
-  - name: GDELT DOC 2.0 (conflict queries)
+  # ---- 检索式源：GDELT（官方建议请求间隔 >= 5 秒） ----
+  - name: GDELT 冲突与抗议
     kind: gdelt
     url: https://api.gdeltproject.org/api/v2/doc/doc
     tier: 1
     cadence_minutes: 60
+    throttle_seconds: 12
     params:
       mode: artlist
       format: json
-      maxrecords: 75
-      timespan: 60min
-      query: '(conflict OR ceasefire OR protest OR strike OR earthquake OR flood) sourcelang:english'
-    throttle_seconds: 5
+      maxrecords: 25
+      timespan: 24h
+      query: '(conflict OR ceasefire OR airstrike OR protest OR crackdown) sourcelang:english'
     license: GDELT 公开数据，引用 GDELT Project
+  - name: GDELT 科技与科学
+    kind: gdelt
+    url: https://api.gdeltproject.org/api/v2/doc/doc
+    tier: 2
+    cadence_minutes: 120
+    throttle_seconds: 12
+    params:
+      mode: artlist
+      format: json
+      maxrecords: 40
+      timespan: 24h
+      query: '(breakthrough OR "research team" OR semiconductor OR "fusion energy") sourcelang:english'
+    license: GDELT 公开数据，引用 GDELT Project
+
+  # ---- 需要注册或尚无采集器：默认关闭 ----
+  # ReliefWeb v2 要求 approved appname（申请：https://apidoc.reliefweb.int/parameters#appname）；
+  # 获批后把 enabled 改成 true，并实现 kind=reliefweb 的 collector。
+  - name: ReliefWeb (OCHA)
+    kind: reliefweb
+    url: https://api.reliefweb.int/v2/reports
+    tier: 1
+    enabled: false
+    license: OCHA 公开 API，需 approved appname 后署名使用
+  # UCDP 免费但尚未实现 collector，先停用。
   - name: UCDP Georeferenced Events
     kind: ucdp
     url: https://ucdpapi.pcr.uu.se/api/gedevents/24.1
     tier: 2
-    cadence_minutes: 1440
+    enabled: false
     license: UCDP 公开数据，署名使用
-  # ACLED 需要注册获取 API key，且许可仅限非商业/研究用途；
-  # 若要启用，请在 .env 中配置 ACLED_API_KEY 并在 docs/adr/0002 记录用途。
-  # - name: ACLED
-  #   kind: acled
-  #   url: https://api.acleddata.com/acled/read
-  #   tier: 3
-  #   enabled: false
-  #   license: 非商业/研究用途
+  # ACLED 需要申请 API key，且许可仅限非商业/研究用途。
+  - name: ACLED
+    kind: acled
+    url: https://api.acleddata.com/acled/read
+    tier: 3
+    enabled: false
+    license: 非商业/研究用途，需申请 API key
 
-  # ---- Phase 2 社交源（官方 API，需凭据） ----
-  # - name: Reddit r/worldnews
-  #   kind: reddit
-  #   url: https://oauth.reddit.com/r/worldnews/new
-  #   tier: 2
-  #   enabled: false
-  #   license: Reddit API 条款
-  # - name: Bluesky search
-  #   kind: bluesky
-  #   url: https://public.api.bsky.app/xrpc/app.bsky.feed.searchPosts
-  #   tier: 2
-  #   enabled: false
-  #   license: AT Protocol 公开接口
-  # - name: Mastodon (mastodon.social) tag timeline
-  #   kind: mastodon
-  #   url: https://mastodon.social/api/v1/timelines/tag/news
-  #   tier: 3
-  #   enabled: false
-  #   license: 实例公开 API
-
-# 明确不接入（政策原因）：
-# - X / Twitter：2025 起按量付费 API，未授权抓取有条款与法律风险；不在路线图内。
-# - 任何需要绕过 Cloudflare / 登录墙 / 反爬机制的抓取。
+  # ---- 明确不接入 ----
+  # X / Twitter：2025 起按量付费 API，未授权抓取有条款与法律风险；不在路线图内。
+  # 任何需要绕过 Cloudflare / 登录墙 / 反爬机制的抓取。

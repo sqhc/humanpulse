@@ -62,7 +62,7 @@ migrate: ## 执行数据库迁移（alembic upgrade head）
 	cd $(BACKEND) && uv run python -m app.cli migrate
 
 seed: ## 导入 infra/seed/sources.yaml 中的源
-	cd $(BACKEND) && uv run python -m app.cli seed --file ../infra/seed/sources.yaml
+	cd $(BACKEND) && uv run python -m app.cli seed --file ../infra/seed/sources.yaml --prune
 
 demo: ## 用合成数据跑通采集→处理→聚类（不联网、不花钱）
 	cd $(BACKEND) && uv run python -m app.cli demo

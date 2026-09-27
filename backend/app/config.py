@@ -37,6 +37,8 @@ class Settings(BaseSettings):
     llm_model_brief: str = "deepseek-v4-pro"
     llm_timeout_seconds: float = Field(default=120.0, gt=0)
     llm_daily_token_budget: int = 2_000_000
+    # 单批并发调用数：5 条串行约 5.4s/条，并发后吞吐显著提升
+    llm_concurrency: int = Field(default=5, gt=0, le=20)
 
     # 流水线
     store_fulltext: bool = False
@@ -56,7 +58,10 @@ class Settings(BaseSettings):
     collector_timeout_seconds: float = Field(default=20.0, gt=0)
     rss_max_items_per_feed: int = Field(default=30, gt=0)
     gdelt_max_records: int = Field(default=75, gt=0)
-    gdelt_throttle_seconds: float = Field(default=5.0, ge=0)
+    # 一条内容比这个天数还旧就不进 Feed（防止过期/静态 XML 混进来）
+    max_item_age_days: int = Field(default=45, gt=0)
+    # GDELT 实际比文档更严格（实测 6s 仍会 429），留出余量
+    gdelt_throttle_seconds: float = Field(default=12.0, ge=0)
     uploads_dir: str = "uploads"
     max_upload_mb: int = Field(default=25, gt=0)
 

@@ -2,7 +2,7 @@
 
 > 一个观察人类冲突、科学技术发展与全球社会运动的追踪平台：多源采集 → 去重 → AI 双语摘要与评分 → 聚类 → 日报/周报 → Web 阅读。
 
-当前状态：**Phase 1（后端闭环已可用）**。采集（RSS/GDELT/手动上传）→ SimHash 前置去重 → DeepSeek 双语摘要与评分 → 向量去重/聚类 → 读取接口全部打通，并有离线冒烟验证；Web 仍是最初的阅读外壳，Feed 页面接入是下一步。
+当前状态：**Phase 1 完成**。采集（RSS/GDELT/手动上传）→ SimHash 前置去重 → DeepSeek 双语摘要与评分 → 向量去重/聚类 → Web Feed 与详情页，全链路已用真实数据跑通（21 个源 → 430 条入库 → 处理成可读条目）。下一步是 Phase 2 的日报/周报与管理台。
 
 - 数据源政策：[docs/adr/0002-data-source-policy.md](docs/adr/0002-data-source-policy.md)
 - 架构决策：[docs/adr/](docs/adr/)
@@ -94,8 +94,9 @@ scripts/           doctor / smoke / deploy / restore-drill
 - 只采集公开内容；遵守 robots.txt、站点 ToS 与各 API 配额；每条记录保留来源链接与抓取时间。
 - 默认只存元数据 + 短引用 + 摘要，**不对外提供全文**（`STORE_FULLTEXT=false`）。
 - 提交删除申请：`POST /api/v1/takedown`；涉及个人的实体记录提供删除路径。
-- **不使用** X（Twitter）抓取、**不绕过** Cloudflare 等防护；X 官方付费 API 不在路线图内。
+- **不使用** X（Twitter）抓取、**不绕过** Cloudflare 等防护；被防护拦下的源直接停用（详见 [docs/data-sources.md](docs/data-sources.md)）。
 - AI 生成内容一律标注，平台不做立场性结论。
+- 内容质量兜底：发布早于 `MAX_ITEM_AGE_DAYS`（默认 45 天）的条目记 `rejected/too_old`；只有标题可用的条目（如 GDELT）走 headline 提示词，摘要必须标注"仅据标题"并打 `headline-only` 标签。
 
 ## 免责声明
 
@@ -106,6 +107,6 @@ scripts/           doctor / smoke / deploy / restore-drill
 | 阶段 | 内容 | 状态 |
 | --- | --- | --- |
 | Phase 0 | 骨架、CI、compose、ADR、GitHub 仓库 | 已完成 |
-| Phase 1 | 数据模型、RSS/GDELT/手动上传、SimHash + DeepSeek 摘要 + 向量去重与聚类、读取接口 | 后端已完成；Web Feed 接入待做 |
+| Phase 1 | 数据模型、RSS/GDELT/手动上传、SimHash + DeepSeek 摘要 + 向量去重与聚类、读取接口、Web Feed 与详情 | 已完成 |
 | Phase 2 | 日报/周报、管理台、Reddit/Bluesky/Mastodon/ReliefWeb、SSE、VPS 上线 | 待开始 |
 | Phase 3 | 视频简报、移动端、实体时间线、语义搜索、深度调查 agent | 待开始 |

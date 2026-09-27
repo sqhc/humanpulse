@@ -28,8 +28,8 @@ def _load_yaml(path: pathlib.Path) -> dict[str, Any]:
     return data
 
 
-async def _seed(path: pathlib.Path) -> dict[str, int]:
-    from sqlalchemy import select
+async def _seed(path: pathlib.Path, *, prune: bool = False) -> dict[str, int]:
+    from sqlalchemy import select, update
 
     from app.db import session_scope
     from app.models.source import Source
@@ -40,6 +40,7 @@ async def _seed(path: pathlib.Path) -> dict[str, int]:
     created = 0
     updated = 0
     skipped = 0
+    disabled = 0
 
     async with session_scope() as session:
         for entry in entries:
@@ -70,8 +71,27 @@ async def _seed(path: pathlib.Path) -> dict[str, int]:
             else:
                 updated += 1
         await session.flush()
+        if prune:
+            # sources.yaml 是数据源的唯一事实来源：清单外的源一律停用
+            names = [
+                str(entry.get("name"))
+                for entry in entries
+                if isinstance(entry, dict) and entry.get("name")
+            ]
+            if names:
+                result = await session.execute(
+                    update(Source).where(Source.name.not_in(names)).values(enabled=False)
+                )
+                # Result 在类型上没有 rowcount，用 getattr 取值（mypy 友好）
+                disabled = int(getattr(result, "rowcount", 0) or 0)
+        await session.flush()
 
-    return {"created": created, "updated": updated, "skipped": skipped}
+    return {
+        "created": created,
+        "updated": updated,
+        "skipped": skipped,
+        "disabled": disabled,
+    }
 
 
 def _demo_items(run_token: str) -> list[Any]:
@@ -177,7 +197,7 @@ def _migrate() -> dict[str, str]:
 
 
 def cmd_seed(args: argparse.Namespace) -> int:
-    result = asyncio.run(_seed(pathlib.Path(args.file)))
+    result = asyncio.run(_seed(pathlib.Path(args.file), prune=args.prune))
     print(json.dumps(result, ensure_ascii=False))
     return 0
 
@@ -199,6 +219,11 @@ def build_parser() -> argparse.ArgumentParser:
 
     seed = sub.add_parser("seed", help="导入数据源清单")
     seed.add_argument("--file", default="../infra/seed/sources.yaml")
+    seed.add_argument(
+        "--prune",
+        action="store_true",
+        help="把清单之外的数据源停用（sources.yaml 为唯一事实来源）",
+    )
     seed.set_defaults(func=cmd_seed)
 
     demo = sub.add_parser("demo", help="用合成数据跑通采集与处理（CI 冒烟）")

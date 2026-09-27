@@ -14,7 +14,7 @@ from app.config import get_settings
 from app.models.document import FetchRun
 from app.models.source import Source
 from app.pipeline.ingest import ingest_items
-from app.pipeline.process import process_pending
+from app.pipeline.process import ProcessStats, process_pending
 from app.schemas.admin import CollectRunStats, ProcessRunStats, SourceRunStats
 
 log = structlog.get_logger("worker.jobs")
@@ -115,7 +115,27 @@ async def collect_all(
 
 
 async def run_process(session: AsyncSession, *, limit: int | None = None) -> ProcessRunStats:
+    """分小块处理，块间提交。
+
+    小块 + 提交间隔是必须的：一次锁住几百条文档并长时间持有，会与 worker 的另一批
+    在 llm_usage 上形成死锁（实测触发过 deadlock detected），也会让被跳过的行迟迟不释放。
+    """
     settings = get_settings()
-    result = await process_pending(session, limit=limit or settings.process_batch_size)
-    await session.commit()
-    return ProcessRunStats(**result.as_dict())
+    target = limit or settings.process_batch_size
+    chunk = max(settings.llm_concurrency * 2, 10)
+    totals = ProcessStats()
+
+    while totals.picked < target:
+        part = await process_pending(session, limit=min(chunk, target - totals.picked))
+        totals.picked += part.picked
+        totals.enriched += part.enriched
+        totals.rejected += part.rejected
+        totals.failed += part.failed
+        totals.skipped_budget += part.skipped_budget
+        totals.tokens_in += part.tokens_in
+        totals.tokens_out += part.tokens_out
+        await session.commit()
+        if part.picked == 0 or part.skipped_budget:
+            break
+
+    return ProcessRunStats(**totals.as_dict())

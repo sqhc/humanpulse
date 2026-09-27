@@ -3,6 +3,8 @@ name: humanpulse
 services:
   db:
     image: pgvector/pgvector:pg17
+    # 防止长事务长期占锁（见 ADR-0003 的死锁记录）
+    command: ["postgres", "-c", "idle_in_transaction_session_timeout=120s"]
     environment:
       POSTGRES_USER: ${POSTGRES_USER:?set in .env}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set in .env}

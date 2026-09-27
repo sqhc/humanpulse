@@ -15,6 +15,11 @@ from app.models.source import Source
 
 _SEENDATE_FORMAT = "%Y%m%dT%H%M%SZ"
 
+# 命中这些状态码时退避重试（GDELT 超频会给 429）
+_RETRY_STATUS = {429, 500, 502, 503, 504}
+_MAX_ATTEMPTS = 3
+_BACKOFF_SECONDS = 10.0
+
 
 def _parse_seendate(value: Any) -> datetime | None:
     """解析 GDELT 的 seendate（形如 20260101T120000Z）；格式不符则返回 None。"""
@@ -43,9 +48,17 @@ class GdeltCollector:
         params.setdefault("format", "json")
         params.setdefault("maxrecords", settings.gdelt_max_records)
 
-        response = await client.get(source.url, params=params)
-        response.raise_for_status()
-        payload = response.json()
+        payload: Any = None
+        for attempt in range(1, _MAX_ATTEMPTS + 1):
+            response = await client.get(source.url, params=params)
+            if response.status_code in _RETRY_STATUS and attempt < _MAX_ATTEMPTS:
+                # GDELT 对超频返回 429（官方要求间隔 >= 5s）；这里再退避一次，避免整源失败
+                delay = min(float(response.headers.get("Retry-After", _BACKOFF_SECONDS)), 30.0)
+                await asyncio.sleep(delay)
+                continue
+            response.raise_for_status()
+            payload = response.json()
+            break
         articles = payload.get("articles") if isinstance(payload, dict) else None
 
         for article in articles or []:

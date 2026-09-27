@@ -3,6 +3,8 @@ name: humanpulse
 services:
   db:
     image: pgvector/pgvector:pg17
+    # 长事务（空闲在事务里）会拖住别人的行锁；分块提交后事务都很短，超过 2 分钟视为异常
+    command: ["postgres", "-c", "idle_in_transaction_session_timeout=120s"]
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-humanpulse}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-humanpulse}

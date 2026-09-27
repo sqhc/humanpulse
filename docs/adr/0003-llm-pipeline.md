@@ -59,3 +59,22 @@
 3. **实体表延后**：`entities`/`entity_mentions` 暂不建表，实体先以 JSONB 存在 `analyses.entities`；等 Phase 3 做实体时间线时再拆表并回填。这样避免在实体归一规则未定时锁死 schema。
 4. **不引入 APScheduler**：Phase 1 只需要固定间隔语义，worker 用内置 asyncio 循环实现（`app/workers/scheduler.py`），少一个依赖、行为可测；需要 cron 表达式或分布式调度时再替换。
 5. **SimHash 候选集在 Python 内比对**：只取近 3 天、最多 5000 条指纹。数据量上去后需改成数据库侧 popcount 或专用索引，否则会成为瓶颈。
+
+## 真实数据运行记录（2026-09，首次全量跑）
+
+首轮真实采集 21 个源 → 430 条新文档；随后用 deepseek-flash 处理。踩到并修掉的问题：
+
+1. **串行太慢**：实测约 5.4s/文档，430 条要 40 分钟。改为 `asyncio.Semaphore` 并发（`LLM_CONCURRENCY`，默认 5），先并发调模型、再顺序落库。
+2. **并发批次死锁（实测 `deadlock detected`）**：一次 `SELECT … FOR UPDATE` 锁住几百条文档、并把事务开到最后，与 worker 的另一批在 `llm_usage` 那一行上互相等待。修法两层：
+   - `run_process` 分小块（默认 10 条）处理，**块之间提交**，锁只持有十几秒；
+   - `_record_usage` 改成 `INSERT … ON CONFLICT DO UPDATE` 累加，不再"先查后写"。
+3. **取待处理文档加行锁**：`with_for_update(skip_locked=True)`，让并发的两个执行者跳过彼此已占用的行，避免同一文档被重复调用付费接口。
+4. **只有标题的条目**（GDELT）：新增 `headline` 提示词 + `headline-only` 标签，要求摘要以"（仅据标题）"开头、禁止补细节；标题太短（<15 字）仍直接拒绝。
+5. **过期内容**：新增 `max_item_age_days`（默认 45 天），发布早于阈值的内容记 `rejected/too_old`，用来挡住"200 但内容是几年前的静态 XML"的源。
+6. **成本可观测**：`llm_usage` 记录 calls/tokens；单价靠环境变量注入。首轮 430 条的 token 量级是"几万输入/几万输出"，据此可估算日成本。
+
+### 已知局限（Phase 2 处理）
+
+- 单进程内并发；多个 worker 副本仍会互相抢同一批（有 `skip_locked` 兜底，但吞吐不会叠加）。
+- 处理进度不可中断续跑：批次中途重启会让本批的 LLM 花费白费（已写入的 analysis 会保留，状态机保证不会重复计费同一条）。
+- 日报/周报尚未接入，Feed 是当前唯一出口。

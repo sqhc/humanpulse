@@ -1,19 +1,24 @@
-"""LLM 富化 + 向量化 + 聚类：把 pending 文档变成可读条目。"""
+"""LLM 富化 + 向量化 + 聚类：把 pending 文档变成可读条目。
+
+单批并发策略：LLM 调用是主要耗时（实测串行约 5.4s/条），因此先用信号量并发取回结果，
+再顺序落库——数据库写入保持在单会话里顺序执行，避免竞态。
+"""
 
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
-from decimal import Decimal
 
 import structlog
 from sqlalchemy import func, select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
 from app.embedding import get_embedder
 from app.llm import get_llm_client
-from app.llm.base import LlmError, LlmUsage
+from app.llm.base import AnalyzeResult, LlmClient, LlmError, LlmUsage
 from app.llm.schema import PROMPT_VERSION
 from app.models.analysis import Analysis, Embedding
 from app.models.document import Document
@@ -23,6 +28,10 @@ from app.pipeline.dedup import attach_cluster, embedding_text
 log = structlog.get_logger("pipeline.process")
 
 MIN_TEXT_CHARS = 40
+# 只有标题可用的条目（例如 GDELT 只给域名）走 headline 提示词，并打上标记标签：
+# 宁可让摘要明确“仅据标题”，也不要让模型在缺少正文时编造细节。
+MIN_TITLE_CHARS = 15
+HEADLINE_TAG = "headline-only"
 
 
 @dataclass(slots=True)
@@ -47,31 +56,79 @@ class ProcessStats:
         }
 
 
-async def _record_usage(session: AsyncSession, usage: LlmUsage) -> None:
-    today = date.today()
-    stmt = select(LlmUsageDay).where(
-        LlmUsageDay.day == today,
-        LlmUsageDay.provider == usage.provider,
-        LlmUsageDay.model == usage.model,
+@dataclass(slots=True)
+class WorkItem:
+    """一次 LLM 调用的输入。"""
+
+    document: Document
+    text: str
+    prompt_kind: str
+    headline_only: bool
+
+
+def plan_document(document: Document) -> WorkItem | None:
+    """决定这条文档要不要调 LLM、用哪个提示词；返回 None 表示内容太短、直接拒绝。"""
+    body = (document.excerpt or "").strip()
+    title = document.title.strip()
+    headline_only = len(body) < MIN_TEXT_CHARS
+    if headline_only and len(title) < MIN_TITLE_CHARS:
+        return None
+    if headline_only:
+        # 只有标题时把来源域名一并交给模型，并要求它在摘要里标明"仅据标题"
+        text = f"{title}\n\n[仅标题可用] 来源域名：{body or 'unknown'}"
+        return WorkItem(document=document, text=text, prompt_kind="headline", headline_only=True)
+    return WorkItem(
+        document=document,
+        text=f"{title}\n\n{body}",
+        prompt_kind=document.kind,
+        headline_only=False,
     )
-    row = (await session.execute(stmt)).scalar_one_or_none()
-    if row is None:
-        session.add(
-            LlmUsageDay(
-                day=today,
-                provider=usage.provider,
-                model=usage.model,
-                calls=1,
-                tokens_in=usage.tokens_in,
-                tokens_out=usage.tokens_out,
-                cost_usd=usage.cost_usd,
+
+
+async def _analyze_one(
+    semaphore: asyncio.Semaphore, llm: LlmClient, item: WorkItem
+) -> tuple[WorkItem, AnalyzeResult | None, str | None]:
+    """在信号量保护下调用 LLM；错误不抛出，转成字符串交给落库阶段标记状态。"""
+    async with semaphore:
+        try:
+            result = await llm.analyze(
+                kind=item.prompt_kind,
+                title=item.document.title,
+                text=item.text,
+                url=item.document.url,
             )
-        )
-        return
-    row.calls += 1
-    row.tokens_in += usage.tokens_in
-    row.tokens_out += usage.tokens_out
-    row.cost_usd = Decimal(row.cost_usd or 0) + usage.cost_usd
+        except LlmError as exc:
+            return item, None, f"llm_error: {str(exc)[:200]}"
+        except Exception as exc:
+            return item, None, f"provider_error: {str(exc)[:200]}"
+    return item, result, None
+
+
+async def _record_usage(session: AsyncSession, usage: LlmUsage) -> None:
+    """累加当日用量。
+
+    用 INSERT ... ON CONFLICT 而不是 SELECT+INSERT：worker 与管理接口可能同时处理，
+    先查后写会撞 uq_llm_usage_day_model（实测发生过，整批结果因此丢失）。
+    """
+    stmt = pg_insert(LlmUsageDay).values(
+        day=date.today(),
+        provider=usage.provider,
+        model=usage.model,
+        calls=1,
+        tokens_in=usage.tokens_in,
+        tokens_out=usage.tokens_out,
+        cost_usd=usage.cost_usd,
+    )
+    stmt = stmt.on_conflict_do_update(
+        constraint="uq_llm_usage_day_model",
+        set_={
+            "calls": LlmUsageDay.calls + stmt.excluded.calls,
+            "tokens_in": LlmUsageDay.tokens_in + stmt.excluded.tokens_in,
+            "tokens_out": LlmUsageDay.tokens_out + stmt.excluded.tokens_out,
+            "cost_usd": LlmUsageDay.cost_usd + stmt.excluded.cost_usd,
+        },
+    )
+    await session.execute(stmt)
 
 
 async def _tokens_used_today(session: AsyncSession) -> int:
@@ -82,7 +139,7 @@ async def _tokens_used_today(session: AsyncSession) -> int:
 
 
 async def process_pending(session: AsyncSession, *, limit: int = 20) -> ProcessStats:
-    """按（发布时间倒序）处理 pending 文档，单条失败不影响整批。"""
+    """处理一批 pending 文档：并发调 LLM，顺序落库；单条失败不影响整批。"""
     settings = get_settings()
     stats = ProcessStats()
 
@@ -96,6 +153,8 @@ async def process_pending(session: AsyncSession, *, limit: int = 20) -> ProcessS
                     Document.id.asc(),
                 )
                 .limit(limit)
+                # 两个 worker / 手动批次并发时跳过已被占用的行，避免重复调用 LLM
+                .with_for_update(skip_locked=True)
             )
         )
         .scalars()
@@ -118,33 +177,37 @@ async def process_pending(session: AsyncSession, *, limit: int = 20) -> ProcessS
     llm = get_llm_client()
     embedder = get_embedder()
 
+    items: list[WorkItem] = []
     for document in docs:
-        body = (document.excerpt or "").strip()
-        text = f"{document.title}\n\n{body}".strip()
-        if len(body) < MIN_TEXT_CHARS:
+        planned = plan_document(document)
+        if planned is None:
             document.status = "rejected"
             document.rejection_reason = "too_short"
             stats.rejected += 1
             continue
+        items.append(planned)
 
-        try:
-            result = await llm.analyze(
-                kind=document.kind, title=document.title, text=text, url=document.url
+    if items:
+        semaphore = asyncio.Semaphore(settings.llm_concurrency)
+        outcomes = await asyncio.gather(*(_analyze_one(semaphore, llm, item) for item in items))
+    else:
+        outcomes = []
+
+    for item, result, error in outcomes:
+        document = item.document
+        if result is None:
+            document.status = "failed"
+            document.rejection_reason = (
+                "llm_error" if (error or "").startswith("llm_error") else "provider_error"
             )
-        except LlmError as exc:
-            document.status = "failed"
-            document.rejection_reason = "llm_error"
             stats.failed += 1
-            log.warning("llm.failed", document_id=document.id, error=str(exc)[:200])
-            continue
-        except Exception as exc:
-            document.status = "failed"
-            document.rejection_reason = "provider_error"
-            stats.failed += 1
-            log.warning("llm.unexpected", document_id=document.id, error=str(exc)[:200])
+            log.warning("llm.failed", document_id=document.id, error=(error or "")[:200])
             continue
 
         data = result.data
+        tags = list(data.tags)
+        if item.headline_only and HEADLINE_TAG not in tags:
+            tags.append(HEADLINE_TAG)
         stats.tokens_in += result.usage.tokens_in
         stats.tokens_out += result.usage.tokens_out
         await _record_usage(session, result.usage)
@@ -158,7 +221,7 @@ async def process_pending(session: AsyncSession, *, limit: int = 20) -> ProcessS
             score=data.score,
             summary_zh=data.summary_zh,
             summary_en=data.summary_en,
-            tags=data.tags,
+            tags=tags,
             regions=data.regions,
             rationale=data.rationale,
             entities=[entity.model_dump() for entity in data.entities],
@@ -176,7 +239,7 @@ async def process_pending(session: AsyncSession, *, limit: int = 20) -> ProcessS
             continue
 
         vector = embedder.embed(
-            embedding_text(data.summary_zh, data.summary_en, data.tags, document.title)
+            embedding_text(data.summary_zh, data.summary_en, tags, document.title)
         )
         session.add(
             Embedding(

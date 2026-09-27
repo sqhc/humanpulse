@@ -2,12 +2,14 @@ import { ApiError } from "@humanpulse/api-client";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 
+import { AboutView } from "./components/AboutView";
+import { DocumentDetailView } from "./components/DocumentDetailView";
+import { FeedView } from "./components/FeedView";
 import { Header } from "./components/Header";
-import { PolicyCard } from "./components/PolicyCard";
-import { Roadmap } from "./components/Roadmap";
-import { StatusCard, type StatusState } from "./components/StatusCard";
+import type { StatusState } from "./components/StatusCard";
 import { messages, type Lang } from "./i18n";
 import { createApiClient } from "./lib/api";
+import { useRoute } from "./lib/router";
 
 const REPO_URL = "https://github.com/sqhc/humanpulse";
 
@@ -19,16 +21,15 @@ function detectLang(): Lang {
 export function App() {
   const [lang, setLang] = useState<Lang>(detectLang);
   const t = messages[lang];
+  const route = useRoute();
   const api = useMemo(() => createApiClient(), []);
 
   const health = useQuery({
     queryKey: ["health"],
     queryFn: ({ signal }) => api.health({ signal }),
-    // 网络抖动先快速重试一次，仍然失败才显示"无法连接"
     retry: 1,
     retryDelay: 400,
   });
-
   const ready = useQuery({
     queryKey: ["ready"],
     queryFn: ({ signal }) => api.ready({ signal }),
@@ -46,31 +47,43 @@ export function App() {
   const errorMessage =
     health.error instanceof ApiError ? `HTTP ${health.error.status}` : undefined;
 
+  const navClass = (active: boolean) =>
+    active ? "text-accent" : "text-ink-muted transition hover:text-accent";
+
   return (
     <div className="min-h-screen">
       <Header t={t} lang={lang} onToggleLang={() => setLang(lang === "zh" ? "en" : "zh")} />
-      <main className="mx-auto grid max-w-4xl gap-5 px-6 py-8 sm:grid-cols-2">
-        <div className="sm:col-span-2">
-          <StatusCard
+      <nav className="mx-auto flex max-w-4xl gap-5 px-6 pt-4 text-sm">
+        <a className={navClass(route.name === "feed")} href="#/">
+          {t.navFeed}
+        </a>
+        <a className={navClass(route.name === "about")} href="#/about">
+          {t.navAbout}
+        </a>
+      </nav>
+      <main className="mx-auto max-w-4xl px-6 py-6">
+        {route.name === "document" ? (
+          <DocumentDetailView id={route.id} lang={lang} t={t} />
+        ) : route.name === "about" ? (
+          <AboutView
             t={t}
             state={state}
             version={health.data?.version}
-            ready={ready.data}
             errorMessage={errorMessage}
           />
-        </div>
-        <Roadmap t={t} />
-        <PolicyCard t={t} />
-        <footer className="sm:col-span-2 border-t border-line/70 pt-4 text-sm text-ink-muted">
-          <p>{t.footer}</p>
-          <p className="mt-1">
-            {t.repo}:{" "}
-            <a className="text-accent hover:underline" href={REPO_URL} rel="noreferrer noopener">
-              sqhc/humanpulse
-            </a>
-          </p>
-        </footer>
+        ) : (
+          <FeedView lang={lang} t={t} />
+        )}
       </main>
+      <footer className="mx-auto max-w-4xl border-t border-line/70 px-6 py-6 text-sm text-ink-muted">
+        <p>{t.footer}</p>
+        <p className="mt-1">
+          {t.repo}:{" "}
+          <a className="text-accent hover:underline" href={REPO_URL} rel="noreferrer noopener">
+            sqhc/humanpulse
+          </a>
+        </p>
+      </footer>
     </div>
   );
 }
