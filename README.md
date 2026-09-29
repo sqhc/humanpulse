@@ -109,7 +109,7 @@ scripts/           doctor / smoke / deploy / restore-drill
 - 日报/周报：由已筛选记录按事件去重后取 Top N 生成，结构化 JSON 入库、Markdown 由服务端渲染（见 [ADR-0006](docs/adr/0006-daily-briefs.md)）。
 - 成本：单价取自 [DeepSeek 官方定价页](https://api-docs.deepseek.com/quick_start/pricing/)，按模型与缓存命中/未命中分别计价，高峰时段自动翻倍（见 `backend/app/llm/pricing.py`）。
 - 实体：LLM 输出的实体写入 `entities`/`entity_mentions`，支持按天时间线（[ADR-0007](docs/adr/0007-entity-timeline.md)）；
-  跨语言写法由人工别名表合并成一条（`backend/app/data/entity_aliases.yaml`，[ADR-0009](docs/adr/0009-entity-alias-merge.md)）。
+  跨语言写法由人工别名表合并成一条（`backend/app/entity_aliases.yaml`，[ADR-0009](docs/adr/0009-entity-alias-merge.md)）。
 - 内容质量兜底：发布早于 `MAX_ITEM_AGE_DAYS`（默认 45 天）的条目记 `rejected/too_old`；只有标题可用的条目（如 GDELT）走 headline 提示词，摘要必须标注"仅据标题"并打 `headline-only` 标签。
 
 ## 免责声明

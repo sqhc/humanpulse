@@ -1,0 +1,111 @@
+# 实体别名表：把同一实体的不同写法合并成一条记录。
+#
+# 为什么需要它：归一化（app/pipeline/entities.py）只做同形合并（大小写/全角/标点），
+# 「中国」「中國」「China」在数据库里是三条记录——时间线因此看起来比实际更碎。
+# 跨语言、简繁、缩写、俗称必须靠人工（或 Wikidata）定义，本文件就是那层人工知识。
+#
+# 规则：
+#   * canonical 是保留下来对外展示的名字（大小写按此原样保留）；
+#   * aliases 里任何写法命中后都会指向 canonical；
+#   * 简繁两种写法都要列（「中国」与「中國」不会自动归一）；
+#   * 不要放有歧义的词（例如 苹果 = 水果 or 公司、Mercury = 行星 or 人名），
+#     宁可漏合并也不要错误合并——错误合并会把两个实体的事件混在一起；
+#   * 剩余的可疑写法用 `make entity-candidates` 找（按文档重合度过滤，只报跨书写系统的对子）。
+
+groups:
+  # ---- 国家 / 地区 ----
+  - canonical: China
+    kind: place
+    aliases: ["中国", "中國", "中华人民共和国", "中華人民共和國", "People's Republic of China", "PRC"]
+  - canonical: United States
+    kind: place
+    aliases: ["美国", "美國", "US", "USA", "U.S.", "United States of America", "America", "美利坚合众国", "美利堅合眾國"]
+  - canonical: Russia
+    kind: place
+    aliases: ["俄罗斯", "俄羅斯", "Russian Federation", "俄联邦"]
+  - canonical: Ukraine
+    kind: place
+    aliases: ["乌克兰", "烏克蘭"]
+  - canonical: Iran
+    kind: place
+    aliases: ["伊朗"]
+  - canonical: Israel
+    kind: place
+    aliases: ["以色列"]
+  - canonical: Gaza
+    kind: place
+    aliases: ["加沙", "加薩", "Gaza Strip"]
+  - canonical: Taiwan
+    kind: place
+    aliases: ["台湾", "台灣", "臺湾", "中華民國"]
+  - canonical: India
+    kind: place
+    aliases: ["印度"]
+  - canonical: Pakistan
+    kind: place
+    aliases: ["巴基斯坦"]
+  - canonical: Ethiopia
+    kind: place
+    aliases: ["埃塞俄比亚", "衣索比亞", "埃塞俄比亞"]
+  - canonical: South Africa
+    kind: place
+    aliases: ["南非"]
+  - canonical: United Kingdom
+    kind: place
+    aliases: ["英国", "英國", "UK", "U.K.", "Britain", "Great Britain"]
+  - canonical: France
+    kind: place
+    aliases: ["法国", "法國"]
+  - canonical: Germany
+    kind: place
+    aliases: ["德国", "德國"]
+  - canonical: Japan
+    kind: place
+    aliases: ["日本"]
+  - canonical: Switzerland
+    kind: place
+    aliases: ["瑞士"]
+  # ---- 人物 ----
+  - canonical: Donald Trump
+    kind: person
+    aliases: ["特朗普", "川普", "Trump"]
+  - canonical: Xi Jinping
+    kind: person
+    aliases: ["习近平", "習近平"]
+  - canonical: Vladimir Putin
+    kind: person
+    aliases: ["普京", "普丁", "Putin"]
+  - canonical: Volodymyr Zelenskyy
+    kind: person
+    aliases: ["泽连斯基", "澤倫斯基", "泽伦斯基", "Zelensky", "Zelenskyi"]
+  - canonical: Benjamin Netanyahu
+    kind: person
+    aliases: ["内塔尼亚胡", "納坦雅胡", "尼坦雅胡", "Netanyahu"]
+  # ---- 组织 ----
+  - canonical: European Union
+    kind: org
+    aliases: ["欧盟", "歐盟", "EU"]
+  - canonical: United Nations
+    kind: org
+    aliases: ["联合国", "聯合國", "UN", "U.N."]
+  - canonical: NATO
+    kind: org
+    aliases: ["北约", "北約"]
+  - canonical: Huawei
+    kind: org
+    aliases: ["华为", "華為"]
+  - canonical: Google
+    kind: org
+    aliases: ["谷歌"]
+  - canonical: Microsoft
+    kind: org
+    aliases: ["微软", "微軟"]
+  - canonical: OpenAI
+    kind: org
+    aliases: ["Open AI"]
+  - canonical: World Health Organization
+    kind: org
+    aliases: ["WHO", "世界卫生组织", "世界衛生組織"]
+  - canonical: International Monetary Fund
+    kind: org
+    aliases: ["IMF", "国际货币基金组织", "國際貨幣基金組織"]

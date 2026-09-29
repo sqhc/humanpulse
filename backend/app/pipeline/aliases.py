@@ -1,7 +1,10 @@
 """实体别名：人工别名表 → 自动合并 + 候选发现。
 
-为什么放在 app/data 而不是 infra/seed：别名表是**应用知识**（决定展示出来的实体是谁），
+为什么随应用发布而不是放 infra/seed：别名表是**应用知识**（决定展示出来的实体是谁），
 必须随镜像一起发布；`infra/seed` 放的是环境相关的种子数据（数据源清单）。
+
+注意：**不要放进 app/data/**——仓库 .gitignore 里的 `data/` 是给运行期数据目录的，
+别名表放进去会被静默漏提交（v1 就是这么被 CI 抓出来的）。
 """
 
 from __future__ import annotations
@@ -19,7 +22,7 @@ from sqlalchemy.orm import aliased
 from app.models.entity import Entity, EntityMention
 from app.pipeline.entities import entity_key
 
-DEFAULT_ALIAS_FILE = Path(__file__).resolve().parents[1] / "data" / "entity_aliases.yaml"
+DEFAULT_ALIAS_FILE = Path(__file__).resolve().parents[1] / "entity_aliases.yaml"
 _CJK_RE = re.compile(r"[\u4e00-\u9fff]")
 
 

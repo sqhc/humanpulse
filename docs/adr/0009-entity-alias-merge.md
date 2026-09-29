@@ -18,7 +18,7 @@
 
 ## 决策
 
-1. **人工别名表随应用发布**：`backend/app/data/entity_aliases.yaml`（31 组，国家/地区/人物/组织）。
+1. **人工别名表随应用发布**：`backend/app/entity_aliases.yaml`（31 组，国家/地区/人物/组织）。
    放在 `app/data` 而不是 `infra/seed`：别名是**应用知识**（决定对外展示的实体是谁），必须随镜像发布；
    `infra/seed` 放环境相关的种子数据（数据源）。可用 `ENTITY_ALIAS_FILE` 覆盖路径。
 2. **合并方式**：`entities.canonical_entity_id`（自引用外键）。合并时：

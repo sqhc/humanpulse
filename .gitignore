@@ -32,7 +32,7 @@ uploads/
 ops/reports/
 *.dump
 pgdata/
-data/
+/data/
 
 # os / editor
 .DS_Store
