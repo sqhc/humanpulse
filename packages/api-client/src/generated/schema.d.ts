@@ -770,6 +770,7 @@ export interface operations {
                 /** @description 忽略 cadence 立即采集 */
                 force?: boolean;
                 limit?: number | null;
+                kind?: "daily" | "weekly";
             };
             header?: {
                 "X-API-Key"?: string | null;

@@ -1299,6 +1299,20 @@
             }
           },
           {
+            "in": "query",
+            "name": "kind",
+            "required": false,
+            "schema": {
+              "default": "daily",
+              "enum": [
+                "daily",
+                "weekly"
+              ],
+              "title": "Kind",
+              "type": "string"
+            }
+          },
+          {
             "in": "header",
             "name": "X-API-Key",
             "required": false,
