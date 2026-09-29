@@ -72,8 +72,8 @@ seed: ## 导入 infra/seed/sources.yaml 中的源
 demo: ## 用合成数据跑通采集→处理→聚类（不联网、不花钱）
 	cd $(BACKEND) && uv run python -m app.cli demo
 
-brief: ## 生成日报（默认当天已有则跳过；FORCE=1 强制重跑）
-	cd $(BACKEND) && uv run python -m app.cli brief $(if $(FORCE),--force,)
+brief: ## 生成简报（KIND=daily|weekly；FORCE=1 强制重跑）
+	cd $(BACKEND) && uv run python -m app.cli brief --kind $(or $(KIND),daily) $(if $(FORCE),--force,)
 
 reembed: ## 用当前向量模型重新嵌入并重建聚类（需 uv sync --extra ml）
 	cd $(BACKEND) && uv run python -m app.cli reembed

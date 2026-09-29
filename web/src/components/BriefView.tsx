@@ -17,11 +17,12 @@ function contentOf(structured: Record<string, unknown> | undefined): BriefConten
 
 export function BriefView({ lang, t }: BriefViewProps) {
   const api = useMemo(() => createApiClient(), []);
-  const [langCode] = useState(lang);
+  const [kind, setKind] = useState<"daily" | "weekly">("daily");
+  const langCode = lang;
 
   const query = useQuery({
-    queryKey: ["brief", "latest"],
-    queryFn: ({ signal }) => api.getLatestBrief("daily", { signal }),
+    queryKey: ["brief", "latest", kind],
+    queryFn: ({ signal }) => api.getLatestBrief(kind, { signal }),
   });
 
   if (query.isPending) {
@@ -50,9 +51,30 @@ export function BriefView({ lang, t }: BriefViewProps) {
   const closing = zh ? content.closing_zh : content.closing_en;
   const sections = content.sections ?? [];
 
+  const toggleClass = (active: boolean) =>
+    active
+      ? "rounded-md border border-accent px-3 py-1 text-xs text-accent"
+      : "rounded-md border border-line px-3 py-1 text-xs text-ink-muted transition hover:border-accent hover:text-accent";
+
   return (
     <article className="space-y-5">
       <header className="space-y-2">
+        <div className="flex gap-2">
+          <button
+            type="button"
+            className={toggleClass(kind === "daily")}
+            onClick={() => setKind("daily")}
+          >
+            {t.briefKindDaily}
+          </button>
+          <button
+            type="button"
+            className={toggleClass(kind === "weekly")}
+            onClick={() => setKind("weekly")}
+          >
+            {t.briefKindWeekly}
+          </button>
+        </div>
         <h2 className="text-xl font-semibold text-ink">{title}</h2>
         <p className="text-xs text-ink-muted">
           {t.briefPeriod}: {formatDateTime(brief.period_start, lang)} →{" "}

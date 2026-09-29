@@ -73,3 +73,26 @@ def test_english_rendering_uses_english_fields() -> None:
     assert "## Conflict & security" in markdown
     assert "## Sources" in markdown
     assert "Bullet one (Source A)" in markdown
+
+
+def test_renders_trends_section_for_weekly() -> None:
+    base = content()
+    weekly = BriefContent(
+        title_zh=base.title_zh,
+        title_en=base.title_en,
+        overview_zh=base.overview_zh,
+        overview_en=base.overview_en,
+        sections=base.sections,
+        trends_zh=["冲突话题从 12 次升到 40 次。"],
+        trends_en=["Conflict coverage rose from 12 to 40."],
+    )
+    markdown = render_markdown(weekly, language="zh", items=[], period=PERIOD)
+    assert "## 本周趋势" in markdown
+    assert "冲突话题从 12 次升到 40 次。" in markdown
+    english = render_markdown(weekly, language="en", items=[], period=PERIOD)
+    assert "## Trends" in english
+
+
+def test_no_trends_section_for_daily() -> None:
+    markdown = render_markdown(content(), language="zh", items=[], period=PERIOD)
+    assert "本周趋势" not in markdown

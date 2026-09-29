@@ -49,12 +49,14 @@ echo "== 合成数据跑通采集 → 处理 → 聚类 =="
 DEMO_JSON=$($COMPOSE exec -T -e LLM_PROVIDER=fake -e EMBEDDING_PROVIDER=hash api python -m app.cli demo | tail -1)
 echo "$DEMO_JSON"
 
-echo "== 生成日报（fake LLM，不联网）=="
+echo "== 生成日报与周报（fake LLM，不联网）=="
 BRIEF_JSON=$($COMPOSE exec -T -e LLM_PROVIDER=fake -e EMBEDDING_PROVIDER=hash api python -m app.cli brief --force | tail -1)
 echo "$BRIEF_JSON"
+WEEKLY_JSON=$($COMPOSE exec -T -e LLM_PROVIDER=fake -e EMBEDDING_PROVIDER=hash api python -m app.cli brief --kind weekly --force | tail -1)
+echo "$WEEKLY_JSON"
 
 echo "== 校验读取接口 =="
-API_BASE="$BASE" DEMO_JSON="$DEMO_JSON" BRIEF_JSON="$BRIEF_JSON" python3 - <<'PY'
+API_BASE="$BASE" DEMO_JSON="$DEMO_JSON" BRIEF_JSON="$BRIEF_JSON" WEEKLY_JSON="$WEEKLY_JSON" python3 - <<'PY'
 import json
 import os
 import urllib.parse
@@ -63,6 +65,7 @@ import urllib.request
 base = os.environ["API_BASE"]
 demo = json.loads(os.environ["DEMO_JSON"])
 brief_job = json.loads(os.environ["BRIEF_JSON"])
+weekly_job = json.loads(os.environ["WEEKLY_JSON"])
 
 assert demo["ingest"]["new"] >= 2, f"采集未产生新文档: {demo}"
 assert demo["ingest"]["near_duplicate"] >= 1, f"SimHash 未拦截镜像: {demo}"
@@ -116,6 +119,15 @@ assert "## Sources" in english or "## " in english, "英文重渲染缺少分组
 briefs = get("/briefs?kind=daily&limit=5")
 assert len(briefs) >= 1, "简报列表为空"
 
+assert weekly_job["created"] is True, f"周报未生成: {weekly_job}"
+weekly = get("/briefs/latest?kind=weekly")
+assert weekly["title"], "周报缺少标题"
+assert "## 来源清单" in weekly["markdown"], "周报缺少来源清单"
+weekly_en = get_text(f"/briefs/{weekly['id']}/markdown?language=en")
+assert weekly_en.startswith("#"), "周报英文重渲染失败"
+weekly_list = get("/briefs?kind=weekly&limit=5")
+assert len(weekly_list) >= 1, "周报列表为空"
+
 print(
     "接口校验通过：",
     {
@@ -124,6 +136,7 @@ print(
         "sources": len(sources),
         "top_score": first["score"],
         "brief_items": brief["item_count"],
+        "weekly_items": weekly["item_count"],
         "ingest": demo["ingest"],
     },
 )

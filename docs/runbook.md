@@ -113,3 +113,28 @@ make restore-drill DUMP=/var/backups/humanpulse/humanpulse-2026-01-01.dump
 | --- | --- | --- | --- |
 | 待填 | 备份恢复 | - | - |
 | 待填 | 回滚到上一 tag | - | - |
+
+## 7. 简报（日报 / 周报）
+
+生成：
+
+```bash
+make brief                      # 日报，当天已有则跳过
+make brief KIND=weekly          # 周报，本周已有则跳过
+FORCE=1 make brief KIND=weekly  # 强制重跑（会真实调用 LLM）
+```
+
+自动生成：worker 在 `BRIEF_HOUR`（默认 6 点）之后每 15 分钟探一次；周报只在 `BRIEF_WEEKDAY`（默认周日）当天。
+生成函数幂等（同一周期已有简报就跳过），所以"探多次"是安全的。
+
+排查：
+
+- 接口：`GET /api/v1/briefs/latest?kind=daily|weekly`；没有简报时返回 404（前端显示空态）。
+- 失败时整批抛出，**不会**留下半成品简报；同一天可以重跑。
+- 模型输出校验失败会自动重试一次（见 `app/llm/client.py` 的 `_call_with_repair`）；两次都失败才报错。
+- 成本：`llm_usage` 里按 model 记录；周报一次调用约 6.5k 输入 / 8.7k 输出 token。
+
+## 8. 管理台
+
+浏览器打开 `#/admin`：填管理员 API Key（只存在本机 localStorage），即可查看数据源状态、
+手动触发采集/处理/日报/周报、查看最近采集批次与 LLM 用量。写操作需要 Key，读数据源不需要。

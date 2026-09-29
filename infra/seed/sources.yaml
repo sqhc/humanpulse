@@ -82,6 +82,56 @@ sources:
     tier: 3
     cadence_minutes: 120
     license: 仅存元数据与短引用，附原文链接
+  # 以下中文源为 2026-09 逐个 curl + 真实客户端（httpx + feedparser）实测后追加，
+  # 判定标准：200 且可解析、最新一条发布时间在 7 天内。证据见 docs/data-sources.md。
+  - name: 中央社 国际焦点
+    kind: rss
+    url: https://feeds.feedburner.com/rsscna/intworld
+    tier: 2
+    cadence_minutes: 60
+    license: 仅存元数据与短引用，附原文链接
+  - name: 公视新闻
+    kind: rss
+    url: https://news.pts.org.tw/xml/newsfeed.xml
+    tier: 2
+    cadence_minutes: 60
+    license: 仅存元数据与短引用，附原文链接
+  - name: 端传媒
+    kind: rss
+    url: https://theinitium.com/rss/
+    tier: 2
+    cadence_minutes: 120
+    license: 仅存元数据与短引用，附原文链接
+  - name: 德国之声中文
+    kind: rss
+    url: https://rss.dw.com/rdf/rss-chi-all
+    tier: 2
+    cadence_minutes: 60
+    license: 仅存元数据与短引用，附原文链接
+  - name: 美国之音中文
+    kind: rss
+    url: https://www.voachinese.com/api/zm_yql-vomx-tpeybti
+    tier: 2
+    cadence_minutes: 60
+    license: 仅存元数据与短引用，附原文链接
+  - name: 中国数字时代
+    kind: rss
+    url: https://chinadigitaltimes.net/chinese/feed
+    tier: 2
+    cadence_minutes: 120
+    license: 仅存元数据与短引用，附原文链接
+  - name: 中国新闻网
+    kind: rss
+    url: https://www.chinanews.com.cn/rss/scroll-news.xml
+    tier: 3
+    cadence_minutes: 60
+    license: 仅存元数据与短引用，附原文链接
+  - name: 界面新闻
+    kind: rss
+    url: "https://a.jiemian.com/index.php?m=article&a=rss"
+    tier: 3
+    cadence_minutes: 120
+    license: 仅存元数据与短引用，附原文链接
 
   # ---- 冲突 / 人道 / 人权（议题专用） ----
   - name: Crisis Group

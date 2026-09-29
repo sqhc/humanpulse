@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 
 import { AboutView } from "./components/AboutView";
+import { AdminView } from "./components/AdminView";
 import { BriefView } from "./components/BriefView";
 import { DocumentDetailView } from "./components/DocumentDetailView";
 import { FeedView } from "./components/FeedView";
@@ -64,12 +65,17 @@ export function App() {
         <a className={navClass(route.name === "about")} href="#/about">
           {t.navAbout}
         </a>
+        <a className={navClass(route.name === "admin")} href="#/admin">
+          {t.navAdmin}
+        </a>
       </nav>
       <main className="mx-auto max-w-4xl px-6 py-6">
         {route.name === "document" ? (
           <DocumentDetailView id={route.id} lang={lang} t={t} />
         ) : route.name === "brief" ? (
           <BriefView lang={lang} t={t} />
+        ) : route.name === "admin" ? (
+          <AdminView t={t} lang={lang} />
         ) : route.name === "about" ? (
           <AboutView
             t={t}

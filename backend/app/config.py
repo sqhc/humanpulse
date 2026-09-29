@@ -73,10 +73,13 @@ class Settings(BaseSettings):
     # 简报
     # 日报：几点生成、时间窗多长、最多选多少条素材（同一 cluster 只留一条代表）
     brief_hour: int = Field(default=6, ge=0, le=23)
+    # 周报在每周的哪一天生成（0=周一 … 6=周日）
+    brief_weekday: int = Field(default=6, ge=0, le=6)
     brief_lookback_hours: int = Field(default=24, gt=0, le=168)
     brief_top_items: int = Field(default=12, gt=0, le=40)
-    brief_timezone: str = "UTC"
-    brief_daily_cron: str = "0 6 * * *"
+    # 周报：窗口天数与素材上限（趋势数字由 SQL 算好，不靠模型）
+    weekly_lookback_days: int = Field(default=7, gt=0, le=31)
+    weekly_top_items: int = Field(default=20, gt=0, le=60)
 
     @property
     def is_prod(self) -> bool:

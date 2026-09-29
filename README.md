@@ -56,7 +56,7 @@ cd backend && uv sync && uv run uvicorn app.main:app --reload
 | `make seed` | 把 `infra/seed/sources.yaml` 的源写入数据库 |
 | `make demo` | 用合成数据跑通采集→处理→聚类（`LLM_PROVIDER=fake`、不花钱） |
 | `make collect-once` | 手动触发一次真实采集（需栈已起并导出 `ADMIN_API_KEY`） |
-| `make brief` | 生成日报（默认当天已有则跳过，`FORCE=1` 强制重跑） |
+| `make brief` | 生成简报（`KIND=daily` 默认 / `KIND=weekly`；`FORCE=1` 强制重跑） |
 | `make ml` / `make reembed` | 安装本地语义向量依赖 / 换模型后重算向量与聚类 |
 
 切到真实模型：在 `.env` 里把 `LLM_PROVIDER` 设为 `deepseek`（默认）并填好 `DEEPSEEK_API_KEY`；
@@ -71,12 +71,12 @@ cd backend && uv sync && uv run uvicorn app.main:app --reload
 | GET | `/documents` | Feed：游标分页，可按 `status/lang/kind/tag/region/min_score/cluster_id/since/until/q` 过滤 |
 | GET | `/documents/{id}` | 详情：摘要、评分、标签 + 同一 cluster 的其它来源报道 |
 | GET | `/clusters`、`/clusters/{id}` | 聚类列表与详情（同一事件的多来源覆盖） |
-| GET | `/briefs`、`/briefs/latest`、`/briefs/{id}` | 日报列表 / 最新一期 / 详情（含结构化双语内容） |
+| GET | `/briefs`、`/briefs/latest?kind=daily\|weekly`、`/briefs/{id}` | 简报列表 / 最新一期 / 详情（含结构化双语内容与周报趋势） |
 | GET | `/briefs/{id}/markdown?language=zh\|en` | 按语言重渲染 Markdown（不调用模型） |
 | GET | `/sources` | 数据源列表 |
 | PATCH | `/sources/{id}` | 启用/停用、调整采集频率（需 `X-API-Key`） |
 | POST | `/uploads`、`/uploads/text` | 手动上传文件 / 粘贴文本（需 `X-API-Key`，须确认收录权利） |
-| POST | `/admin/jobs/{collect,process}/run` | 手动触发采集或处理（需 `X-API-Key`） |
+| POST | `/admin/jobs/{collect,process,brief}/run` | 手动触发采集/处理/简报（brief 支持 `kind=daily\|weekly`；需 `X-API-Key`） |
 | GET | `/admin/runs`、`/admin/usage` | 采集批次记录 / LLM 用量与成本（需 `X-API-Key`） |
 | POST | `/takedown` | 提交内容删除/屏蔽申请 |
 
@@ -114,5 +114,5 @@ scripts/           doctor / smoke / deploy / restore-drill
 | --- | --- | --- |
 | Phase 0 | 骨架、CI、compose、ADR、GitHub 仓库 | 已完成 |
 | Phase 1 | 数据模型、RSS/GDELT/手动上传、SimHash + DeepSeek 摘要 + 向量去重与聚类、读取接口、Web Feed 与详情 | 已完成 |
-| Phase 2 | 日报/周报、管理台、更多源、SSE、VPS 上线 | 进行中（日报 + 简报页面已完成；周报/管理台/VPS 待做） |
+| Phase 2 | 日报/周报、管理台、更多源、SSE、VPS 上线 | 进行中（日报 + 周报 + 管理台 + 更多中文源已完成；SSE/VPS 待做） |
 | Phase 3 | 视频简报、移动端、实体时间线、语义搜索、深度调查 agent | 待开始 |

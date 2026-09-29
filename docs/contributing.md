@@ -70,6 +70,19 @@ export BUILDX_CONFIG
 - 两处都已在 `.gitignore` 中；可用 `UV_CACHE_DIR=/path make verify` 覆盖。
 - GitHub Actions 运行器没有该限制，因此 CI 配置里不需要任何相关设置。
 
+### Node 版本必须优先命中 24（本机）
+
+PATH 里别的 `node`（例如 conda 自带的 v20）会被优先解析，而 vitest 5 + jsdom 30 要求 Node ≥ 22.12，
+症状是 `Failed to start forks worker ... undici ... markAsUncloneable is not a function`。
+跑前端命令前**前置**（不是追加）nvm 的 bin：
+
+```bash
+export PATH="/Users/shenqing/.nvm/versions/node/v24.21.0/bin:$PATH"
+node -v   # 期望 v24.x
+```
+
+CI 用 `actions/setup-node` 固定 22.x，不受影响。
+
 ### CI/CD 需要的 Secrets 与 Variables
 
 在仓库 Settings → Secrets and variables → Actions 中配置：

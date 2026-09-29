@@ -54,11 +54,14 @@ async def main() -> None:
             await run_process(session)
 
     async def brief_job() -> None:
-        # 到点之后每 15 分钟探一次；生成函数本身幂等（当天已有就跳过）
-        if datetime.now(UTC).hour < settings.brief_hour:
+        # 到点之后每 15 分钟探一次；生成函数本身幂等（同周期已有就跳过）
+        now = datetime.now(UTC)
+        if now.hour < settings.brief_hour:
             return
         async with session_scope() as session:
-            await run_brief(session)
+            await run_brief(session, kind="daily")
+            if now.weekday() == settings.brief_weekday:
+                await run_brief(session, kind="weekly")
 
     log.info(
         "worker.start",

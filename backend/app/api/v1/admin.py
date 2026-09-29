@@ -29,6 +29,7 @@ async def run_job(
     _admin: AdminDep,
     force: Annotated[bool, Query(description="忽略 cadence 立即采集")] = False,
     limit: Annotated[int | None, Query(ge=1, le=200)] = None,
+    kind: Annotated[Literal["daily", "weekly"], Query()] = "daily",
 ) -> JobResultOut:
     stats: dict[str, object]
     if job_name == "collect":
@@ -36,7 +37,7 @@ async def run_job(
     elif job_name == "process":
         stats = (await run_process(session, limit=limit)).model_dump()
     else:
-        stats = await run_brief(session, force=force)
+        stats = await run_brief(session, kind=kind, force=force)
     return JobResultOut(job=job_name, stats=stats)
 
 

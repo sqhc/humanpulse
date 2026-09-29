@@ -10,6 +10,42 @@ export interface Messages {
   briefItems: string;
   briefRaw: string;
   briefNotice: string;
+  briefKindDaily: string;
+  briefKindWeekly: string;
+  navAdmin: string;
+  adminKeyTitle: string;
+  adminKeyHint: string;
+  adminKeySave: string;
+  adminKeyClear: string;
+  adminKeyMissing: string;
+  adminSources: string;
+  adminSourcesHint: string;
+  adminSourceEnable: string;
+  adminSourceDisable: string;
+  adminSourceLastRun: string;
+  adminSourceFailures: string;
+  adminSourceStatus: string;
+  adminJobs: string;
+  adminJobsHint: string;
+  adminRunCollect: string;
+  adminRunProcess: string;
+  adminRunBriefDaily: string;
+  adminRunBriefWeekly: string;
+  adminForce: string;
+  adminRunning: string;
+  adminJobResult: string;
+  adminRuns: string;
+  adminUsage: string;
+  adminEmpty: string;
+  adminRefresh: string;
+  adminSrcMeta: string;
+  adminSeen: string;
+  adminNew: string;
+  adminRejected: string;
+  adminCalls: string;
+  adminTokensIn: string;
+  adminTokensOut: string;
+  adminCost: string;
   feedTitle: string;
   aiSummaryNotice: string;
   filterLanguage: string;
@@ -68,6 +104,42 @@ export const messages: Record<Lang, Messages> = {
     briefItems: "素材条数",
     briefRaw: "查看 Markdown 原文",
     briefNotice: "日报由大模型依据已筛选记录生成，可能存在错误；请以引用的原文为准。",
+    briefKindDaily: "日报",
+    briefKindWeekly: "周报",
+    navAdmin: "管理台",
+    adminKeyTitle: "管理员 API Key",
+    adminKeyHint: "只保存在本机浏览器（localStorage），用于触发作业与修改数据源。",
+    adminKeySave: "保存",
+    adminKeyClear: "清除",
+    adminKeyMissing: "请先填写管理员 API Key，写操作会返回 401。",
+    adminSources: "数据源",
+    adminSourcesHint: "连续失败 3 次会被自动停用（熔断）。",
+    adminSourceEnable: "启用",
+    adminSourceDisable: "停用",
+    adminSourceLastRun: "最近采集",
+    adminSourceFailures: "连续失败",
+    adminSourceStatus: "状态",
+    adminJobs: "手动触发作业",
+    adminJobsHint: "采集会真的访问外部站点；处理/简报会真实调用 LLM 并产生费用。",
+    adminRunCollect: "采集一轮",
+    adminRunProcess: "处理待办",
+    adminRunBriefDaily: "生成日报",
+    adminRunBriefWeekly: "生成周报",
+    adminForce: "强制执行",
+    adminRunning: "执行中…",
+    adminJobResult: "最近一次作业结果",
+    adminRuns: "最近采集批次",
+    adminUsage: "LLM 用量（7 天）",
+    adminEmpty: "暂无数据。",
+    adminRefresh: "刷新",
+    adminSrcMeta: "类型 / 层级 / 频率",
+    adminSeen: "抓取",
+    adminNew: "新增",
+    adminRejected: "去重/拒绝",
+    adminCalls: "调用",
+    adminTokensIn: "输入 token",
+    adminTokensOut: "输出 token",
+    adminCost: "成本",
     feedTitle: "最新记录",
     aiSummaryNotice: "以下摘要与评分由大模型生成并标注，原文链接见详情页。",
     filterLanguage: "语言",
@@ -136,6 +208,42 @@ export const messages: Record<Lang, Messages> = {
     briefNotice: (
       "The brief is AI-generated from filtered records and may contain errors; always check the linked originals."
     ),
+    briefKindDaily: "Daily",
+    briefKindWeekly: "Weekly",
+    navAdmin: "Admin",
+    adminKeyTitle: "Admin API key",
+    adminKeyHint: "Stored only in this browser (localStorage); used to trigger jobs and edit sources.",
+    adminKeySave: "Save",
+    adminKeyClear: "Clear",
+    adminKeyMissing: "Enter the admin API key first — write calls return 401 without it.",
+    adminSources: "Sources",
+    adminSourcesHint: "Three consecutive failures disable a source automatically.",
+    adminSourceEnable: "Enable",
+    adminSourceDisable: "Disable",
+    adminSourceLastRun: "Last run",
+    adminSourceFailures: "Failures",
+    adminSourceStatus: "Status",
+    adminJobs: "Run a job",
+    adminJobsHint: "Collect hits real websites; process/brief call the LLM and cost money.",
+    adminRunCollect: "Collect once",
+    adminRunProcess: "Process pending",
+    adminRunBriefDaily: "Generate daily brief",
+    adminRunBriefWeekly: "Generate weekly brief",
+    adminForce: "Force",
+    adminRunning: "Running…",
+    adminJobResult: "Last job result",
+    adminRuns: "Recent fetch runs",
+    adminUsage: "LLM usage (7 days)",
+    adminEmpty: "Nothing yet.",
+    adminRefresh: "Refresh",
+    adminSrcMeta: "Kind / tier / cadence",
+    adminSeen: "Seen",
+    adminNew: "New",
+    adminRejected: "Deduped/rejected",
+    adminCalls: "Calls",
+    adminTokensIn: "Input tokens",
+    adminTokensOut: "Output tokens",
+    adminCost: "Cost",
     feedTitle: "Latest records",
     aiSummaryNotice: "Summaries and scores below are AI-generated and labelled; original links are on the detail page.",
     filterLanguage: "Language",

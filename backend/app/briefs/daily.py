@@ -65,7 +65,7 @@ def format_items(items: list[SelectedItem]) -> str:
     return "\n\n".join(blocks)
 
 
-async def _record_usage(session: AsyncSession, usage: LlmUsage) -> None:
+async def record_usage(session: AsyncSession, usage: LlmUsage) -> None:
     stmt = pg_insert(LlmUsageDay).values(
         day=datetime.now(UTC).date(),
         provider=usage.provider,
@@ -87,8 +87,11 @@ async def _record_usage(session: AsyncSession, usage: LlmUsage) -> None:
     await session.execute(stmt)
 
 
-async def _existing_brief_id(session: AsyncSession, day_start: datetime) -> int | None:
-    stmt = select(Brief.id).where(Brief.kind == "daily").where(Brief.period_start >= day_start)
+async def existing_brief_id(
+    session: AsyncSession, start: datetime, *, kind: str = "daily"
+) -> int | None:
+    """同一周期内是否已有简报（日报看当天、周报看本周），用于幂等。"""
+    stmt = select(Brief.id).where(Brief.kind == kind).where(Brief.period_start >= start)
     return (await session.execute(stmt)).scalars().first()
 
 
@@ -106,7 +109,7 @@ async def generate_daily_brief(
     day_start = moment.replace(hour=0, minute=0, second=0, microsecond=0)
 
     if not force:
-        existing = await _existing_brief_id(session, day_start)
+        existing = await existing_brief_id(session, day_start)
         if existing is not None:
             return DailyBriefResult(brief_id=existing, created=False, reason="already_exists")
 
@@ -180,7 +183,7 @@ async def generate_daily_brief(
                 rationale=f"score={item.score}",
             )
         )
-    await _record_usage(session, usage)
+    await record_usage(session, usage)
     await session.flush()
 
     log.info(

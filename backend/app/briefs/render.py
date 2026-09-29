@@ -39,6 +39,12 @@ def render_markdown(
         lines.append("")
         lines.append(overview)
 
+    trends = content.trends_en if language == "en" else content.trends_zh
+    if trends:
+        lines.append("")
+        lines.append("## Trends" if language == "en" else "## 本周趋势")
+        lines.extend(f"- {item}" for item in trends)
+
     for section in content.sections:
         bullets = section.bullets_en if language == "en" else section.bullets_zh
         if not bullets:

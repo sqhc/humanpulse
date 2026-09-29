@@ -13,6 +13,13 @@ export type DocumentListOut = components["schemas"]["DocumentListOut"];
 export type DocumentDetailOut = components["schemas"]["DocumentDetailOut"];
 export type ClusterOut = components["schemas"]["ClusterOut"];
 export type SourceOut = components["schemas"]["SourceOut"];
+export type SourceUpdate = components["schemas"]["SourceUpdate"];
+export type FetchRunOut = components["schemas"]["FetchRunOut"];
+export type LlmUsageOut = components["schemas"]["LlmUsageOut"];
+export type JobResultOut = components["schemas"]["JobResultOut"];
+
+/** 可手动触发的作业名。 */
+export type JobName = "collect" | "process" | "brief";
 export type BriefOut = components["schemas"]["BriefOut"];
 export type BriefListItem = components["schemas"]["BriefListItem"];
 
@@ -57,6 +64,8 @@ export interface ClientOptions {
   baseUrl?: string;
   /** 自定义 fetch（测试或 SSR 场景）。 */
   fetchFn?: typeof fetch;
+  /** 管理员 API Key；只有写操作（上传/作业/源管理）需要。 */
+  apiKey?: string;
 }
 
 export interface RequestOptions {
@@ -78,11 +87,16 @@ function toQueryString(params: Record<string, QueryValue>): string {
 export function createClient(options: ClientOptions = {}) {
   const baseUrl = (options.baseUrl ?? "").replace(/\/$/, "");
   const doFetch = options.fetchFn ?? globalThis.fetch;
+  const apiKey = options.apiKey ?? "";
 
   async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     const resp = await doFetch(`${baseUrl}${path}`, {
       ...init,
-      headers: { accept: "application/json", ...(init.headers ?? {}) },
+      headers: {
+        accept: "application/json",
+        ...(apiKey ? { "x-api-key": apiKey } : {}),
+        ...(init.headers ?? {}),
+      },
     });
     const text = await resp.text();
     const body: unknown = text ? JSON.parse(text) : null;
@@ -108,6 +122,31 @@ export function createClient(options: ClientOptions = {}) {
     ) => request<ClusterOut[]>(`/api/v1/clusters${toQueryString(params)}`, { signal }),
     listSources: ({ signal }: RequestOptions = {}) =>
       request<SourceOut[]>("/api/v1/sources", { signal }),
+    /** 列表：简报历史（默认日报）。 */
+    listBriefs: (kind = "daily", limit = 20, { signal }: RequestOptions = {}) =>
+      request<BriefListItem[]>(`/api/v1/briefs?kind=${kind}&limit=${limit}`, { signal }),
+
+    // ---- 管理接口（需要 apiKey） ----
+    updateSource: (sourceId: number, payload: SourceUpdate, { signal }: RequestOptions = {}) =>
+      request<SourceOut>(`/api/v1/sources/${sourceId}`, {
+        method: "PATCH",
+        body: JSON.stringify(payload),
+        headers: { "content-type": "application/json" },
+        signal,
+      }),
+    runJob: (
+      job: JobName,
+      params: { force?: boolean; limit?: number; kind?: "daily" | "weekly" } = {},
+      { signal }: RequestOptions = {},
+    ) =>
+      request<JobResultOut>(`/api/v1/admin/jobs/${job}/run${toQueryString(params)}`, {
+        method: "POST",
+        signal,
+      }),
+    listRuns: (limit = 30, { signal }: RequestOptions = {}) =>
+      request<FetchRunOut[]>(`/api/v1/admin/runs?limit=${limit}`, { signal }),
+    listUsage: (days = 7, { signal }: RequestOptions = {}) =>
+      request<LlmUsageOut[]>(`/api/v1/admin/usage?days=${days}`, { signal }),
     /** 最新一期简报；后端还没有生成过时返回 null（404）。 */
     getLatestBrief: async (kind = "daily", { signal }: RequestOptions = {}) => {
       try {

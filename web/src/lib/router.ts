@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 export type Route =
   | { name: "feed" }
   | { name: "brief" }
+  | { name: "admin" }
   | { name: "document"; id: number }
   | { name: "about" };
 
@@ -19,6 +20,9 @@ export function parseHash(hash: string): Route {
   }
   if (clean === "/briefs") {
     return { name: "brief" };
+  }
+  if (clean === "/admin") {
+    return { name: "admin" };
   }
   return { name: "feed" };
 }

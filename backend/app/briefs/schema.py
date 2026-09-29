@@ -63,6 +63,25 @@ class BriefContent(BaseModel):
     sections: list[BriefSection] = Field(default_factory=list)
     closing_zh: str = Field(default="", max_length=600)
     closing_en: str = Field(default="", max_length=600)
+    # 周报用：基于统计数字的趋势观察（日报留空）
+    trends_zh: list[str] = Field(default_factory=list)
+    trends_en: list[str] = Field(default_factory=list)
+
+    @field_validator("trends_zh", "trends_en", mode="before")
+    @classmethod
+    def _clean_trends(cls, value: object) -> list[str]:
+        if value is None:
+            return []
+        if isinstance(value, str):
+            value = [value]
+        if not isinstance(value, list):
+            return []
+        cleaned: list[str] = []
+        for item in value:
+            text = " ".join(str(item).split())
+            if text:
+                cleaned.append(text[:400])
+        return cleaned[:8]
 
     @field_validator("sections")
     @classmethod
