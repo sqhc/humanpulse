@@ -22,6 +22,10 @@ export type JobResultOut = components["schemas"]["JobResultOut"];
 export type JobName = "collect" | "process" | "brief";
 export type BriefOut = components["schemas"]["BriefOut"];
 export type BriefListItem = components["schemas"]["BriefListItem"];
+export type EntityOut = components["schemas"]["EntityOut"];
+export type EntityDetailOut = components["schemas"]["EntityDetailOut"];
+export type EntityTimelinePoint = components["schemas"]["EntityTimelinePoint"];
+export type EntityMentionOut = components["schemas"]["EntityMentionOut"];
 
 /** 结构化简报内容（由服务端渲染 Markdown，前端按语言取字段）。 */
 export interface BriefSection {
@@ -143,6 +147,21 @@ export function createClient(options: ClientOptions = {}) {
         method: "POST",
         signal,
       }),
+    /** 实体列表：默认按提及次数排序，可搜索。 */
+    listEntities: (
+      params: { q?: string; kind?: string; order?: "mentions" | "recent"; limit?: number } = {},
+      { signal }: RequestOptions = {},
+    ) => request<EntityOut[]>(`/api/v1/entities${toQueryString(params)}`, { signal }),
+    /** 实体详情：时间线（按天）+ 最近提及的文档。 */
+    getEntity: (
+      entityId: number,
+      params: { days?: number; recent_limit?: number } = {},
+      { signal }: RequestOptions = {},
+    ) =>
+      request<EntityDetailOut>(`/api/v1/entities/${entityId}${toQueryString(params)}`, {
+        signal,
+      }),
+
     listRuns: (limit = 30, { signal }: RequestOptions = {}) =>
       request<FetchRunOut[]>(`/api/v1/admin/runs?limit=${limit}`, { signal }),
     listUsage: (days = 7, { signal }: RequestOptions = {}) =>

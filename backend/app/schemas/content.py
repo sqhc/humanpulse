@@ -145,3 +145,34 @@ class BriefOut(BaseModel):
     model: str
     created_at: datetime
     item_count: int = 0
+
+
+class EntityOut(BaseModel):
+    id: int
+    name: str
+    kind: str
+    aliases: list[str] = Field(default_factory=list)
+    mention_count: int = 0
+    first_seen_at: datetime
+    last_seen_at: datetime
+
+
+class EntityTimelinePoint(BaseModel):
+    day: str
+    count: int
+
+
+class EntityMentionOut(BaseModel):
+    document_id: int
+    title: str
+    url: str
+    source_name: str | None = None
+    published_at: datetime
+    score: int | None = None
+    cluster_id: int | None = None
+    salience: float = 0.0
+
+
+class EntityDetailOut(EntityOut):
+    timeline: list[EntityTimelinePoint] = Field(default_factory=list)
+    recent: list[EntityMentionOut] = Field(default_factory=list)

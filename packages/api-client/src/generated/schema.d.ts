@@ -191,6 +191,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/entities": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 实体列表（可按名字搜索） */
+        get: operations["list_entities_api_v1_entities_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/entities/{entity_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 实体详情与时间线 */
+        get: operations["get_entity_api_v1_entities__entity_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/health": {
         parameters: {
             query?: never;
@@ -257,6 +291,23 @@ export interface paths {
         head?: never;
         /** 启用/停用或调整采集频率 */
         patch: operations["update_source_api_v1_sources__source_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/stream": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Feed 实时事件流（SSE） */
+        get: operations["stream_api_v1_stream_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/takedown": {
@@ -575,6 +626,94 @@ export interface components {
             title: string;
             /** Url */
             url: string;
+        };
+        /** EntityDetailOut */
+        EntityDetailOut: {
+            /** Aliases */
+            aliases?: string[];
+            /**
+             * First Seen At
+             * Format: date-time
+             */
+            first_seen_at: string;
+            /** Id */
+            id: number;
+            /** Kind */
+            kind: string;
+            /**
+             * Last Seen At
+             * Format: date-time
+             */
+            last_seen_at: string;
+            /**
+             * Mention Count
+             * @default 0
+             */
+            mention_count: number;
+            /** Name */
+            name: string;
+            /** Recent */
+            recent?: components["schemas"]["EntityMentionOut"][];
+            /** Timeline */
+            timeline?: components["schemas"]["EntityTimelinePoint"][];
+        };
+        /** EntityMentionOut */
+        EntityMentionOut: {
+            /** Cluster Id */
+            cluster_id?: number | null;
+            /** Document Id */
+            document_id: number;
+            /**
+             * Published At
+             * Format: date-time
+             */
+            published_at: string;
+            /**
+             * Salience
+             * @default 0
+             */
+            salience: number;
+            /** Score */
+            score?: number | null;
+            /** Source Name */
+            source_name?: string | null;
+            /** Title */
+            title: string;
+            /** Url */
+            url: string;
+        };
+        /** EntityOut */
+        EntityOut: {
+            /** Aliases */
+            aliases?: string[];
+            /**
+             * First Seen At
+             * Format: date-time
+             */
+            first_seen_at: string;
+            /** Id */
+            id: number;
+            /** Kind */
+            kind: string;
+            /**
+             * Last Seen At
+             * Format: date-time
+             */
+            last_seen_at: string;
+            /**
+             * Mention Count
+             * @default 0
+             */
+            mention_count: number;
+            /** Name */
+            name: string;
+        };
+        /** EntityTimelinePoint */
+        EntityTimelinePoint: {
+            /** Count */
+            count: number;
+            /** Day */
+            day: string;
         };
         /** FetchRunOut */
         FetchRunOut: {
@@ -1130,6 +1269,74 @@ export interface operations {
             };
         };
     };
+    list_entities_api_v1_entities_get: {
+        parameters: {
+            query?: {
+                q?: string | null;
+                kind?: string | null;
+                order?: string;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EntityOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_entity_api_v1_entities__entity_id__get: {
+        parameters: {
+            query?: {
+                days?: number;
+                recent_limit?: number;
+            };
+            header?: never;
+            path: {
+                entity_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EntityDetailOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     health_api_v1_health_get: {
         parameters: {
             query?: never;
@@ -1232,6 +1439,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SourceOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    stream_api_v1_stream_get: {
+        parameters: {
+            query?: {
+                /** @description 从哪个 document id 之后开始推送 */
+                since?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */

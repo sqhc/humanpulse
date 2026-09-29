@@ -55,6 +55,25 @@ export interface Messages {
   filterSearch: string;
   filterSearchPlaceholder: string;
   filterReset: string;
+  streamLive: string;
+  streamConnecting: string;
+  streamOffline: string;
+  streamReceived: string;
+  navEntities: string;
+  entitiesTitle: string;
+  entitiesHint: string;
+  entitiesSearchPlaceholder: string;
+  entitiesOrderMentions: string;
+  entitiesOrderRecent: string;
+  entitiesEmpty: string;
+  entitiesMentions: string;
+  entityTimeline: string;
+  entityRecent: string;
+  entityNoTimeline: string;
+  entityAliases: string;
+  entityFirstSeen: string;
+  entityLastSeen: string;
+  entityBack: string;
   optionAll: string;
   optionZh: string;
   optionEn: string;
@@ -149,6 +168,25 @@ export const messages: Record<Lang, Messages> = {
     filterSearch: "关键词",
     filterSearchPlaceholder: "按标题搜索…",
     filterReset: "重置",
+    streamLive: "实时",
+    streamConnecting: "连接中",
+    streamOffline: "未连接",
+    streamReceived: "实时新增",
+    navEntities: "实体",
+    entitiesTitle: "实体时间线",
+    entitiesHint: "按提及次数排序；同一实体的中英文写法目前是两条记录（合并需要别名表）。",
+    entitiesSearchPlaceholder: "搜索人名 / 组织 / 地点…",
+    entitiesOrderMentions: "按提及次数",
+    entitiesOrderRecent: "按最近出现",
+    entitiesEmpty: "还没有实体数据。先跑采集与处理，或执行 make backfill-entities。",
+    entitiesMentions: "提及",
+    entityTimeline: "时间线（按天）",
+    entityRecent: "最近提及",
+    entityNoTimeline: "该时间窗内没有提及。",
+    entityAliases: "别名",
+    entityFirstSeen: "首次出现",
+    entityLastSeen: "最近出现",
+    entityBack: "返回实体列表",
     optionAll: "全部",
     optionZh: "中文",
     optionEn: "英文",
@@ -253,6 +291,25 @@ export const messages: Record<Lang, Messages> = {
     filterSearch: "Keyword",
     filterSearchPlaceholder: "Search titles…",
     filterReset: "Reset",
+    streamLive: "Live",
+    streamConnecting: "Connecting",
+    streamOffline: "Offline",
+    streamReceived: "Live new",
+    navEntities: "Entities",
+    entitiesTitle: "Entity timeline",
+    entitiesHint: "Sorted by mentions; Chinese and English spellings of the same entity are separate rows (merging needs an alias table).",
+    entitiesSearchPlaceholder: "Search person / org / place…",
+    entitiesOrderMentions: "By mentions",
+    entitiesOrderRecent: "By recency",
+    entitiesEmpty: "No entity data yet. Run collection + processing, or make backfill-entities.",
+    entitiesMentions: "mentions",
+    entityTimeline: "Timeline (per day)",
+    entityRecent: "Recent mentions",
+    entityNoTimeline: "No mentions in this window.",
+    entityAliases: "Aliases",
+    entityFirstSeen: "First seen",
+    entityLastSeen: "Last seen",
+    entityBack: "Back to entities",
     optionAll: "all",
     optionZh: "Chinese",
     optionEn: "English",

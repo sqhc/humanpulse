@@ -3,9 +3,7 @@
 from __future__ import annotations
 
 import json
-import os
 from collections.abc import Callable
-from decimal import Decimal, InvalidOperation
 from typing import Any
 
 import httpx
@@ -13,6 +11,7 @@ from pydantic import ValidationError
 
 from app.config import Settings, get_settings
 from app.llm.base import AnalyzeResult, LlmError, LlmUsage
+from app.llm.pricing import TokenBundle, cost_usd
 from app.llm.prompts import load_prompt
 from app.llm.schema import AnalysisOut
 
@@ -33,22 +32,6 @@ def _to_int(value: object) -> int:
     if isinstance(value, float):
         return int(value)
     return 0
-
-
-def _price_per_million(env_name: str) -> Decimal:
-    """读取每百万 token 的美元单价；未配置或非法时按 0 处理。
-
-    单价必须按官方定价核对后通过环境变量注入，本项目不硬编码任何价格，
-    以免厂商调价后成本统计失真。
-    """
-    raw = os.environ.get(env_name, "").strip()
-    if not raw:
-        return Decimal(0)
-    try:
-        price = Decimal(raw)
-    except InvalidOperation:
-        return Decimal(0)
-    return price if price > 0 else Decimal(0)
 
 
 def _truncate(value: str, limit: int = 300) -> str:
@@ -137,21 +120,19 @@ class DeepSeekClient:
         parse: Callable[[str], dict[str, Any]],
     ) -> tuple[dict[str, Any], LlmUsage, bool]:
         """调用一次；解析失败时把错误摘要回灌，再试一次。"""
-        tokens_in = 0
-        tokens_out = 0
+        bundle = TokenBundle()
         raw_output = ""
         first_reason = ""
         try:
-            raw_output, call_in, call_out = await self._chat(messages, model)
-            tokens_in += call_in
-            tokens_out += call_out
+            raw_output, call_usage = await self._chat(messages, model)
+            bundle = bundle + call_usage
             payload = parse(raw_output)
         except _OutputError as exc:
             first_reason = str(exc)
         except LlmError as exc:
             first_reason = str(exc)
         else:
-            return payload, self._usage(model, tokens_in, tokens_out), False
+            return payload, self._usage(model, bundle), False
 
         repair_messages: list[dict[str, str]] = [
             messages[0],
@@ -167,19 +148,22 @@ class DeepSeekClient:
             },
         ]
         try:
-            raw_output, call_in, call_out = await self._chat(repair_messages, model)
-            tokens_in += call_in
-            tokens_out += call_out
+            raw_output, call_usage = await self._chat(repair_messages, model)
+            bundle = bundle + call_usage
             payload = parse(raw_output)
         except (_OutputError, LlmError) as exc:
             raise LlmError(
                 f"deepseek 两次调用均失败：首次原因={_truncate(first_reason)}；"
                 f"修复后原因={_truncate(str(exc))}"
             ) from exc
-        return payload, self._usage(model, tokens_in, tokens_out), True
+        return payload, self._usage(model, bundle), True
 
-    async def _chat(self, messages: list[dict[str, str]], model: str) -> tuple[str, int, int]:
-        """发一次请求并取回 (content, prompt_tokens, completion_tokens)。"""
+    async def _chat(self, messages: list[dict[str, str]], model: str) -> tuple[str, TokenBundle]:
+        """发一次请求并取回 (content, token 用量)。
+
+        缓存命中/未命中分开取：DeepSeek 的缓存命中价只有未命中的 1/50，
+        合并计费会把成本算高一个数量级。
+        """
         payload: dict[str, Any] = {
             "model": model,
             "messages": messages,
@@ -204,13 +188,22 @@ class DeepSeekClient:
         try:
             content = body["choices"][0]["message"]["content"]
             usage = body.get("usage") or {}
-            tokens_in = _to_int(usage.get("prompt_tokens"))
-            tokens_out = _to_int(usage.get("completion_tokens"))
+            prompt_tokens = _to_int(usage.get("prompt_tokens"))
+            cache_hit = _to_int(usage.get("prompt_cache_hit_tokens"))
+            raw_miss = usage.get("prompt_cache_miss_tokens")
+            cache_miss = (
+                _to_int(raw_miss) if raw_miss is not None else max(prompt_tokens - cache_hit, 0)
+            )
+            bundle = TokenBundle(
+                cache_hit=cache_hit,
+                cache_miss=cache_miss,
+                output=_to_int(usage.get("completion_tokens")),
+            )
         except (KeyError, IndexError, TypeError) as exc:
             raise LlmError("deepseek 响应缺少 choices[0].message.content") from exc
         if not isinstance(content, str) or not content.strip():
             raise LlmError("deepseek 返回了空的 message.content")
-        return content, tokens_in, tokens_out
+        return content, bundle
 
     async def _post(
         self, url: str, payload: dict[str, Any], headers: dict[str, str]
@@ -237,16 +230,18 @@ class DeepSeekClient:
         except ValidationError as exc:
             raise _OutputError(f"输出字段校验失败：{_brief_validation_error(exc)}") from exc
 
-    def _usage(self, model: str, tokens_in: int, tokens_out: int) -> LlmUsage:
-        price_in = _price_per_million("DEEPSEEK_PRICE_IN")
-        price_out = _price_per_million("DEEPSEEK_PRICE_OUT")
-        cost = (Decimal(tokens_in) * price_in + Decimal(tokens_out) * price_out) / Decimal(
-            1_000_000
-        )
+    def _usage(self, model: str, bundle: TokenBundle) -> LlmUsage:
         return LlmUsage(
             provider=self.provider,
             model=model,
-            tokens_in=tokens_in,
-            tokens_out=tokens_out,
-            cost_usd=cost,
+            tokens_in=bundle.tokens_in,
+            tokens_out=bundle.output,
+            cache_hit_tokens=bundle.cache_hit,
+            cache_miss_tokens=bundle.cache_miss,
+            cost_usd=cost_usd(
+                model,
+                cache_hit_tokens=bundle.cache_hit,
+                cache_miss_tokens=bundle.cache_miss,
+                output_tokens=bundle.output,
+            ),
         )

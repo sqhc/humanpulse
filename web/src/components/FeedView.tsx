@@ -1,9 +1,10 @@
 import type { DocumentOut } from "@humanpulse/api-client";
-import { useInfiniteQuery } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
+import { useCallback, useMemo, useRef, useState } from "react";
 
 import type { Lang, Messages } from "../i18n";
 import { createApiClient } from "../lib/api";
+import { useDocumentStream } from "../lib/useDocumentStream";
 import { DocumentCard } from "./DocumentCard";
 import { emptyFilters, FilterBar, type FeedFilters } from "./FilterBar";
 
@@ -17,6 +18,21 @@ interface FeedViewProps {
 export function FeedView({ lang, t }: FeedViewProps) {
   const api = useMemo(() => createApiClient(), []);
   const [filters, setFilters] = useState<FeedFilters>(emptyFilters);
+  const [liveCount, setLiveCount] = useState(0);
+  const queryClient = useQueryClient();
+  const refreshing = useRef(false);
+
+  // SSE：每条新文档只累加计数；5 秒内的多次事件合并成一次刷新，避免打爆接口
+  const handleDocument = useCallback(() => {
+    setLiveCount((count) => count + 1);
+    if (refreshing.current) return;
+    refreshing.current = true;
+    window.setTimeout(() => {
+      refreshing.current = false;
+      void queryClient.invalidateQueries({ queryKey: ["feed"] });
+    }, 5000);
+  }, [queryClient]);
+  const stream = useDocumentStream(handleDocument);
 
   const feed = useInfiniteQuery({
     queryKey: ["feed", filters],
@@ -42,6 +58,28 @@ export function FeedView({ lang, t }: FeedViewProps) {
     <section className="space-y-4">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h2 className="text-lg font-semibold text-ink">{t.feedTitle}</h2>
+        <div className="flex items-center gap-3 text-xs">
+          <span className="flex items-center gap-1.5 text-ink-muted">
+            <span
+              data-testid="stream-status"
+              className={
+                stream.status === "open"
+                  ? "h-2 w-2 rounded-full bg-accent"
+                  : "h-2 w-2 rounded-full bg-ink-muted/60"
+              }
+            />
+            {stream.status === "open"
+              ? t.streamLive
+              : stream.status === "connecting"
+                ? t.streamConnecting
+                : t.streamOffline}
+          </span>
+          {liveCount > 0 ? (
+            <span className="text-accent">
+              {t.streamReceived}: {liveCount}
+            </span>
+          ) : null}
+        </div>
         <p className="text-xs text-ink-muted">{t.aiSummaryNotice}</p>
       </div>
 

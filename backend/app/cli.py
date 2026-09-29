@@ -300,6 +300,106 @@ def cmd_brief(args: argparse.Namespace) -> int:
     return 0
 
 
+async def _reprice() -> dict[str, Any]:
+    """按当前定价表重算历史成本。
+
+    历史行没有记录缓存命中/未命中的拆分，因此输入一律按未命中计——这是**成本上界**。
+    简报历史行没有存 token，无法重算，跳过。
+    """
+    from datetime import UTC, datetime
+    from decimal import Decimal as _Decimal
+
+    from sqlalchemy import select
+
+    from app.db import session_scope
+    from app.llm.pricing import cost_usd
+    from app.models.analysis import Analysis
+    from app.models.ops import LlmUsageDay
+
+    # 用固定低谷时刻作基准，避免重算结果随"现在是否高峰"漂移
+    reference = datetime(2026, 1, 4, 3, 0, tzinfo=UTC)
+
+    async with session_scope() as session:
+        usage_rows = (await session.execute(select(LlmUsageDay))).scalars().all()
+        for row in usage_rows:
+            row.cost_usd = cost_usd(
+                row.model,
+                cache_hit_tokens=0,
+                cache_miss_tokens=row.tokens_in,
+                output_tokens=row.tokens_out,
+                moment=reference,
+            )
+        analyses = (await session.execute(select(Analysis))).scalars().all()
+        for analysis in analyses:
+            analysis.cost_usd = cost_usd(
+                analysis.model,
+                cache_hit_tokens=0,
+                cache_miss_tokens=analysis.tokens_in,
+                output_tokens=analysis.tokens_out,
+                moment=reference,
+            )
+        await session.flush()
+        return {
+            "usage_rows": len(usage_rows),
+            "usage_total_usd": float(sum((row.cost_usd for row in usage_rows), _Decimal(0))),
+            "analyses": len(analyses),
+            "analyses_total_usd": float(
+                sum((analysis.cost_usd for analysis in analyses), _Decimal(0))
+            ),
+            "note": "输入按未命中计，属成本上界",
+        }
+
+
+async def _backfill_entities() -> dict[str, Any]:
+    """把历史 analyses.entities（JSONB）回填进 entities/entity_mentions（幂等）。"""
+    from sqlalchemy import select
+
+    from app.db import session_scope
+    from app.models.analysis import Analysis
+    from app.models.document import Document
+    from app.pipeline.entities import upsert_entities
+
+    async with session_scope() as session:
+        rows = (
+            await session.execute(
+                select(Analysis, Document)
+                .join(Document, Document.id == Analysis.document_id)
+                .where(Document.status == "enriched")
+                .order_by(Analysis.id.asc())
+            )
+        ).all()
+        scanned = len(rows)
+        processed = 0
+        written = 0
+        for analysis, document in rows:
+            items = analysis.entities or []
+            if not isinstance(items, list) or not items:
+                continue
+            payload = [item for item in items if isinstance(item, dict)]
+            if not payload:
+                continue
+            written += await upsert_entities(
+                session, document=document, analysis_id=analysis.id, entities=payload
+            )
+            processed += 1
+        await session.flush()
+        return {
+            "analyses_scanned": scanned,
+            "analyses_with_entities": processed,
+            "entity_entries": written,
+        }
+
+
+def cmd_backfill_entities(args: argparse.Namespace) -> int:
+    print(json.dumps(asyncio.run(_backfill_entities()), ensure_ascii=False))
+    return 0
+
+
+def cmd_reprice(args: argparse.Namespace) -> int:
+    print(json.dumps(asyncio.run(_reprice()), ensure_ascii=False))
+    return 0
+
+
 def cmd_reembed(args: argparse.Namespace) -> int:
     print(json.dumps(asyncio.run(_reembed()), ensure_ascii=False))
     return 0
@@ -333,6 +433,16 @@ def build_parser() -> argparse.ArgumentParser:
     brief_parser.add_argument("--kind", choices=["daily", "weekly"], default="daily")
     brief_parser.add_argument("--force", action="store_true")
     brief_parser.set_defaults(func=cmd_brief)
+
+    reprice_parser = sub.add_parser(
+        "reprice", help="按当前定价表重算历史成本（输入按未命中计，上界）"
+    )
+    reprice_parser.set_defaults(func=cmd_reprice)
+
+    backfill_parser = sub.add_parser(
+        "backfill-entities", help="把历史 analyses.entities 回填到实体表（幂等）"
+    )
+    backfill_parser.set_defaults(func=cmd_backfill_entities)
 
     migrate = sub.add_parser("migrate", help="执行数据库迁移到 head")
     migrate.set_defaults(func=cmd_migrate)

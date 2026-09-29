@@ -14,7 +14,7 @@ TORCH_HOME ?= $(CACHE_ROOT)/torch
 export UV_CACHE_DIR BUILDX_CONFIG HF_HOME TORCH_HOME
 
 .PHONY: help doctor bootstrap install ml lint typecheck test build verify openapi \
-        migrate seed demo reembed brief dev dev-web logs dev-down smoke collect-once prod-config deploy \
+        migrate seed demo reembed brief entities reprice dev dev-web logs dev-down smoke collect-once prod-config deploy \
         restore-drill clean
 
 help: ## 显示所有可用命令
@@ -74,6 +74,12 @@ demo: ## 用合成数据跑通采集→处理→聚类（不联网、不花钱�
 
 brief: ## 生成简报（KIND=daily|weekly；FORCE=1 强制重跑）
 	cd $(BACKEND) && uv run python -m app.cli brief --kind $(or $(KIND),daily) $(if $(FORCE),--force,)
+
+entities: ## 把历史 analyses.entities 回填进实体表（幂等）
+	cd $(BACKEND) && uv run python -m app.cli backfill-entities
+
+reprice: ## 按官方定价重算历史成本（输入按未命中计）
+	cd $(BACKEND) && uv run python -m app.cli reprice
 
 reembed: ## 用当前向量模型重新嵌入并重建聚类（需 uv sync --extra ml）
 	cd $(BACKEND) && uv run python -m app.cli reembed

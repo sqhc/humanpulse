@@ -5,6 +5,8 @@ import { useEffect, useState } from "react";
 export type Route =
   | { name: "feed" }
   | { name: "brief" }
+  | { name: "entities" }
+  | { name: "entity"; id: number }
   | { name: "admin" }
   | { name: "document"; id: number }
   | { name: "about" };
@@ -20,6 +22,13 @@ export function parseHash(hash: string): Route {
   }
   if (clean === "/briefs") {
     return { name: "brief" };
+  }
+  if (clean === "/entities") {
+    return { name: "entities" };
+  }
+  const entityMatch = /^\/entities\/(\d+)$/.exec(clean);
+  if (entityMatch) {
+    return { name: "entity", id: Number(entityMatch[1]) };
   }
   if (clean === "/admin") {
     return { name: "admin" };

@@ -16,6 +16,9 @@ class LlmUsage:
     tokens_in: int = 0
     tokens_out: int = 0
     cost_usd: Decimal = Decimal(0)
+    # 缓存命中/未命中的输入 token（DeepSeek 分开计价，成本差异可达 50 倍）
+    cache_hit_tokens: int = 0
+    cache_miss_tokens: int = 0
 
     def __add__(self, other: LlmUsage) -> LlmUsage:
         if (self.provider, self.model) != (other.provider, other.model):
@@ -26,6 +29,8 @@ class LlmUsage:
             tokens_in=self.tokens_in + other.tokens_in,
             tokens_out=self.tokens_out + other.tokens_out,
             cost_usd=self.cost_usd + other.cost_usd,
+            cache_hit_tokens=self.cache_hit_tokens + other.cache_hit_tokens,
+            cache_miss_tokens=self.cache_miss_tokens + other.cache_miss_tokens,
         )
 
 

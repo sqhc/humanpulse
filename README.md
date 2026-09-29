@@ -58,6 +58,8 @@ cd backend && uv sync && uv run uvicorn app.main:app --reload
 | `make collect-once` | 手动触发一次真实采集（需栈已起并导出 `ADMIN_API_KEY`） |
 | `make brief` | 生成简报（`KIND=daily` 默认 / `KIND=weekly`；`FORCE=1` 强制重跑） |
 | `make ml` / `make reembed` | 安装本地语义向量依赖 / 换模型后重算向量与聚类 |
+| `make entities` | 把历史 `analyses.entities` 回填进实体表（幂等） |
+| `make reprice` | 按官方定价重算历史成本（输入按未命中计，属上界） |
 
 切到真实模型：在 `.env` 里把 `LLM_PROVIDER` 设为 `deepseek`（默认）并填好 `DEEPSEEK_API_KEY`；
 **生产必须切换到语义向量**：执行 `make ml`（= `uv sync --extra ml`）并把 `EMBEDDING_PROVIDER` 改成 `local`，再用 `make reembed` 重算向量与聚类。
@@ -72,6 +74,8 @@ cd backend && uv sync && uv run uvicorn app.main:app --reload
 | GET | `/documents/{id}` | 详情：摘要、评分、标签 + 同一 cluster 的其它来源报道 |
 | GET | `/clusters`、`/clusters/{id}` | 聚类列表与详情（同一事件的多来源覆盖） |
 | GET | `/briefs`、`/briefs/latest?kind=daily\|weekly`、`/briefs/{id}` | 简报列表 / 最新一期 / 详情（含结构化双语内容与周报趋势） |
+| GET | `/entities`、`/entities/{id}` | 实体列表（按提及/最近排序，可搜索）/ 实体详情与按天时间线 |
+| GET | `/stream` | Feed 实时事件流（SSE；`event: ready` → `event: document`） |
 | GET | `/briefs/{id}/markdown?language=zh\|en` | 按语言重渲染 Markdown（不调用模型） |
 | GET | `/sources` | 数据源列表 |
 | PATCH | `/sources/{id}` | 启用/停用、调整采集频率（需 `X-API-Key`） |
@@ -101,7 +105,9 @@ scripts/           doctor / smoke / deploy / restore-drill
 - 提交删除申请：`POST /api/v1/takedown`；涉及个人的实体记录提供删除路径。
 - **不使用** X（Twitter）抓取、**不绕过** Cloudflare 等防护；被防护拦下的源直接停用（详见 [docs/data-sources.md](docs/data-sources.md)）。
 - AI 生成内容一律标注，平台不做立场性结论。
-- 日报：由已筛选记录按事件去重后取 Top N 生成，结构化 JSON 入库、Markdown 由服务端渲染（见 [ADR-0006](docs/adr/0006-daily-briefs.md)）。
+- 日报/周报：由已筛选记录按事件去重后取 Top N 生成，结构化 JSON 入库、Markdown 由服务端渲染（见 [ADR-0006](docs/adr/0006-daily-briefs.md)）。
+- 成本：单价取自 [DeepSeek 官方定价页](https://api-docs.deepseek.com/quick_start/pricing/)，按模型与缓存命中/未命中分别计价，高峰时段自动翻倍（见 `backend/app/llm/pricing.py`）。
+- 实体：LLM 输出的实体写入 `entities`/`entity_mentions`，支持按天时间线；中英文别名**不自动合并**（见 [ADR-0007](docs/adr/0007-entity-timeline.md)）。
 - 内容质量兜底：发布早于 `MAX_ITEM_AGE_DAYS`（默认 45 天）的条目记 `rejected/too_old`；只有标题可用的条目（如 GDELT）走 headline 提示词，摘要必须标注"仅据标题"并打 `headline-only` 标签。
 
 ## 免责声明
@@ -114,5 +120,6 @@ scripts/           doctor / smoke / deploy / restore-drill
 | --- | --- | --- |
 | Phase 0 | 骨架、CI、compose、ADR、GitHub 仓库 | 已完成 |
 | Phase 1 | 数据模型、RSS/GDELT/手动上传、SimHash + DeepSeek 摘要 + 向量去重与聚类、读取接口、Web Feed 与详情 | 已完成 |
-| Phase 2 | 日报/周报、管理台、更多源、SSE、VPS 上线 | 进行中（日报 + 周报 + 管理台 + 更多中文源已完成；SSE/VPS 待做） |
+| Phase 2 | 日报/周报、管理台、更多源、SSE、VPS 上线 | 已完成（VPS 待注册后部署） |
+| Phase 3 | 视频简报、移动端、实体时间线、语义搜索、深度调查 agent | 进行中（实体时间线已完成；视频/移动端待做） |
 | Phase 3 | 视频简报、移动端、实体时间线、语义搜索、深度调查 agent | 待开始 |

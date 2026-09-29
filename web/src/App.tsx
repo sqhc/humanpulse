@@ -6,6 +6,8 @@ import { AboutView } from "./components/AboutView";
 import { AdminView } from "./components/AdminView";
 import { BriefView } from "./components/BriefView";
 import { DocumentDetailView } from "./components/DocumentDetailView";
+import { EntitiesView } from "./components/EntitiesView";
+import { EntityDetailView } from "./components/EntityDetailView";
 import { FeedView } from "./components/FeedView";
 import { Header } from "./components/Header";
 import type { StatusState } from "./components/StatusCard";
@@ -62,6 +64,9 @@ export function App() {
         <a className={navClass(route.name === "brief")} href="#/briefs">
           {t.navBriefs}
         </a>
+        <a className={navClass(route.name === "entities" || route.name === "entity")} href="#/entities">
+          {t.navEntities}
+        </a>
         <a className={navClass(route.name === "about")} href="#/about">
           {t.navAbout}
         </a>
@@ -74,6 +79,10 @@ export function App() {
           <DocumentDetailView id={route.id} lang={lang} t={t} />
         ) : route.name === "brief" ? (
           <BriefView lang={lang} t={t} />
+        ) : route.name === "entities" ? (
+          <EntitiesView lang={lang} t={t} />
+        ) : route.name === "entity" ? (
+          <EntityDetailView id={route.id} lang={lang} t={t} />
         ) : route.name === "admin" ? (
           <AdminView t={t} lang={lang} />
         ) : route.name === "about" ? (

@@ -24,6 +24,7 @@ from app.models.analysis import Analysis, Embedding
 from app.models.document import Document
 from app.models.ops import LlmUsageDay
 from app.pipeline.dedup import attach_cluster, embedding_text
+from app.pipeline.entities import upsert_entities
 
 log = structlog.get_logger("pipeline.process")
 
@@ -237,6 +238,14 @@ async def process_pending(session: AsyncSession, *, limit: int = 20) -> ProcessS
             document.rejection_reason = "low_relevance"
             stats.rejected += 1
             continue
+
+        # 只有通过相关性筛选的文档才写入实体时间线，避免噪音实体污染
+        await upsert_entities(
+            session,
+            document=document,
+            analysis_id=analysis.id,
+            entities=[entity.model_dump() for entity in data.entities],
+        )
 
         vector = embedder.embed(
             embedding_text(data.summary_zh, data.summary_en, tags, document.title)

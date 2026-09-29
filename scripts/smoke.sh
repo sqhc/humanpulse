@@ -55,6 +55,11 @@ echo "$BRIEF_JSON"
 WEEKLY_JSON=$($COMPOSE exec -T -e LLM_PROVIDER=fake -e EMBEDDING_PROVIDER=hash api python -m app.cli brief --kind weekly --force | tail -1)
 echo "$WEEKLY_JSON"
 
+echo "== SSE 探活（只读前 3 行）=="
+SSE_HEAD=$(curl -sS -N --max-time 4 "$BASE/stream" | head -3 || true)
+echo "$SSE_HEAD"
+echo "$SSE_HEAD" | grep -q "event: ready" || { echo "SSE 未返回 ready 帧" >&2; exit 1; }
+
 echo "== 校验读取接口 =="
 API_BASE="$BASE" DEMO_JSON="$DEMO_JSON" BRIEF_JSON="$BRIEF_JSON" WEEKLY_JSON="$WEEKLY_JSON" python3 - <<'PY'
 import json
@@ -119,6 +124,12 @@ assert "## Sources" in english or "## " in english, "英文重渲染缺少分组
 briefs = get("/briefs?kind=daily&limit=5")
 assert len(briefs) >= 1, "简报列表为空"
 
+entities = get("/entities?limit=10")
+assert len(entities) >= 1, "实体列表为空（流程里应写入 headless 实体）"
+entity_detail = get(f"/entities/{entities[0]['id']}")
+assert entity_detail["timeline"], "实体缺少时间线"
+assert entity_detail["recent"], "实体缺少最近提及"
+
 assert weekly_job["created"] is True, f"周报未生成: {weekly_job}"
 weekly = get("/briefs/latest?kind=weekly")
 assert weekly["title"], "周报缺少标题"
@@ -137,6 +148,7 @@ print(
         "top_score": first["score"],
         "brief_items": brief["item_count"],
         "weekly_items": weekly["item_count"],
+        "entities": len(entities),
         "ingest": demo["ingest"],
     },
 )
