@@ -60,6 +60,9 @@ SSE_HEAD=$(curl -sS -N --max-time 4 "$BASE/stream" | head -3 || true)
 echo "$SSE_HEAD"
 echo "$SSE_HEAD" | grep -q "event: ready" || { echo "SSE 未返回 ready 帧" >&2; exit 1; }
 
+echo "== 应用实体别名表（幂等）=="
+$COMPOSE exec -T api python -m app.cli alias-apply | tail -1
+
 echo "== 校验读取接口 =="
 API_BASE="$BASE" DEMO_JSON="$DEMO_JSON" BRIEF_JSON="$BRIEF_JSON" WEEKLY_JSON="$WEEKLY_JSON" python3 - <<'PY'
 import json
@@ -125,6 +128,8 @@ briefs = get("/briefs?kind=daily&limit=5")
 assert len(briefs) >= 1, "简报列表为空"
 
 entities = get("/entities?limit=10")
+# 别名行不应该出现在列表里（canonical_entity_id 非空的被过滤）
+assert all(item["name"] for item in entities), "实体名为空"
 assert len(entities) >= 1, "实体列表为空（流程里应写入 headless 实体）"
 entity_detail = get(f"/entities/{entities[0]['id']}")
 assert entity_detail["timeline"], "实体缺少时间线"

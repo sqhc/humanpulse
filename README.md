@@ -59,6 +59,7 @@ cd backend && uv sync && uv run uvicorn app.main:app --reload
 | `make brief` | 生成简报（`KIND=daily` 默认 / `KIND=weekly`；`FORCE=1` 强制重跑） |
 | `make ml` / `make reembed` | 安装本地语义向量依赖 / 换模型后重算向量与聚类 |
 | `make entities` | 把历史 `analyses.entities` 回填进实体表（幂等） |
+| `make aliases` / `make entity-candidates` | 应用实体别名表（中国/China 合并）/ 列出疑似同实体的候选对 |
 | `make reprice` | 按官方定价重算历史成本（输入按未命中计，属上界） |
 
 切到真实模型：在 `.env` 里把 `LLM_PROVIDER` 设为 `deepseek`（默认）并填好 `DEEPSEEK_API_KEY`；
@@ -107,7 +108,8 @@ scripts/           doctor / smoke / deploy / restore-drill
 - AI 生成内容一律标注，平台不做立场性结论。
 - 日报/周报：由已筛选记录按事件去重后取 Top N 生成，结构化 JSON 入库、Markdown 由服务端渲染（见 [ADR-0006](docs/adr/0006-daily-briefs.md)）。
 - 成本：单价取自 [DeepSeek 官方定价页](https://api-docs.deepseek.com/quick_start/pricing/)，按模型与缓存命中/未命中分别计价，高峰时段自动翻倍（见 `backend/app/llm/pricing.py`）。
-- 实体：LLM 输出的实体写入 `entities`/`entity_mentions`，支持按天时间线；中英文别名**不自动合并**（见 [ADR-0007](docs/adr/0007-entity-timeline.md)）。
+- 实体：LLM 输出的实体写入 `entities`/`entity_mentions`，支持按天时间线（[ADR-0007](docs/adr/0007-entity-timeline.md)）；
+  跨语言写法由人工别名表合并成一条（`backend/app/data/entity_aliases.yaml`，[ADR-0009](docs/adr/0009-entity-alias-merge.md)）。
 - 内容质量兜底：发布早于 `MAX_ITEM_AGE_DAYS`（默认 45 天）的条目记 `rejected/too_old`；只有标题可用的条目（如 GDELT）走 headline 提示词，摘要必须标注"仅据标题"并打 `headline-only` 标签。
 
 ## 免责声明
@@ -121,5 +123,5 @@ scripts/           doctor / smoke / deploy / restore-drill
 | Phase 0 | 骨架、CI、compose、ADR、GitHub 仓库 | 已完成 |
 | Phase 1 | 数据模型、RSS/GDELT/手动上传、SimHash + DeepSeek 摘要 + 向量去重与聚类、读取接口、Web Feed 与详情 | 已完成 |
 | Phase 2 | 日报/周报、管理台、更多源、SSE、VPS 上线 | 已完成（VPS 待注册后部署） |
-| Phase 3 | 视频简报、移动端、实体时间线、语义搜索、深度调查 agent | 进行中（实体时间线已完成；视频/移动端待做） |
+| Phase 3 | 视频简报、移动端、实体时间线、语义搜索、深度调查 agent | 进行中（实体时间线 + 别名合并已完成；视频/移动端待做） |
 | Phase 3 | 视频简报、移动端、实体时间线、语义搜索、深度调查 agent | 待开始 |

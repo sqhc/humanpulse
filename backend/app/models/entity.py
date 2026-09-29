@@ -30,6 +30,16 @@ class Entity(Base, TimestampMixin):
     first_seen_at: Mapped[datetime] = mapped_column(server_default=func.now())
     last_seen_at: Mapped[datetime] = mapped_column(server_default=func.now(), index=True)
     wikidata_id: Mapped[str | None] = mapped_column(String(32))
+    # 指向合并后的规范实体；非空表示"本行只是某个实体的别名写法"（保留用于审计）
+    canonical_entity_id: Mapped[int | None] = mapped_column(
+        ForeignKey(
+            "entities.id",
+            ondelete="SET NULL",
+            name="fk_entities_canonical_entity_id",
+        ),
+        nullable=True,
+        index=True,
+    )
 
 
 class EntityMention(Base):

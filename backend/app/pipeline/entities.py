@@ -63,10 +63,15 @@ async def upsert_entities(
     """写入实体与提及，返回处理条数；同一文档的同一实体不会重复计。"""
     now = datetime.now(UTC)
     written = 0
+    # 延迟导入：aliases 依赖本模块的 entity_key，顶层互相导入会成环
+    from app.pipeline.aliases import resolve_alias
+
     for item in dedupe_entities(entities):
-        name = str(item["name"]).strip()[:200]
+        raw_name = str(item["name"]).strip()[:200]
         kind = str(item.get("kind") or "org")[:16]
-        key = entity_key(kind, name)
+        # 命中别名表时直接落到规范实体，否则每轮处理都会把时间线重新拆开
+        key, display_name = resolve_alias(kind, raw_name)
+        is_alias = raw_name != display_name
 
         entity = (
             await session.execute(select(Entity).where(Entity.key == key))
@@ -74,7 +79,7 @@ async def upsert_entities(
         if entity is None:
             entity = Entity(
                 key=key,
-                name=name,
+                name=display_name,
                 kind=kind,
                 aliases=[],
                 mention_count=0,
@@ -83,8 +88,9 @@ async def upsert_entities(
             )
             session.add(entity)
             await session.flush()
-        elif name != entity.name and name not in list(entity.aliases or []):
-            entity.aliases = [*list(entity.aliases or []), name]
+        recorded = list(entity.aliases or [])
+        if is_alias and raw_name not in recorded:
+            entity.aliases = [*recorded, raw_name]
 
         exists = (
             await session.execute(

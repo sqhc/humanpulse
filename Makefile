@@ -14,7 +14,7 @@ TORCH_HOME ?= $(CACHE_ROOT)/torch
 export UV_CACHE_DIR BUILDX_CONFIG HF_HOME TORCH_HOME
 
 .PHONY: help doctor bootstrap install ml lint typecheck test build verify openapi \
-        migrate seed demo reembed brief entities reprice dev dev-web logs dev-down smoke collect-once prod-config deploy \
+        migrate seed demo reembed brief entities aliases entity-candidates reprice dev dev-web logs dev-down smoke collect-once prod-config deploy \
         restore-drill clean
 
 help: ## 显示所有可用命令
@@ -74,6 +74,12 @@ demo: ## 用合成数据跑通采集→处理→聚类（不联网、不花钱�
 
 brief: ## 生成简报（KIND=daily|weekly；FORCE=1 强制重跑）
 	cd $(BACKEND) && uv run python -m app.cli brief --kind $(or $(KIND),daily) $(if $(FORCE),--force,)
+
+aliases: ## 应用实体别名表（合并 中国/China 这类写法，幂等）
+	cd $(BACKEND) && uv run python -m app.cli alias-apply
+
+entity-candidates: ## 列出疑似同一实体的候选对（人工确认用）
+	cd $(BACKEND) && uv run python -m app.cli entity-candidates
 
 entities: ## 把历史 analyses.entities 回填进实体表（幂等）
 	cd $(BACKEND) && uv run python -m app.cli backfill-entities

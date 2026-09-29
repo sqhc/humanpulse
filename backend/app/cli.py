@@ -390,6 +390,41 @@ async def _backfill_entities() -> dict[str, Any]:
         }
 
 
+async def _alias_apply(path: str | None) -> dict[str, Any]:
+    """应用实体别名表：把「中国 / China」这类写法合并成一个实体（幂等）。"""
+    import pathlib as _pathlib
+
+    from app.db import session_scope
+    from app.pipeline.aliases import apply_alias_groups, load_alias_groups
+
+    groups = load_alias_groups(_pathlib.Path(path) if path else None)
+    async with session_scope() as session:
+        stats = await apply_alias_groups(session, groups)
+    stats["loaded_groups"] = len(groups)
+    return stats
+
+
+async def _entity_candidates(min_shared: int, limit: int) -> dict[str, Any]:
+    """列出疑似同一实体的候选对（同类型 + 同文档共现 + 中英混写），供人工确认。"""
+    from app.db import session_scope
+    from app.pipeline.aliases import find_alias_candidates
+
+    async with session_scope() as session:
+        candidates = await find_alias_candidates(session, min_shared_docs=min_shared, limit=limit)
+    return {"count": len(candidates), "candidates": candidates}
+
+
+def cmd_alias_apply(args: argparse.Namespace) -> int:
+    print(json.dumps(asyncio.run(_alias_apply(args.file)), ensure_ascii=False))
+    return 0
+
+
+def cmd_entity_candidates(args: argparse.Namespace) -> int:
+    result = asyncio.run(_entity_candidates(args.min_shared, args.limit))
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+    return 0
+
+
 def cmd_backfill_entities(args: argparse.Namespace) -> int:
     print(json.dumps(asyncio.run(_backfill_entities()), ensure_ascii=False))
     return 0
@@ -443,6 +478,15 @@ def build_parser() -> argparse.ArgumentParser:
         "backfill-entities", help="把历史 analyses.entities 回填到实体表（幂等）"
     )
     backfill_parser.set_defaults(func=cmd_backfill_entities)
+
+    alias_parser = sub.add_parser("alias-apply", help="应用实体别名表（合并中国/China 这类写法）")
+    alias_parser.add_argument("--file", default=None)
+    alias_parser.set_defaults(func=cmd_alias_apply)
+
+    candidates_parser = sub.add_parser("entity-candidates", help="列出疑似同一实体的候选对")
+    candidates_parser.add_argument("--min-shared", type=int, default=2)
+    candidates_parser.add_argument("--limit", type=int, default=30)
+    candidates_parser.set_defaults(func=cmd_entity_candidates)
 
     migrate = sub.add_parser("migrate", help="执行数据库迁移到 head")
     migrate.set_defaults(func=cmd_migrate)

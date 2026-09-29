@@ -41,7 +41,10 @@ async def list_entities(
     order: Annotated[str, Query(pattern="^(mentions|recent)$")] = "mentions",
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
 ) -> list[EntityOut]:
-    stmt = select(Entity).where(Entity.mention_count > 0)
+    # 只列出规范实体：别名行（canonical_entity_id 非空）保留用于审计，但不再作为独立实体展示
+    stmt = (
+        select(Entity).where(Entity.mention_count > 0).where(Entity.canonical_entity_id.is_(None))
+    )
     if q:
         stmt = stmt.where(Entity.name.ilike(f"%{q}%"))
     if kind:
