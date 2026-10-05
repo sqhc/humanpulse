@@ -29,6 +29,9 @@ ml = [
     "sentence-transformers>=3.3",
 ]
 
+# 视频渲染（离线动作，不进 API 镜像）：PIL 画分镜，ffmpeg 编码
+video = ["pillow>=11"]
+
 [dependency-groups]
 dev = [
     "pytest>=8.3",

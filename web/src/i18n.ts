@@ -58,6 +58,9 @@ export interface Messages {
   adminCandidatesGroups: string;
   adminCandidatesKeepLeft: string;
   adminCandidatesWroteBack: string;
+  briefScript: string;
+  briefSubtitles: string;
+  briefVideoHint: string;
   adminCandidatesKeepRight: string;
   feedTitle: string;
   aiSummaryNotice: string;
@@ -184,6 +187,9 @@ export const messages: Record<Lang, Messages> = {
     adminCandidatesGroups: "别名组",
     adminCandidatesKeepLeft: "保留左边的名字",
     adminCandidatesWroteBack: "已写回",
+    briefScript: "导出视频脚本",
+    briefSubtitles: "导出字幕（SRT）",
+    briefVideoHint: "脚本与字幕由已入库的简报生成，不额外调用模型。渲染 MP4 需要 ffmpeg 与 Pillow（见 make video）。",
     adminCandidatesKeepRight: "保留右边的名字",
     feedTitle: "最新记录",
     aiSummaryNotice: "以下摘要与评分由大模型生成并标注，原文链接见详情页。",
@@ -320,6 +326,9 @@ export const messages: Record<Lang, Messages> = {
     adminCandidatesGroups: "alias groups",
     adminCandidatesKeepLeft: "Keep the left name",
     adminCandidatesWroteBack: "written back",
+    briefScript: "Export video script",
+    briefSubtitles: "Export subtitles (SRT)",
+    briefVideoHint: "Script and subtitles come from the stored brief; no extra model calls. Rendering MP4 needs ffmpeg + Pillow (see make video).",
     adminCandidatesKeepRight: "Keep the right name",
     feedTitle: "Latest records",
     aiSummaryNotice: "Summaries and scores below are AI-generated and labelled; original links are on the detail page.",

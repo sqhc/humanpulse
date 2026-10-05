@@ -414,6 +414,75 @@ async def _entity_candidates(min_shared: int, limit: int) -> dict[str, Any]:
     return {"count": len(candidates), "candidates": candidates}
 
 
+async def _video(
+    brief_id: int | None, language: str, out_dir: str, render: bool, font: str | None
+) -> dict[str, Any]:
+    """生成视频脚本与字幕；render=True 时再调 ffmpeg 出 MP4。"""
+    from sqlalchemy import select
+
+    from app.briefs.schema import BriefContent
+    from app.db import session_scope
+    from app.models.summary import Brief
+    from app.video.render import RenderError, ffmpeg_path, render_video
+    from app.video.srt import render_srt
+    from app.video.storyboard import build_storyboard
+
+    async with session_scope() as session:
+        if brief_id is None:
+            brief = (
+                await session.execute(select(Brief).order_by(Brief.period_start.desc()).limit(1))
+            ).scalar_one_or_none()
+        else:
+            brief = await session.get(Brief, brief_id)
+        if brief is None:
+            raise SystemExit("找不到简报，先用 make brief 生成一期")
+        payload = brief.structured if isinstance(brief.structured, dict) else {}
+        if "sections" not in payload:
+            raise SystemExit("这期简报没有结构化内容，无法生成脚本")
+        content = BriefContent.model_validate(payload)
+        # 复用已入库的简报内容，不重新调用模型，因此不产生费用
+        from app.api.v1.briefs import _load_items
+
+        items = await _load_items(session, brief.id)
+        storyboard = build_storyboard(
+            content, language=language, brief_id=brief.id, kind=brief.kind, items=items
+        )
+
+    target = pathlib.Path(out_dir)
+    target.mkdir(parents=True, exist_ok=True)
+    stem = f"brief-{storyboard.brief_id}-{storyboard.language}"
+    story_path = target / f"{stem}-storyboard.json"
+    srt_path = target / f"{stem}.srt"
+    story_path.write_text(
+        json.dumps(storyboard.to_dict(), ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+    srt_path.write_text(render_srt(storyboard), encoding="utf-8")
+
+    result: dict[str, Any] = {
+        "brief_id": storyboard.brief_id,
+        "language": storyboard.language,
+        "scenes": len(storyboard.scenes),
+        "total_seconds": storyboard.total_seconds,
+        "storyboard": str(story_path),
+        "subtitles": str(srt_path),
+    }
+    if render:
+        if ffmpeg_path() is None:
+            result["render_error"] = "未找到 ffmpeg：脚本与字幕已生成，装好后重跑 --render 即可"
+        else:
+            try:
+                result["video"] = render_video(storyboard, target, font=font)
+            except RenderError as exc:
+                result["render_error"] = str(exc)
+    return result
+
+
+def cmd_video(args: argparse.Namespace) -> int:
+    result = asyncio.run(_video(args.brief, args.lang, args.out, args.render, args.font))
+    print(json.dumps(result, ensure_ascii=False))
+    return 0
+
+
 def cmd_alias_apply(args: argparse.Namespace) -> int:
     print(json.dumps(asyncio.run(_alias_apply(args.file)), ensure_ascii=False))
     return 0
@@ -482,6 +551,14 @@ def build_parser() -> argparse.ArgumentParser:
     alias_parser = sub.add_parser("alias-apply", help="应用实体别名表（合并中国/China 这类写法）")
     alias_parser.add_argument("--file", default=None)
     alias_parser.set_defaults(func=cmd_alias_apply)
+
+    video_parser = sub.add_parser("video", help="生成视频脚本与字幕（--render 时用 ffmpeg 出 MP4）")
+    video_parser.add_argument("--brief", type=int, default=None, help="简报 id，缺省最新一期")
+    video_parser.add_argument("--lang", choices=("zh", "en"), default="zh")
+    video_parser.add_argument("--out", default=".cache/video", help="输出目录")
+    video_parser.add_argument("--render", action="store_true", help="调用 ffmpeg 渲染 MP4")
+    video_parser.add_argument("--font", default=None, help="中文字体文件路径")
+    video_parser.set_defaults(func=cmd_video)
 
     candidates_parser = sub.add_parser("entity-candidates", help="列出疑似同一实体的候选对")
     candidates_parser.add_argument("--min-shared", type=int, default=2)

@@ -81,6 +81,10 @@ aliases: ## 应用实体别名表（合并 中国/China 这类写法，幂等）
 entity-candidates: ## 列出疑似同一实体的候选对（人工确认用）
 	cd $(BACKEND) && uv run python -m app.cli entity-candidates
 
+video: ## 生成视频脚本与字幕（BRIEF_ID= 指定某期；RENDER=1 同时出 MP4）
+	cd $(BACKEND) && uv run python -m app.cli video $(if $(BRIEF_ID),--brief $(BRIEF_ID),) $(if $(LANG),--lang $(LANG),) $(if $(RENDER),--render,)
+
+
 entities: ## 把历史 analyses.entities 回填进实体表（幂等）
 	cd $(BACKEND) && uv run python -m app.cli backfill-entities
 

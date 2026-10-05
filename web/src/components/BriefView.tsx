@@ -11,8 +11,37 @@ interface BriefViewProps {
   t: Messages;
 }
 
+/** storyboard 接口中本组件实际使用的字段；后端可扩展，这里只取所需。 */
+interface StoryboardSummary {
+  scene_count?: number;
+  total_seconds?: number;
+}
+
+/** 与 createApiClient 同源：留空则走同源反向代理。 */
+const apiBase = import.meta.env.VITE_API_BASE_URL ?? "";
+
 function contentOf(structured: Record<string, unknown> | undefined): BriefContentShape {
   return (structured ?? {}) as BriefContentShape;
+}
+
+function storyboardHref(briefId: number, lang: Lang): string {
+  return `${apiBase}/api/v1/briefs/${briefId}/storyboard?language=${lang}`;
+}
+
+function subtitlesHref(briefId: number, lang: Lang): string {
+  return `${apiBase}/api/v1/briefs/${briefId}/subtitles.srt?language=${lang}`;
+}
+
+async function fetchStoryboard(
+  briefId: number,
+  lang: Lang,
+  signal: AbortSignal,
+): Promise<StoryboardSummary> {
+  const resp = await fetch(storyboardHref(briefId, lang), { signal });
+  if (!resp.ok) {
+    throw new Error(`storyboard 接口返回 ${resp.status}`);
+  }
+  return (await resp.json()) as StoryboardSummary;
 }
 
 export function BriefView({ lang, t }: BriefViewProps) {
@@ -23,6 +52,14 @@ export function BriefView({ lang, t }: BriefViewProps) {
   const query = useQuery({
     queryKey: ["brief", "latest", kind],
     queryFn: ({ signal }) => api.getLatestBrief(kind, { signal }),
+  });
+
+  // 有简报才探测 storyboard；失败/加载中都不影响链接渲染。
+  const briefId = query.data?.id;
+  const storyboard = useQuery({
+    queryKey: ["storyboard", briefId, langCode],
+    enabled: briefId != null,
+    queryFn: ({ signal }) => fetchStoryboard(briefId as number, langCode, signal),
   });
 
   if (query.isPending) {
@@ -50,6 +87,13 @@ export function BriefView({ lang, t }: BriefViewProps) {
   const overview = zh ? content.overview_zh : content.overview_en;
   const closing = zh ? content.closing_zh : content.closing_en;
   const sections = content.sections ?? [];
+
+  const sceneCount = storyboard.data?.scene_count;
+  const totalSeconds = storyboard.data?.total_seconds;
+  const scriptMetrics =
+    typeof sceneCount === "number" && typeof totalSeconds === "number"
+      ? `${sceneCount} · ${totalSeconds}s`
+      : null;
 
   const toggleClass = (active: boolean) =>
     active
@@ -91,6 +135,33 @@ export function BriefView({ lang, t }: BriefViewProps) {
           {t.briefRaw} ↗
         </a>
       </header>
+
+      <div className="space-y-2 rounded-xl border border-line bg-surface-muted/40 p-3">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+          <a
+            data-testid="brief-script-link"
+            className="text-xs text-accent hover:underline"
+            href={storyboardHref(brief.id, langCode)}
+            download
+          >
+            {t.briefScript} ↓
+          </a>
+          <a
+            data-testid="brief-srt-link"
+            className="text-xs text-accent hover:underline"
+            href={subtitlesHref(brief.id, langCode)}
+            download
+          >
+            {t.briefSubtitles} ↓
+          </a>
+          {scriptMetrics ? (
+            <span data-testid="brief-script-metrics" className="text-xs text-ink-muted">
+              {scriptMetrics}
+            </span>
+          ) : null}
+        </div>
+        <p className="text-xs text-ink-muted">{t.briefVideoHint}</p>
+      </div>
 
       {sections.map((section) => {
         const bullets = zh ? section.bullets_zh : section.bullets_en;

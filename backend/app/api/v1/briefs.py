@@ -13,11 +13,13 @@ from app.briefs.render import render_markdown
 from app.briefs.schema import BriefContent
 from app.briefs.select import SelectedItem
 from app.db import get_session
-from app.models.analysis import ClusterMember
+from app.models.analysis import Analysis, ClusterMember
 from app.models.document import Document
 from app.models.source import Source
 from app.models.summary import Brief, BriefItem
 from app.schemas.content import BriefListItem, BriefOut
+from app.video.srt import render_srt
+from app.video.storyboard import build_storyboard
 
 router = APIRouter()
 
@@ -108,30 +110,39 @@ async def get_brief(brief_id: int, session: SessionDep) -> BriefOut:
 
 async def _load_items(session: AsyncSession, brief_id: int) -> list[SelectedItem]:
     """按 brief_items 还原素材清单，用于重渲染来源列表。"""
+    latest_analysis = (
+        select(func.max(Analysis.id))
+        .where(Analysis.document_id == Document.id)
+        .correlate(Document)
+        .scalar_subquery()
+    )
     rows = (
         await session.execute(
-            select(Document, BriefItem, ClusterMember.cluster_id, Source.name)
+            select(Document, BriefItem, ClusterMember.cluster_id, Source.name, Analysis)
             .join(BriefItem, BriefItem.document_id == Document.id)
             .outerjoin(ClusterMember, ClusterMember.document_id == Document.id)
             .outerjoin(Source, Source.id == Document.source_id)
+            .outerjoin(Analysis, Analysis.id == latest_analysis)
             .where(BriefItem.brief_id == brief_id)
             .order_by(BriefItem.rank.asc())
         )
     ).all()
     items: list[SelectedItem] = []
-    for document, brief_item, cluster_id, source_name in rows:
+    for document, brief_item, cluster_id, source_name, analysis in rows:
         items.append(
             SelectedItem(
                 document_id=document.id,
                 cluster_id=brief_item.cluster_id or cluster_id,
                 title=document.title,
-                summary_zh="",
-                summary_en="",
-                score=0,
+                # 摘要在视频脚本里当旁白用，因此这里要带上（Markdown 渲染用不到但不冲突）
+                summary_zh=(analysis.summary_zh if analysis else "") or "",
+                summary_en=(analysis.summary_en if analysis else "") or "",
+                score=(analysis.score if analysis else 0) or 0,
                 source_name=source_name,
                 url=document.url,
                 published_at=document.published_at,
-                headline_only=False,
+                # headline-only 不是列，而是处理阶段打的标签（见 pipeline/process.py）
+                headline_only=bool(analysis) and "headline-only" in list(analysis.tags or []),
             )
         )
     return items
@@ -162,3 +173,54 @@ async def brief_markdown(
         period=(brief.period_start, brief.period_end),
     )
     return Response(content=markdown, media_type="text/markdown; charset=utf-8")
+
+
+@router.get(
+    "/briefs/{brief_id}/storyboard",
+    summary="视频脚本（分镜 + 旁白 + 时长；不调用模型）",
+)
+async def brief_storyboard(
+    brief_id: int,
+    session: SessionDep,
+    language: Annotated[str, Query(pattern="^(zh|en)$")] = "zh",
+) -> dict[str, object]:
+    """把已入库的简报变成可渲染的分镜脚本。
+
+    明确说明：这里**不生成音频**（TTS 未接入），产出的是脚本、字幕与时长，
+    供人工配音或后续接 TTS/ffmpeg 使用。
+    """
+    brief = await session.get(Brief, brief_id)
+    if brief is None:
+        raise HTTPException(status_code=404, detail="简报不存在")
+    if not isinstance(brief.structured, dict) or "sections" not in brief.structured:
+        raise HTTPException(status_code=409, detail="这期简报没有结构化内容，无法生成脚本")
+    content = BriefContent.model_validate(brief.structured)
+    items = await _load_items(session, brief.id)
+    storyboard = build_storyboard(
+        content, language=language, brief_id=brief.id, kind=brief.kind, items=items
+    )
+    return storyboard.to_dict()
+
+
+@router.get(
+    "/briefs/{brief_id}/subtitles.srt",
+    summary="视频字幕（SRT；不调用模型）",
+    response_class=Response,
+)
+async def brief_subtitles(
+    brief_id: int,
+    session: SessionDep,
+    language: Annotated[str, Query(pattern="^(zh|en)$")] = "zh",
+) -> Response:
+    brief = await session.get(Brief, brief_id)
+    if brief is None:
+        raise HTTPException(status_code=404, detail="简报不存在")
+    if not isinstance(brief.structured, dict) or "sections" not in brief.structured:
+        raise HTTPException(status_code=409, detail="这期简报没有结构化内容，无法生成字幕")
+    content = BriefContent.model_validate(brief.structured)
+    items = await _load_items(session, brief.id)
+    storyboard = build_storyboard(
+        content, language=language, brief_id=brief.id, kind=brief.kind, items=items
+    )
+    srt = render_srt(storyboard)
+    return Response(content=srt, media_type="text/plain; charset=utf-8")

@@ -61,6 +61,7 @@ cd backend && uv sync && uv run uvicorn app.main:app --reload
 | `make entities` | 把历史 `analyses.entities` 回填进实体表（幂等） |
 | `make aliases` / `make entity-candidates` | 应用实体别名表（中国/China 合并）/ 列出疑似同实体的候选对 |
 | 管理台 `#/admin` → 实体候选 | 网页确认合并（只改数据库）；勾选后才写回 `backend/app/entity_aliases.yaml` |
+| `make video` | 生成视频脚本与字幕（`BRIEF_ID=` 指定某期，`RENDER=1` 出 MP4，需 ffmpeg + `uv sync --extra video`） |
 | `make reprice` | 按官方定价重算历史成本（输入按未命中计，属上界） |
 
 切到真实模型：在 `.env` 里把 `LLM_PROVIDER` 设为 `deepseek`（默认）并填好 `DEEPSEEK_API_KEY`；
@@ -110,6 +111,7 @@ scripts/           doctor / smoke / deploy / restore-drill
 - 日报/周报：由已筛选记录按事件去重后取 Top N 生成，结构化 JSON 入库、Markdown 由服务端渲染（见 [ADR-0006](docs/adr/0006-daily-briefs.md)）。
 - 成本：单价取自 [DeepSeek 官方定价页](https://api-docs.deepseek.com/quick_start/pricing/)，按模型与缓存命中/未命中分别计价，高峰时段自动翻倍（见 `backend/app/llm/pricing.py`）。
 - 实体：LLM 输出的实体写入 `entities`/`entity_mentions`，支持按天时间线（[ADR-0007](docs/adr/0007-entity-timeline.md)）；
+- 视频简报：简报 → 分镜脚本 → SRT 字幕（确定性、不调模型）→ 可选 ffmpeg 渲染 MP4，见 [ADR-0010](docs/adr/0010-video-brief.md)。
   跨语言写法由人工别名表合并成一条（`backend/app/entity_aliases.yaml`，[ADR-0009](docs/adr/0009-entity-alias-merge.md)）。
 - 内容质量兜底：发布早于 `MAX_ITEM_AGE_DAYS`（默认 45 天）的条目记 `rejected/too_old`；只有标题可用的条目（如 GDELT）走 headline 提示词，摘要必须标注"仅据标题"并打 `headline-only` 标签。
 

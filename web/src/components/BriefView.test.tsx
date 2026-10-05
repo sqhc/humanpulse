@@ -49,6 +49,20 @@ function renderView(lang: "zh" | "en") {
   );
 }
 
+/** 现有 mock 对所有 URL 返回同一份 body；这里按 URL 分流，brief 与 storyboard 各自可控。 */
+function stubFetch(storyboard: () => Promise<Response>) {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn((input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("storyboard")) {
+        return storyboard();
+      }
+      return Promise.resolve(jsonResponse(brief));
+    }),
+  );
+}
+
 afterEach(() => {
   vi.unstubAllGlobals();
 });
@@ -80,5 +94,52 @@ describe("BriefView", () => {
     renderView("zh");
 
     expect(await screen.findByText(/还没有生成/)).toBeInTheDocument();
+  });
+
+  it("有简报时渲染脚本 / 字幕下载链接，并带上当前语言", async () => {
+    stubFetch(() => Promise.resolve(jsonResponse({ scene_count: 3, total_seconds: 42 })));
+    renderView("zh");
+
+    const scriptLink = await screen.findByTestId("brief-script-link");
+    expect(scriptLink.getAttribute("href")).toContain("/storyboard");
+    expect(scriptLink.getAttribute("href")).toContain("language=zh");
+    expect(scriptLink).toHaveAttribute("download");
+
+    const srtLink = screen.getByTestId("brief-srt-link");
+    expect(srtLink.getAttribute("href")).toContain("/subtitles.srt");
+    expect(srtLink.getAttribute("href")).toContain("language=zh");
+    expect(srtLink).toHaveAttribute("download");
+
+    // 等 storyboard 请求收尾，避免测试结束后仍有未决状态更新
+    await screen.findByTestId("brief-script-metrics");
+  });
+
+  it("英文界面链接使用 language=en", async () => {
+    stubFetch(() => Promise.resolve(jsonResponse({ scene_count: 3, total_seconds: 42 })));
+    renderView("en");
+
+    const scriptLink = await screen.findByTestId("brief-script-link");
+    expect(scriptLink.getAttribute("href")).toContain("language=en");
+    expect(screen.getByTestId("brief-srt-link").getAttribute("href")).toContain("language=en");
+
+    await screen.findByTestId("brief-script-metrics");
+  });
+
+  it("显示 storyboard 的场景数与总时长", async () => {
+    stubFetch(() => Promise.resolve(jsonResponse({ scene_count: 14, total_seconds: 272.3 })));
+    renderView("zh");
+
+    const metrics = await screen.findByTestId("brief-script-metrics");
+    expect(metrics).toHaveTextContent("14");
+    expect(metrics).toHaveTextContent("272.3");
+  });
+
+  it("storyboard 请求失败时仍保留链接且不崩溃", async () => {
+    stubFetch(() => Promise.resolve(jsonResponse({ detail: "boom" }, 500)));
+    renderView("zh");
+
+    expect(await screen.findByTestId("brief-script-link")).toBeInTheDocument();
+    expect(screen.getByTestId("brief-srt-link")).toBeInTheDocument();
+    expect(screen.queryByTestId("brief-script-metrics")).not.toBeInTheDocument();
   });
 });

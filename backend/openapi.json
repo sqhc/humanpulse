@@ -2226,6 +2226,108 @@
         ]
       }
     },
+    "/api/v1/briefs/{brief_id}/storyboard": {
+      "get": {
+        "description": "把已入库的简报变成可渲染的分镜脚本。\n\n明确说明：这里**不生成音频**（TTS 未接入），产出的是脚本、字幕与时长，\n供人工配音或后续接 TTS/ffmpeg 使用。",
+        "operationId": "brief_storyboard_api_v1_briefs__brief_id__storyboard_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "brief_id",
+            "required": true,
+            "schema": {
+              "title": "Brief Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "language",
+            "required": false,
+            "schema": {
+              "default": "zh",
+              "pattern": "^(zh|en)$",
+              "title": "Language",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Brief Storyboard Api V1 Briefs  Brief Id  Storyboard Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "视频脚本（分镜 + 旁白 + 时长；不调用模型）",
+        "tags": [
+          "briefs"
+        ]
+      }
+    },
+    "/api/v1/briefs/{brief_id}/subtitles.srt": {
+      "get": {
+        "operationId": "brief_subtitles_api_v1_briefs__brief_id__subtitles_srt_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "brief_id",
+            "required": true,
+            "schema": {
+              "title": "Brief Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "language",
+            "required": false,
+            "schema": {
+              "default": "zh",
+              "pattern": "^(zh|en)$",
+              "title": "Language",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "视频字幕（SRT；不调用模型）",
+        "tags": [
+          "briefs"
+        ]
+      }
+    },
     "/api/v1/clusters": {
       "get": {
         "operationId": "list_clusters_api_v1_clusters_get",

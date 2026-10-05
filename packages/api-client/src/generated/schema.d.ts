@@ -169,6 +169,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/briefs/{brief_id}/storyboard": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 视频脚本（分镜 + 旁白 + 时长；不调用模型）
+         * @description 把已入库的简报变成可渲染的分镜脚本。
+         *
+         *     明确说明：这里**不生成音频**（TTS 未接入），产出的是脚本、字幕与时长，
+         *     供人工配音或后续接 TTS/ffmpeg 使用。
+         */
+        get: operations["brief_storyboard_api_v1_briefs__brief_id__storyboard_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/briefs/{brief_id}/subtitles.srt": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 视频字幕（SRT；不调用模型） */
+        get: operations["brief_subtitles_api_v1_briefs__brief_id__subtitles_srt_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/clusters": {
         parameters: {
             query?: never;
@@ -1326,6 +1366,72 @@ export interface operations {
         };
     };
     brief_markdown_api_v1_briefs__brief_id__markdown_get: {
+        parameters: {
+            query?: {
+                language?: string;
+            };
+            header?: never;
+            path: {
+                brief_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    brief_storyboard_api_v1_briefs__brief_id__storyboard_get: {
+        parameters: {
+            query?: {
+                language?: string;
+            };
+            header?: never;
+            path: {
+                brief_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    brief_subtitles_api_v1_briefs__brief_id__subtitles_srt_get: {
         parameters: {
             query?: {
                 language?: string;

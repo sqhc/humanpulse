@@ -185,6 +185,13 @@ if pair:
     assert after["mention_count"] >= canonical["mention_count"], after
     merged_note = f"{result['merged']} 个 / 移动 {result['moved']} 条提及"
 
+video = get("/briefs/%d/storyboard?language=zh" % brief["id"])
+assert video["scene_count"] >= 2, f"脚本分镜太少: {video}"
+assert video["total_seconds"] > 0, "脚本总时长为 0"
+assert video["scenes"][0]["kind"] == "title", video["scenes"][0]
+srt_text = get_text("/briefs/%d/subtitles.srt?language=zh" % brief["id"])
+assert srt_text.startswith("1"), f"字幕格式异常: {srt_text[:40]}"
+assert " --> " in srt_text, "字幕缺少时间轴"
 print("接口校验通过：",
     {
         "documents": documents["total_returned"],
@@ -195,6 +202,8 @@ print("接口校验通过：",
         "weekly_items": weekly["item_count"],
         "entities": len(entities),
         "alias_merge": merged_note,
+        "scenes": video["scene_count"],
+        "video_seconds": video["total_seconds"],
         "ingest": demo["ingest"],
     },
 )
