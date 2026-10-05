@@ -4,6 +4,52 @@
  */
 
 export interface paths {
+    "/api/v1/admin/entity-aliases/apply": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 确认合并实体并（可选）写回别名表（管理员）
+         * @description 管理台确认候选后调用。
+         *
+         *     默认只改数据库（remember=false）；勾选记住才写回仓库里的 YAML。
+         *     这样误点一次不会污染随包发布的别名表，也避免开发栈把别人的文件改了。
+         */
+        post: operations["apply_entity_aliases_api_v1_admin_entity_aliases_apply_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/entity-candidates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 疑似同一实体的候选对（管理员）
+         * @description 管理台「实体候选」用：列出可以确认合并的候选对。
+         *
+         *     默认阈值（jaccard>=0.5、频次比<=3）是偏保守的设置：只用共现会把
+         *     「特朗普 与 习近平」这种同框关系也报上来（见 ADR-0009 的实测数据）。
+         */
+        get: operations["list_entity_candidates_api_v1_admin_entity_candidates_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/jobs/{job_name}/run": {
         parameters: {
             query?: never;
@@ -627,6 +673,103 @@ export interface components {
             /** Url */
             url: string;
         };
+        /** EntityAliasApplyIn */
+        EntityAliasApplyIn: {
+            /** Merges */
+            merges: components["schemas"]["EntityMergeIn"][];
+            /**
+             * Remember
+             * @default false
+             */
+            remember: boolean;
+        };
+        /** EntityAliasApplyOut */
+        EntityAliasApplyOut: {
+            /** Alias File */
+            alias_file?: string | null;
+            /**
+             * Applied Groups
+             * @default 0
+             */
+            applied_groups: number;
+            /**
+             * Dropped
+             * @default 0
+             */
+            dropped: number;
+            /**
+             * Merged
+             * @default 0
+             */
+            merged: number;
+            /**
+             * Missing
+             * @default 0
+             */
+            missing: number;
+            /**
+             * Moved
+             * @default 0
+             */
+            moved: number;
+            /** Problems */
+            problems?: string[];
+            /**
+             * Promoted
+             * @default 0
+             */
+            promoted: number;
+            /**
+             * Remembered
+             * @default false
+             */
+            remembered: boolean;
+            /**
+             * Total Groups
+             * @default 0
+             */
+            total_groups: number;
+        };
+        /** EntityCandidateListOut */
+        EntityCandidateListOut: {
+            /**
+             * Alias Group Count
+             * @default 0
+             */
+            alias_group_count: number;
+            /** Alias Problems */
+            alias_problems?: string[];
+            /** Candidates */
+            candidates?: components["schemas"]["EntityCandidateOut"][];
+            /**
+             * Scanned Pairs
+             * @default 0
+             */
+            scanned_pairs: number;
+        };
+        /** EntityCandidateOut */
+        EntityCandidateOut: {
+            /** Jaccard */
+            jaccard: number;
+            /** Kind */
+            kind: string;
+            left: components["schemas"]["EntityCandidateSide"];
+            right: components["schemas"]["EntityCandidateSide"];
+            /** Shared Documents */
+            shared_documents: number;
+        };
+        /** EntityCandidateSide */
+        EntityCandidateSide: {
+            /** Id */
+            id: number;
+            /**
+             * Mentions
+             * @default 0
+             */
+            mentions: number;
+            /** Name */
+            name: string;
+        };
         /** EntityDetailOut */
         EntityDetailOut: {
             /** Aliases */
@@ -681,6 +824,16 @@ export interface components {
             title: string;
             /** Url */
             url: string;
+        };
+        /**
+         * EntityMergeIn
+         * @description 一次确认：把 alias_ids 合并进 canonical_id。
+         */
+        EntityMergeIn: {
+            /** Alias Ids */
+            alias_ids?: number[];
+            /** Canonical Id */
+            canonical_id: number;
         };
         /** EntityOut */
         EntityOut: {
@@ -903,6 +1056,77 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    apply_entity_aliases_api_v1_admin_entity_aliases_apply_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-API-Key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EntityAliasApplyIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EntityAliasApplyOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_entity_candidates_api_v1_admin_entity_candidates_get: {
+        parameters: {
+            query?: {
+                min_shared?: number;
+                min_jaccard?: number;
+                max_ratio?: number;
+                limit?: number;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EntityCandidateListOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     run_job_api_v1_admin_jobs__job_name__run_post: {
         parameters: {
             query?: {

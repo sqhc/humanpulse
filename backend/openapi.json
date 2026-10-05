@@ -735,6 +735,175 @@
         "title": "DocumentOut",
         "type": "object"
       },
+      "EntityAliasApplyIn": {
+        "properties": {
+          "merges": {
+            "items": {
+              "$ref": "#/components/schemas/EntityMergeIn"
+            },
+            "title": "Merges",
+            "type": "array"
+          },
+          "remember": {
+            "default": false,
+            "title": "Remember",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "merges"
+        ],
+        "title": "EntityAliasApplyIn",
+        "type": "object"
+      },
+      "EntityAliasApplyOut": {
+        "properties": {
+          "alias_file": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Alias File"
+          },
+          "applied_groups": {
+            "default": 0,
+            "title": "Applied Groups",
+            "type": "integer"
+          },
+          "dropped": {
+            "default": 0,
+            "title": "Dropped",
+            "type": "integer"
+          },
+          "merged": {
+            "default": 0,
+            "title": "Merged",
+            "type": "integer"
+          },
+          "missing": {
+            "default": 0,
+            "title": "Missing",
+            "type": "integer"
+          },
+          "moved": {
+            "default": 0,
+            "title": "Moved",
+            "type": "integer"
+          },
+          "problems": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Problems",
+            "type": "array"
+          },
+          "promoted": {
+            "default": 0,
+            "title": "Promoted",
+            "type": "integer"
+          },
+          "remembered": {
+            "default": false,
+            "title": "Remembered",
+            "type": "boolean"
+          },
+          "total_groups": {
+            "default": 0,
+            "title": "Total Groups",
+            "type": "integer"
+          }
+        },
+        "title": "EntityAliasApplyOut",
+        "type": "object"
+      },
+      "EntityCandidateListOut": {
+        "properties": {
+          "alias_group_count": {
+            "default": 0,
+            "title": "Alias Group Count",
+            "type": "integer"
+          },
+          "alias_problems": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Alias Problems",
+            "type": "array"
+          },
+          "candidates": {
+            "items": {
+              "$ref": "#/components/schemas/EntityCandidateOut"
+            },
+            "title": "Candidates",
+            "type": "array"
+          },
+          "scanned_pairs": {
+            "default": 0,
+            "title": "Scanned Pairs",
+            "type": "integer"
+          }
+        },
+        "title": "EntityCandidateListOut",
+        "type": "object"
+      },
+      "EntityCandidateOut": {
+        "properties": {
+          "jaccard": {
+            "title": "Jaccard",
+            "type": "number"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "left": {
+            "$ref": "#/components/schemas/EntityCandidateSide"
+          },
+          "right": {
+            "$ref": "#/components/schemas/EntityCandidateSide"
+          },
+          "shared_documents": {
+            "title": "Shared Documents",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "kind",
+          "left",
+          "right",
+          "shared_documents",
+          "jaccard"
+        ],
+        "title": "EntityCandidateOut",
+        "type": "object"
+      },
+      "EntityCandidateSide": {
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "mentions": {
+            "default": 0,
+            "title": "Mentions",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ],
+        "title": "EntityCandidateSide",
+        "type": "object"
+      },
       "EntityDetailOut": {
         "properties": {
           "aliases": {
@@ -861,6 +1030,27 @@
           "published_at"
         ],
         "title": "EntityMentionOut",
+        "type": "object"
+      },
+      "EntityMergeIn": {
+        "description": "一次确认：把 alias_ids 合并进 canonical_id。",
+        "properties": {
+          "alias_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Alias Ids",
+            "type": "array"
+          },
+          "canonical_id": {
+            "title": "Canonical Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "canonical_id"
+        ],
+        "title": "EntityMergeIn",
         "type": "object"
       },
       "EntityOut": {
@@ -1443,6 +1633,164 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/v1/admin/entity-aliases/apply": {
+      "post": {
+        "description": "管理台确认候选后调用。\n\n默认只改数据库（remember=false）；勾选记住才写回仓库里的 YAML。\n这样误点一次不会污染随包发布的别名表，也避免开发栈把别人的文件改了。",
+        "operationId": "apply_entity_aliases_api_v1_admin_entity_aliases_apply_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-API-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EntityAliasApplyIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EntityAliasApplyOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "确认合并实体并（可选）写回别名表（管理员）",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/entity-candidates": {
+      "get": {
+        "description": "管理台「实体候选」用：列出可以确认合并的候选对。\n\n默认阈值（jaccard>=0.5、频次比<=3）是偏保守的设置：只用共现会把\n「特朗普 与 习近平」这种同框关系也报上来（见 ADR-0009 的实测数据）。",
+        "operationId": "list_entity_candidates_api_v1_admin_entity_candidates_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "min_shared",
+            "required": false,
+            "schema": {
+              "default": 2,
+              "maximum": 50,
+              "minimum": 1,
+              "title": "Min Shared",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "min_jaccard",
+            "required": false,
+            "schema": {
+              "default": 0.5,
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "title": "Min Jaccard",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "max_ratio",
+            "required": false,
+            "schema": {
+              "default": 3.0,
+              "maximum": 100.0,
+              "minimum": 1.0,
+              "title": "Max Ratio",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-API-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EntityCandidateListOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "疑似同一实体的候选对（管理员）",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
     "/api/v1/admin/jobs/{job_name}/run": {
       "post": {
         "operationId": "run_job_api_v1_admin_jobs__job_name__run_post",

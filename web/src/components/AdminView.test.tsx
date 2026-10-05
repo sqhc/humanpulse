@@ -43,7 +43,55 @@ const sources = [
   },
 ];
 
+const ENTITY_CANDIDATES = {
+  candidates: [
+    {
+      kind: "org",
+      left: { id: 1, name: "中国", mentions: 30 },
+      right: { id: 2, name: "China", mentions: 40 },
+      shared_documents: 12,
+      jaccard: 0.5,
+    },
+  ],
+  alias_group_count: 3,
+  alias_problems: [] as string[],
+  scanned_pairs: 120,
+};
+
+const ENTITY_APPLY = {
+  applied_groups: 1,
+  merged: 1,
+  promoted: 0,
+  moved: 1,
+  dropped: 0,
+  missing: 0,
+  remembered: false,
+  alias_file: null as string | null,
+  total_groups: 1,
+  problems: [] as string[],
+};
+
 type Route = (url: string, init: RequestInit | undefined) => Response | undefined;
+
+/** 管理台通用路由：实体候选/合并 + 现有区块所需的空响应。 */
+function adminRoutes(candidatesBody: unknown, applyBody: unknown): Route {
+  return (url) => {
+    if (url.includes("/api/v1/admin/entity-aliases/apply")) return jsonResponse(applyBody);
+    if (url.includes("/api/v1/admin/entity-candidates")) return jsonResponse(candidatesBody);
+    if (url.includes("/api/v1/admin/runs")) return jsonResponse([]);
+    if (url.includes("/api/v1/admin/usage")) return jsonResponse([]);
+    if (url.includes("/api/v1/sources")) return jsonResponse(sources);
+    return undefined;
+  };
+}
+
+function applyCallBody(fetchMock: ReturnType<typeof stubFetch>): unknown {
+  const call = fetchMock.mock.calls.find(
+    ([input, init]) =>
+      String(input).includes("/api/v1/admin/entity-aliases/apply") && init?.method === "POST",
+  );
+  return call ? JSON.parse(String(call[1]?.body)) : undefined;
+}
 
 function stubFetch(route: Route) {
   const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
@@ -154,5 +202,94 @@ describe("AdminView", () => {
     expect(collectCall?.[1]?.method).toBe("POST");
     expect(await screen.findByText(/"sources_run": 3/)).toBeInTheDocument();
     expect(screen.getByText(t.adminJobResult)).toBeInTheDocument();
+  });
+
+  it("没有 API Key 时不查询实体候选", async () => {
+    const fetchMock = stubFetch((url) => {
+      if (url.includes("/api/v1/sources")) return jsonResponse(sources);
+      return undefined;
+    });
+    renderView(messages.zh);
+
+    await screen.findByText("Source One");
+    expect(
+      fetchMock.mock.calls.some(([input]) =>
+        String(input).includes("/api/v1/admin/entity-candidates"),
+      ),
+    ).toBe(false);
+  });
+
+  it("有 API Key 时渲染实体候选，点保留右边会合并左边并带上 remember: false", async () => {
+    window.localStorage.setItem(ADMIN_KEY_STORAGE, "k");
+    const fetchMock = stubFetch(adminRoutes(ENTITY_CANDIDATES, ENTITY_APPLY));
+    const t = messages.zh;
+    renderView(t);
+
+    expect(await screen.findByText(/中国/)).toBeInTheDocument();
+    expect(screen.getByText(/China/)).toBeInTheDocument();
+    expect(screen.getByText(/共同文档: 12/)).toBeInTheDocument();
+    expect(screen.getByText(/重合度: 0.5/)).toBeInTheDocument();
+    expect(
+      screen.getByText(new RegExp(`${t.adminCandidatesGroups}: 3`)),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("keep-right-1-2"));
+
+    await waitFor(() => {
+      expect(
+        fetchMock.mock.calls.some(
+          ([input, init]) =>
+            String(input).includes("/api/v1/admin/entity-aliases/apply") &&
+            init?.method === "POST",
+        ),
+      ).toBe(true);
+    });
+
+    const body = applyCallBody(fetchMock) as {
+      merges: { canonical_id: number; alias_ids: number[] }[];
+      remember: boolean;
+    };
+    expect(body.merges[0]?.canonical_id).toBe(2);
+    expect(body.merges[0]?.alias_ids).toEqual([1]);
+    expect(body.remember).toBe(false);
+  });
+
+  it("勾选写回别名表后合并会带上 remember: true", async () => {
+    window.localStorage.setItem(ADMIN_KEY_STORAGE, "k");
+    const fetchMock = stubFetch(
+      adminRoutes(ENTITY_CANDIDATES, { ...ENTITY_APPLY, remembered: true, alias_file: "aliases.yaml" }),
+    );
+    const t = messages.zh;
+    renderView(t);
+
+    await screen.findByText(/中国/);
+    fireEvent.click(screen.getByRole("checkbox"));
+    fireEvent.click(screen.getByTestId("keep-right-1-2"));
+
+    await waitFor(() => {
+      expect(applyCallBody(fetchMock)).toBeDefined();
+    });
+
+    const body = applyCallBody(fetchMock) as { remember: boolean };
+    expect(body.remember).toBe(true);
+    expect(await screen.findByText(/（已写回 aliases.yaml）/)).toBeInTheDocument();
+    expect(screen.getByRole("checkbox")).toBeChecked();
+  });
+
+  it("合并成功后显示结果，并在顶部显示别名表自检问题", async () => {
+    window.localStorage.setItem(ADMIN_KEY_STORAGE, "k");
+    const fetchMock = stubFetch(
+      adminRoutes(
+        { ...ENTITY_CANDIDATES, alias_problems: ["alias 'x' 指向不存在的实体"] },
+        { ...ENTITY_APPLY, merged: 2, moved: 5 },
+      ),
+    );
+    renderView(messages.zh);
+
+    expect(await screen.findByText(/别名表自检问题/)).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("keep-left-1-2"));
+
+    expect(await screen.findByText(new RegExp("已合并: 2 / 5"))).toBeInTheDocument();
+    expect(applyCallBody(fetchMock)).toBeDefined();
   });
 });

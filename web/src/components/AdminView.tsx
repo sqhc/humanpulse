@@ -48,10 +48,20 @@ interface RunJobInput {
   params?: { force?: boolean; limit?: number; kind?: "daily" | "weekly" };
 }
 
+interface CandidateMergeInput {
+  /** 保留的那一方作为 canonical。 */
+  canonicalId: number;
+  /** 被合并进来的另一方。 */
+  aliasId: number;
+  /** 是否把这次确认写回仓库里的别名表。 */
+  remember: boolean;
+}
+
 export function AdminView({ t, lang }: AdminViewProps) {
   const [apiKey, setApiKey] = useState(readStoredKey);
   const [draftKey, setDraftKey] = useState(readStoredKey);
   const [jobStats, setJobStats] = useState<Record<string, unknown> | null>(null);
+  const [remember, setRemember] = useState(false);
 
   const api = useMemo(() => createApiClient(apiKey), [apiKey]);
   const queryClient = useQueryClient();
@@ -73,6 +83,12 @@ export function AdminView({ t, lang }: AdminViewProps) {
     enabled: Boolean(apiKey),
   });
 
+  const candidates = useQuery({
+    queryKey: ["admin", "candidates", apiKey],
+    queryFn: ({ signal }) => api.listEntityCandidates({}, { signal }),
+    enabled: Boolean(apiKey),
+  });
+
   const toggleSource = useMutation({
     mutationFn: (source: SourceOut) =>
       api.updateSource(source.id, { enabled: !source.enabled }, {}),
@@ -85,6 +101,21 @@ export function AdminView({ t, lang }: AdminViewProps) {
     mutationFn: (input: RunJobInput) => api.runJob(input.job, input.params ?? {}, {}),
     onSuccess: (data) => {
       setJobStats(data.stats);
+    },
+  });
+
+  const applyCandidate = useMutation({
+    mutationFn: (input: CandidateMergeInput) =>
+      api.applyEntityAliases(
+        {
+          merges: [{ canonical_id: input.canonicalId, alias_ids: [input.aliasId] }],
+          remember: input.remember,
+        },
+        {},
+      ),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["admin", "candidates"] });
+      void queryClient.invalidateQueries({ queryKey: ["admin", "entities"] });
     },
   });
 
@@ -113,11 +144,15 @@ export function AdminView({ t, lang }: AdminViewProps) {
     void queryClient.invalidateQueries({ queryKey: ["admin", "sources"] });
     void queryClient.invalidateQueries({ queryKey: ["admin", "runs"] });
     void queryClient.invalidateQueries({ queryKey: ["admin", "usage"] });
+    void queryClient.invalidateQueries({ queryKey: ["admin", "candidates"] });
   };
 
   const sourceRows = sources.data ?? [];
   const runRows = runs.data ?? [];
   const usageRows = usage.data ?? [];
+  const candidateRows = candidates.data?.candidates ?? [];
+  const candidateAliasProblems = candidates.data?.alias_problems ?? [];
+  const appliedCandidateProblems = applyCandidate.data?.problems ?? [];
 
   return (
     <div className="space-y-8">
@@ -245,6 +280,111 @@ export function AdminView({ t, lang }: AdminViewProps) {
             <pre className="overflow-x-auto rounded-xl border border-line bg-surface-muted/40 p-3 text-xs text-ink">
               {JSON.stringify(jobStats, null, 2)}
             </pre>
+          </div>
+        ) : null}
+      </section>
+
+      <section className="space-y-3">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-semibold text-ink">{t.adminCandidatesTitle}</h2>
+            <p className="text-xs text-ink-muted">{t.adminCandidatesHint}</p>
+          </div>
+          <span className="shrink-0 text-xs text-ink-muted">
+            {t.adminCandidatesGroups}: {candidates.data?.alias_group_count ?? 0}
+          </span>
+        </div>
+        {candidateAliasProblems.length > 0 ? (
+          <p className="text-xs text-red-300">
+            {t.adminCandidatesProblems}: {candidateAliasProblems.join(" / ")}
+          </p>
+        ) : null}
+        <label className="flex w-fit items-center gap-2 text-xs text-ink-muted">
+          <input
+            type="checkbox"
+            checked={remember}
+            onChange={(event) => setRemember(event.target.checked)}
+            className="h-4 w-4 rounded border-line bg-surface-muted/40 accent-accent"
+          />
+          {t.adminCandidatesRemember}
+        </label>
+        {!apiKey ? (
+          <SectionState message={t.adminCandidatesEmpty} />
+        ) : candidates.isPending ? (
+          <SectionState message={t.loading} />
+        ) : candidates.isError ? (
+          <SectionState message={t.errorFeed} error />
+        ) : candidateRows.length === 0 ? (
+          <SectionState message={t.adminCandidatesEmpty} />
+        ) : (
+          <ul className="space-y-2">
+            {candidateRows.map((candidate) => (
+              <li
+                key={`${candidate.left.id}-${candidate.right.id}`}
+                className="space-y-2 rounded-xl border border-line bg-surface-muted/40 p-3"
+              >
+                <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-ink">
+                  <span>
+                    {candidate.left.name} ({candidate.left.mentions})
+                  </span>
+                  <span>
+                    {candidate.right.name} ({candidate.right.mentions})
+                  </span>
+                </div>
+                <p className="text-xs text-ink-muted">
+                  {t.adminCandidatesShared}: {candidate.shared_documents} ·{" "}
+                  {t.adminCandidatesOverlap}: {candidate.jaccard}
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    data-testid={`keep-left-${candidate.left.id}-${candidate.right.id}`}
+                    disabled={!apiKey || applyCandidate.isPending}
+                    onClick={() =>
+                      applyCandidate.mutate({
+                        canonicalId: candidate.left.id,
+                        aliasId: candidate.right.id,
+                        remember,
+                      })
+                    }
+                    className={secondaryButtonClass}
+                  >
+                    {t.adminCandidatesKeepLeft}
+                  </button>
+                  <button
+                    type="button"
+                    data-testid={`keep-right-${candidate.left.id}-${candidate.right.id}`}
+                    disabled={!apiKey || applyCandidate.isPending}
+                    onClick={() =>
+                      applyCandidate.mutate({
+                        canonicalId: candidate.right.id,
+                        aliasId: candidate.left.id,
+                        remember,
+                      })
+                    }
+                    className={secondaryButtonClass}
+                  >
+                    {t.adminCandidatesKeepRight}
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+        {applyCandidate.isError ? <SectionState message={t.errorFeed} error /> : null}
+        {applyCandidate.data ? (
+          <div className="space-y-1 rounded-xl border border-line bg-surface-muted/40 p-3">
+            <p className="text-sm text-accent">
+              {t.adminCandidatesApplied}: {applyCandidate.data.merged} / {applyCandidate.data.moved}
+              {applyCandidate.data.remembered
+                ? `（${t.adminCandidatesWroteBack} ${applyCandidate.data.alias_file ?? ""}）`
+                : null}
+            </p>
+            {appliedCandidateProblems.length > 0 ? (
+              <p className="text-xs text-red-300">
+                {t.adminCandidatesProblems}: {appliedCandidateProblems.join(" / ")}
+              </p>
+            ) : null}
           </div>
         ) : null}
       </section>

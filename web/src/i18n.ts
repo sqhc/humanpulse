@@ -46,6 +46,19 @@ export interface Messages {
   adminTokensIn: string;
   adminTokensOut: string;
   adminCost: string;
+  adminCandidatesTitle: string;
+  adminCandidatesHint: string;
+  adminCandidatesEmpty: string;
+  adminCandidatesMerge: string;
+  adminCandidatesRemember: string;
+  adminCandidatesShared: string;
+  adminCandidatesOverlap: string;
+  adminCandidatesApplied: string;
+  adminCandidatesProblems: string;
+  adminCandidatesGroups: string;
+  adminCandidatesKeepLeft: string;
+  adminCandidatesWroteBack: string;
+  adminCandidatesKeepRight: string;
   feedTitle: string;
   aiSummaryNotice: string;
   filterLanguage: string;
@@ -159,6 +172,19 @@ export const messages: Record<Lang, Messages> = {
     adminTokensIn: "输入 token",
     adminTokensOut: "输出 token",
     adminCost: "成本",
+    adminCandidatesTitle: "实体候选",
+    adminCandidatesHint: "同一实体的不同写法（中/英、简/繁）。确认后立即合并；勾选「同时写回别名表」才会改仓库里的 YAML，否则只改这次数据库。",
+    adminCandidatesEmpty: "没有待确认的候选。语料越多，候选越可能出现。",
+    adminCandidatesMerge: "合并",
+    adminCandidatesRemember: "同时写回别名表",
+    adminCandidatesShared: "共同文档",
+    adminCandidatesOverlap: "重合度",
+    adminCandidatesApplied: "已合并",
+    adminCandidatesProblems: "别名表自检问题",
+    adminCandidatesGroups: "别名组",
+    adminCandidatesKeepLeft: "保留左边的名字",
+    adminCandidatesWroteBack: "已写回",
+    adminCandidatesKeepRight: "保留右边的名字",
     feedTitle: "最新记录",
     aiSummaryNotice: "以下摘要与评分由大模型生成并标注，原文链接见详情页。",
     filterLanguage: "语言",
@@ -282,6 +308,19 @@ export const messages: Record<Lang, Messages> = {
     adminTokensIn: "Input tokens",
     adminTokensOut: "Output tokens",
     adminCost: "Cost",
+    adminCandidatesTitle: "Entity candidates",
+    adminCandidatesHint: "The same entity written differently (zh/en, simplified/traditional). Confirming merges immediately; tick the box to also write the repo YAML, otherwise only this database changes.",
+    adminCandidatesEmpty: "No candidates waiting. A larger corpus surfaces more candidates.",
+    adminCandidatesMerge: "Merge",
+    adminCandidatesRemember: "Also write back to the alias table",
+    adminCandidatesShared: "shared docs",
+    adminCandidatesOverlap: "overlap",
+    adminCandidatesApplied: "merged",
+    adminCandidatesProblems: "Alias table problems",
+    adminCandidatesGroups: "alias groups",
+    adminCandidatesKeepLeft: "Keep the left name",
+    adminCandidatesWroteBack: "written back",
+    adminCandidatesKeepRight: "Keep the right name",
     feedTitle: "Latest records",
     aiSummaryNotice: "Summaries and scores below are AI-generated and labelled; original links are on the detail page.",
     filterLanguage: "Language",

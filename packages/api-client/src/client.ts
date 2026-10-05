@@ -26,6 +26,10 @@ export type EntityOut = components["schemas"]["EntityOut"];
 export type EntityDetailOut = components["schemas"]["EntityDetailOut"];
 export type EntityTimelinePoint = components["schemas"]["EntityTimelinePoint"];
 export type EntityMentionOut = components["schemas"]["EntityMentionOut"];
+export type EntityCandidateOut = components["schemas"]["EntityCandidateOut"];
+export type EntityCandidateListOut = components["schemas"]["EntityCandidateListOut"];
+export type EntityAliasApplyIn = components["schemas"]["EntityAliasApplyIn"];
+export type EntityAliasApplyOut = components["schemas"]["EntityAliasApplyOut"];
 
 /** 结构化简报内容（由服务端渲染 Markdown，前端按语言取字段）。 */
 export interface BriefSection {
@@ -159,6 +163,32 @@ export function createClient(options: ClientOptions = {}) {
       { signal }: RequestOptions = {},
     ) =>
       request<EntityDetailOut>(`/api/v1/entities/${entityId}${toQueryString(params)}`, {
+        signal,
+      }),
+
+    /** 疑似同一实体的候选对（管理台确认用）。 */
+    listEntityCandidates: (
+      params: {
+        min_shared?: number;
+        min_jaccard?: number;
+        max_ratio?: number;
+        limit?: number;
+      } = {},
+      { signal }: RequestOptions = {},
+    ) =>
+      request<EntityCandidateListOut>(
+        `/api/v1/admin/entity-candidates${toQueryString(params)}`,
+        { signal },
+      ),
+    /** 确认合并实体；remember 才会写回仓库里的别名表。 */
+    applyEntityAliases: (
+      payload: EntityAliasApplyIn,
+      { signal }: RequestOptions = {},
+    ) =>
+      request<EntityAliasApplyOut>("/api/v1/admin/entity-aliases/apply", {
+        method: "POST",
+        body: JSON.stringify(payload),
+        headers: { "content-type": "application/json" },
         signal,
       }),
 

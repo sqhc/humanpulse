@@ -60,11 +60,19 @@ SSE_HEAD=$(curl -sS -N --max-time 4 "$BASE/stream" | head -3 || true)
 echo "$SSE_HEAD"
 echo "$SSE_HEAD" | grep -q "event: ready" || { echo "SSE 未返回 ready 帧" >&2; exit 1; }
 
+echo '== 管理台实体候选接口（无 key 应 401，无效合并应 400）=='
+ADMIN_KEY=$(grep -E '^ADMIN_API_KEY=' .env | cut -d= -f2-)
+NO_KEY=$(curl -sS -o /dev/null -w '%{http_code}' "$BASE/admin/entity-candidates")
+[ "$NO_KEY" = '401' ] || { echo "无 key 期望 401，实际 $NO_KEY" >&2; exit 1; }
+CANDIDATES=$(curl -fsS -H "X-API-Key: $ADMIN_KEY" "$BASE/admin/entity-candidates")
+echo "$CANDIDATES" | python3 -c 'import json,sys; d=json.load(sys.stdin); assert d["alias_group_count"] >= 1, d; print("  候选", len(d["candidates"]), "| 别名组", d["alias_group_count"], "| 自检问题", d["alias_problems"])'
+BAD=$(curl -sS -o /dev/null -w '%{http_code}' -X POST -H "X-API-Key: $ADMIN_KEY" -H 'content-type: application/json' -d '{"merges":[{"canonical_id":999999,"alias_ids":[1]}]}' "$BASE/admin/entity-aliases/apply")
+[ "$BAD" = '400' ] || { echo "无效合并期望 400，实际 $BAD" >&2; exit 1; }
 echo "== 应用实体别名表（幂等）=="
 $COMPOSE exec -T api python -m app.cli alias-apply | tail -1
 
 echo "== 校验读取接口 =="
-API_BASE="$BASE" DEMO_JSON="$DEMO_JSON" BRIEF_JSON="$BRIEF_JSON" WEEKLY_JSON="$WEEKLY_JSON" python3 - <<'PY'
+API_BASE="$BASE" ADMIN_KEY="$ADMIN_KEY" DEMO_JSON="$DEMO_JSON" BRIEF_JSON="$BRIEF_JSON" WEEKLY_JSON="$WEEKLY_JSON" python3 - <<'PY'
 import json
 import os
 import urllib.parse
@@ -144,8 +152,40 @@ assert weekly_en.startswith("#"), "周报英文重渲染失败"
 weekly_list = get("/briefs?kind=weekly&limit=5")
 assert len(weekly_list) >= 1, "周报列表为空"
 
-print(
-    "接口校验通过：",
+
+key = os.environ.get("ADMIN_KEY", "")
+
+
+def post(path: str, payload: dict):
+    request = urllib.request.Request(
+        base + path,
+        data=json.dumps(payload).encode("utf-8"),
+        headers={"content-type": "application/json", "X-API-Key": key},
+        method="POST",
+    )
+    with urllib.request.urlopen(request, timeout=20) as resp:
+        return json.load(resp)
+
+
+# 候选确认的真实路径：挑两个同类型实体合并（remember=False，只动这份一次性数据库）
+by_kind: dict[str, list] = {}
+for item in entities:
+    by_kind.setdefault(item["kind"], []).append(item)
+pair = next((group for group in by_kind.values() if len(group) >= 2), None)
+merged_note = "skipped"
+if pair:
+    canonical, alias = pair[0], pair[1]
+    result = post(
+        "/admin/entity-aliases/apply",
+        {"merges": [{"canonical_id": canonical["id"], "alias_ids": [alias["id"]]}], "remember": False},
+    )
+    assert result["merged"] >= 1, f"合并未生效: {result}"
+    assert result["remembered"] is False, result
+    after = get(f"/entities/{canonical['id']}")
+    assert after["mention_count"] >= canonical["mention_count"], after
+    merged_note = f"{result['merged']} 个 / 移动 {result['moved']} 条提及"
+
+print("接口校验通过：",
     {
         "documents": documents["total_returned"],
         "clusters": len(clusters),
@@ -154,6 +194,7 @@ print(
         "brief_items": brief["item_count"],
         "weekly_items": weekly["item_count"],
         "entities": len(entities),
+        "alias_merge": merged_note,
         "ingest": demo["ingest"],
     },
 )

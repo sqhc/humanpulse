@@ -138,3 +138,17 @@ FORCE=1 make brief KIND=weekly  # 强制重跑（会真实调用 LLM）
 
 浏览器打开 `#/admin`：填管理员 API Key（只存在本机 localStorage），即可查看数据源状态、
 手动触发采集/处理/日报/周报、查看最近采集批次与 LLM 用量。写操作需要 Key，读数据源不需要。
+
+### 8.1 实体候选确认
+
+「实体候选」区块列出疑似同一实体的写法（中/英、简/繁），来自
+`GET /api/v1/admin/entity-candidates`（默认 jaccard>=0.5、频次比<=3，偏保守）。
+
+- 点「保留左边的名字」或「保留右边的名字」决定谁是规范实体，然后合并；
+- **默认只改数据库**；要写回仓库里的别名表必须勾选「同时写回别名表」，误点不会污染随包发布的 YAML；
+- 合并会搬提及、重算 mention_count、给别名行打上 canonical 标记（不再单独出现在列表里）；
+- 写回 YAML 后别名索引缓存立即失效，新文档按新表合并。
+
+命令行等价物：`make entity-candidates`（列候选）、`make aliases`（应用 YAML）。
+合并不可逆（提及的原始归属不保留），但可整表重建：重跑 `make entities` + `make aliases` 会从
+`analyses.entities` 重新推导。

@@ -79,6 +79,11 @@ def _index_for(path_str: str) -> dict[str, tuple[str, str]]:
     return index
 
 
+def refresh_alias_index() -> None:
+    """别名表被改写后调用（管理台确认候选会写文件，缓存必须失效）。"""
+    _index_for.cache_clear()
+
+
 def resolve_alias(kind: str, name: str) -> tuple[str, str]:
     """返回 (规范 key, 规范名)；没有匹配规则时返回自身。"""
     index = _index_for(str(alias_file_path()))
