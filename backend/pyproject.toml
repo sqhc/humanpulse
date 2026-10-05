@@ -67,6 +67,12 @@ plugins = ["pydantic.mypy"]
 module = ["alembic.*"]
 ignore_missing_imports = true
 
+
+[[tool.mypy.overrides]]
+# Pillow 只在 video extra 里（渲染是离线动作），CI 装基础依赖时没有它
+module = ["PIL.*"]
+ignore_missing_imports = true
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
