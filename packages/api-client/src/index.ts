@@ -26,6 +26,7 @@ export type {
   HealthResponse,
   HumanpulseClient,
   ReadyResponse,
+  SearchHitOut,
   RequestOptions,
   SourceOut,
 } from "./client";

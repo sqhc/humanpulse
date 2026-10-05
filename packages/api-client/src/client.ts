@@ -30,6 +30,7 @@ export type EntityCandidateOut = components["schemas"]["EntityCandidateOut"];
 export type EntityCandidateListOut = components["schemas"]["EntityCandidateListOut"];
 export type EntityAliasApplyIn = components["schemas"]["EntityAliasApplyIn"];
 export type EntityAliasApplyOut = components["schemas"]["EntityAliasApplyOut"];
+export type SearchHitOut = components["schemas"]["SearchHitOut"];
 
 /** 结构化简报内容（由服务端渲染 Markdown，前端按语言取字段）。 */
 export interface BriefSection {
@@ -151,6 +152,16 @@ export function createClient(options: ClientOptions = {}) {
         method: "POST",
         signal,
       }),
+    /** 语义搜索：自然语言查询 → 向量近邻。 */
+    search: (
+      query: string,
+      params: { limit?: number; min_similarity?: number } = {},
+      { signal }: RequestOptions = {},
+    ) =>
+      request<SearchHitOut[]>(`/api/v1/search${toQueryString({ q: query, ...params })}`, {
+        signal,
+      }),
+
     /** 实体列表：默认按提及次数排序，可搜索。 */
     listEntities: (
       params: { q?: string; kind?: string; order?: "mentions" | "recent"; limit?: number } = {},

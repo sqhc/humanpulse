@@ -192,6 +192,10 @@ assert video["scenes"][0]["kind"] == "title", video["scenes"][0]
 srt_text = get_text("/briefs/%d/subtitles.srt?language=zh" % brief["id"])
 assert srt_text.startswith("1"), f"字幕格式异常: {srt_text[:40]}"
 assert " --> " in srt_text, "字幕缺少时间轴"
+query = urllib.parse.quote(documents["items"][0]["title"][:30])
+hits = get("/search?q=%s&limit=3" % query)
+assert len(hits) >= 1, "语义搜索没有命中（用第一条标题当查询）"
+assert hits[0]["similarity"] > 0, hits[0]
 print("接口校验通过：",
     {
         "documents": documents["total_returned"],
@@ -203,6 +207,7 @@ print("接口校验通过：",
         "entities": len(entities),
         "alias_merge": merged_note,
         "scenes": video["scene_count"],
+        "search_hits": len(hits),
         "video_seconds": video["total_seconds"],
         "ingest": demo["ingest"],
     },

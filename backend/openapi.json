@@ -1384,6 +1384,113 @@
         "title": "ReadyResponse",
         "type": "object"
       },
+      "SearchHitOut": {
+        "properties": {
+          "cluster_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cluster Id"
+          },
+          "document_id": {
+            "title": "Document Id",
+            "type": "integer"
+          },
+          "language": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Language"
+          },
+          "published_at": {
+            "format": "date-time",
+            "title": "Published At",
+            "type": "string"
+          },
+          "score": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Score"
+          },
+          "similarity": {
+            "default": 0.0,
+            "title": "Similarity",
+            "type": "number"
+          },
+          "source_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Name"
+          },
+          "summary_en": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary En"
+          },
+          "summary_zh": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary Zh"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Tags",
+            "type": "array"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "document_id",
+          "title",
+          "url",
+          "published_at"
+        ],
+        "title": "SearchHitOut",
+        "type": "object"
+      },
       "SourceOut": {
         "properties": {
           "cadence_minutes": {
@@ -2903,6 +3010,81 @@
         "summary": "就绪探针（含数据库连通性）",
         "tags": [
           "health"
+        ]
+      }
+    },
+    "/api/v1/search": {
+      "get": {
+        "description": "按向量相似度找记录。\n\n搜索质量取决于 EMBEDDING_PROVIDER：hash 只是可复现的占位实现，\n生产应使用 local（见 ADR-0003）。",
+        "operationId": "search_documents_api_v1_search_get",
+        "parameters": [
+          {
+            "description": "自然语言查询",
+            "in": "query",
+            "name": "q",
+            "required": true,
+            "schema": {
+              "description": "自然语言查询",
+              "maxLength": 200,
+              "minLength": 2,
+              "title": "Q",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 15,
+              "maximum": 50,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "min_similarity",
+            "required": false,
+            "schema": {
+              "default": 0.2,
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "title": "Min Similarity",
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SearchHitOut"
+                  },
+                  "title": "Response Search Documents Api V1 Search Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "语义搜索（向量近邻）",
+        "tags": [
+          "search"
         ]
       }
     },

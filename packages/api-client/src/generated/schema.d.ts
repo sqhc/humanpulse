@@ -345,6 +345,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 语义搜索（向量近邻）
+         * @description 按向量相似度找记录。
+         *
+         *     搜索质量取决于 EMBEDDING_PROVIDER：hash 只是可复现的占位实现，
+         *     生产应使用 local（见 ADR-0003）。
+         */
+        get: operations["search_documents_api_v1_search_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/sources": {
         parameters: {
             query?: never;
@@ -1014,6 +1037,39 @@ export interface components {
              * @enum {string}
              */
             status: "ready" | "degraded";
+        };
+        /** SearchHitOut */
+        SearchHitOut: {
+            /** Cluster Id */
+            cluster_id?: number | null;
+            /** Document Id */
+            document_id: number;
+            /** Language */
+            language?: string | null;
+            /**
+             * Published At
+             * Format: date-time
+             */
+            published_at: string;
+            /** Score */
+            score?: number | null;
+            /**
+             * Similarity
+             * @default 0
+             */
+            similarity: number;
+            /** Source Name */
+            source_name?: string | null;
+            /** Summary En */
+            summary_en?: string | null;
+            /** Summary Zh */
+            summary_zh?: string | null;
+            /** Tags */
+            tags?: string[];
+            /** Title */
+            title: string;
+            /** Url */
+            url: string;
         };
         /** SourceOut */
         SourceOut: {
@@ -1711,6 +1767,40 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    search_documents_api_v1_search_get: {
+        parameters: {
+            query: {
+                /** @description 自然语言查询 */
+                q: string;
+                limit?: number;
+                min_similarity?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SearchHitOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
             };
         };
     };

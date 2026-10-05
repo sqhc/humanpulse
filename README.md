@@ -78,6 +78,7 @@ cd backend && uv sync && uv run uvicorn app.main:app --reload
 | GET | `/clusters`、`/clusters/{id}` | 聚类列表与详情（同一事件的多来源覆盖） |
 | GET | `/briefs`、`/briefs/latest?kind=daily\|weekly`、`/briefs/{id}` | 简报列表 / 最新一期 / 详情（含结构化双语内容与周报趋势） |
 | GET | `/entities`、`/entities/{id}` | 实体列表（按提及/最近排序，可搜索）/ 实体详情与按天时间线 |
+| GET | `/search?q=` | 语义搜索（向量近邻，按相似度排序；质量取决于 EMBEDDING_PROVIDER） |
 | GET | `/stream` | Feed 实时事件流（SSE；`event: ready` → `event: document`） |
 | GET | `/briefs/{id}/markdown?language=zh\|en` | 按语言重渲染 Markdown（不调用模型） |
 | GET | `/sources` | 数据源列表 |

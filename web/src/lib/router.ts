@@ -7,6 +7,7 @@ export type Route =
   | { name: "brief" }
   | { name: "entities" }
   | { name: "entity"; id: number }
+  | { name: "search" }
   | { name: "admin" }
   | { name: "document"; id: number }
   | { name: "about" };
@@ -25,6 +26,9 @@ export function parseHash(hash: string): Route {
   }
   if (clean === "/entities") {
     return { name: "entities" };
+  }
+  if (clean === "/search") {
+    return { name: "search" };
   }
   const entityMatch = /^\/entities\/(\d+)$/.exec(clean);
   if (entityMatch) {

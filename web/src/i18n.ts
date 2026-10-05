@@ -61,6 +61,13 @@ export interface Messages {
   briefScript: string;
   briefSubtitles: string;
   briefVideoHint: string;
+  navSearch: string;
+  searchTitle: string;
+  searchPlaceholder: string;
+  searchHint: string;
+  searchEmpty: string;
+  searchTooShort: string;
+  searchSimilarity: string;
   adminCandidatesKeepRight: string;
   feedTitle: string;
   aiSummaryNotice: string;
@@ -190,6 +197,13 @@ export const messages: Record<Lang, Messages> = {
     briefScript: "导出视频脚本",
     briefSubtitles: "导出字幕（SRT）",
     briefVideoHint: "脚本与字幕由已入库的简报生成，不额外调用模型。渲染 MP4 需要 ffmpeg 与 Pillow（见 make video）。",
+    navSearch: "搜索",
+    searchTitle: "语义搜索",
+    searchPlaceholder: "用一句话描述你在找什么，例如：霍尔木兹海峡的航运风险",
+    searchHint: "按语义相似度排序，不要求关键词命中。相似度取决于使用的向量模型（生产用 local）。",
+    searchEmpty: "没有足够相似的记录。换个说法，或先跑一轮采集与处理。",
+    searchTooShort: "至少输入 2 个字符。",
+    searchSimilarity: "相似度",
     adminCandidatesKeepRight: "保留右边的名字",
     feedTitle: "最新记录",
     aiSummaryNotice: "以下摘要与评分由大模型生成并标注，原文链接见详情页。",
@@ -329,6 +343,13 @@ export const messages: Record<Lang, Messages> = {
     briefScript: "Export video script",
     briefSubtitles: "Export subtitles (SRT)",
     briefVideoHint: "Script and subtitles come from the stored brief; no extra model calls. Rendering MP4 needs ffmpeg + Pillow (see make video).",
+    navSearch: "Search",
+    searchTitle: "Semantic search",
+    searchPlaceholder: "Describe what you are looking for, e.g. shipping risk in the Strait of Hormuz",
+    searchHint: "Ranked by semantic similarity, keyword match not required. Quality depends on the embedding model (local in production).",
+    searchEmpty: "Nothing similar enough. Try different wording, or run collection + processing first.",
+    searchTooShort: "Type at least 2 characters.",
+    searchSimilarity: "similarity",
     adminCandidatesKeepRight: "Keep the right name",
     feedTitle: "Latest records",
     aiSummaryNotice: "Summaries and scores below are AI-generated and labelled; original links are on the detail page.",

@@ -7,6 +7,7 @@ from app.api.v1 import (
     documents,
     entities,
     health,
+    search,
     sources,
     stream,
     takedown,
@@ -18,6 +19,7 @@ api_router.include_router(health.router, tags=["health"])
 api_router.include_router(documents.router, tags=["documents"])
 api_router.include_router(briefs.router, tags=["briefs"])
 api_router.include_router(entities.router, tags=["entities"])
+api_router.include_router(search.router, tags=["search"])
 api_router.include_router(stream.router, tags=["stream"])
 api_router.include_router(clusters.router, tags=["clusters"])
 api_router.include_router(sources.router, tags=["sources"])

@@ -176,3 +176,18 @@ class EntityMentionOut(BaseModel):
 class EntityDetailOut(EntityOut):
     timeline: list[EntityTimelinePoint] = Field(default_factory=list)
     recent: list[EntityMentionOut] = Field(default_factory=list)
+
+
+class SearchHitOut(BaseModel):
+    document_id: int
+    title: str
+    url: str
+    source_name: str | None = None
+    language: str | None = None
+    published_at: datetime
+    score: int | None = None
+    summary_zh: str | None = None
+    summary_en: str | None = None
+    tags: list[str] = Field(default_factory=list)
+    cluster_id: int | None = None
+    similarity: float = 0.0

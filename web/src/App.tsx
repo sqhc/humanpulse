@@ -10,6 +10,7 @@ import { EntitiesView } from "./components/EntitiesView";
 import { EntityDetailView } from "./components/EntityDetailView";
 import { FeedView } from "./components/FeedView";
 import { Header } from "./components/Header";
+import { SearchView } from "./components/SearchView";
 import type { StatusState } from "./components/StatusCard";
 import { messages, type Lang } from "./i18n";
 import { createApiClient } from "./lib/api";
@@ -67,6 +68,9 @@ export function App() {
         <a className={navClass(route.name === "entities" || route.name === "entity")} href="#/entities">
           {t.navEntities}
         </a>
+        <a className={navClass(route.name === "search")} href="#/search">
+          {t.navSearch}
+        </a>
         <a className={navClass(route.name === "about")} href="#/about">
           {t.navAbout}
         </a>
@@ -83,6 +87,8 @@ export function App() {
           <EntitiesView lang={lang} t={t} />
         ) : route.name === "entity" ? (
           <EntityDetailView id={route.id} lang={lang} t={t} />
+        ) : route.name === "search" ? (
+          <SearchView lang={lang} t={t} />
         ) : route.name === "admin" ? (
           <AdminView t={t} lang={lang} />
         ) : route.name === "about" ? (

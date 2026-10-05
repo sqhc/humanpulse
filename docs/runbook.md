@@ -152,3 +152,12 @@ FORCE=1 make brief KIND=weekly  # 强制重跑（会真实调用 LLM）
 命令行等价物：`make entity-candidates`（列候选）、`make aliases`（应用 YAML）。
 合并不可逆（提及的原始归属不保留），但可整表重建：重跑 `make entities` + `make aliases` 会从
 `analyses.entities` 重新推导。
+
+## 10. 语义搜索
+
+`GET /api/v1/search?q=...&limit=15&min_similarity=0.2`：用与入库同一套 embedder 把查询向量化，
+按 pgvector 的余弦距离排序（HNSW 索引）。前端在 `#/search`。
+
+- 质量完全取决于 `EMBEDDING_PROVIDER`：`hash` 是占位实现，生产必须用 `local`（`make ml` + `make reembed`）；
+- 同一文档可能有多条 embedding（分析重跑过），接口按 document 去重后返回；
+- 相似度阈值默认 0.2：太低会混入无关内容，太高会空手而归，用 `min_similarity` 调。
