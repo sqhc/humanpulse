@@ -62,6 +62,7 @@ cd backend && uv sync && uv run uvicorn app.main:app --reload
 | `make aliases` / `make entity-candidates` | 应用实体别名表（中国/China 合并）/ 列出疑似同实体的候选对 |
 | 管理台 `#/admin` → 实体候选 | 网页确认合并（只改数据库）；勾选后才写回 `backend/app/entity_aliases.yaml` |
 | `make video` | 生成视频脚本与字幕（`BRIEF_ID=` 指定某期，`RENDER=1` 出 MP4，需 ffmpeg + `uv sync --extra video`） |
+| 安装到主屏 | 生产构建带 PWA 清单与 Service Worker（只缓存外壳，接口数据不缓存，见 [ADR-0011](docs/adr/0011-pwa.md)） |
 | `make reprice` | 按官方定价重算历史成本（输入按未命中计，属上界） |
 
 切到真实模型：在 `.env` 里把 `LLM_PROVIDER` 设为 `deepseek`（默认）并填好 `DEEPSEEK_API_KEY`；

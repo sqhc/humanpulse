@@ -58,7 +58,7 @@ export function App() {
   return (
     <div className="min-h-screen">
       <Header t={t} lang={lang} onToggleLang={() => setLang(lang === "zh" ? "en" : "zh")} />
-      <nav className="mx-auto flex max-w-4xl gap-5 px-6 pt-4 text-sm">
+      <nav className="mx-auto flex max-w-4xl flex-wrap gap-x-5 gap-y-2 px-6 pt-4 text-sm">
         <a className={navClass(route.name === "feed")} href="#/">
           {t.navFeed}
         </a>
