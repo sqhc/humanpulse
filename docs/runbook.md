@@ -159,5 +159,9 @@ FORCE=1 make brief KIND=weekly  # 强制重跑（会真实调用 LLM）
 按 pgvector 的余弦距离排序（HNSW 索引）。前端在 `#/search`。
 
 - 质量完全取决于 `EMBEDDING_PROVIDER`：`hash` 是占位实现，生产必须用 `local`（`make ml` + `make reembed`）；
+- **模型必须一致**：库里 `embeddings.model` 与当前配置不符时 `/search` 直接返回 409，
+  这是刻意的——跨向量空间的余弦相似度会返回看似合理但无意义的结果（见 [ADR-0012](adr/0012-local-embeddings.md)）；
+- 切换提供方后 **API/worker 要重建镜像**（`--build-arg WITH_ML=1`），否则容器里没有 sentence-transformers；
+- `make reembed` 是离线重放，时间窗锚用**文档时间**而非墙钟（ADR-0012 有实测数据）。
 - 同一文档可能有多条 embedding（分析重跑过），接口按 document 去重后返回；
 - 相似度阈值默认 0.2：太低会混入无关内容，太高会空手而归，用 `min_similarity` 调。

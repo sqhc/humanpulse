@@ -1,0 +1,16 @@
+# 冒烟专用 override：把提供方钉死成 fake/hash。
+#
+# 为什么必须显式钉死：compose 会读开发者的 .env，而 .env 可能是 EMBEDDING_PROVIDER=local。
+# 那会让冒烟依赖本机是否装了 ml extra（CI 与本地都可能没有），
+# 而且冒烟的目的本来就是「不联网、不花钱、可复现」。
+#
+# compose 的 environment 优先级高于 env_file，所以这里能覆盖 .env。
+services:
+  api:
+    environment:
+      LLM_PROVIDER: fake
+      EMBEDDING_PROVIDER: hash
+  worker:
+    environment:
+      LLM_PROVIDER: fake
+      EMBEDDING_PROVIDER: hash

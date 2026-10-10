@@ -58,6 +58,7 @@ cd backend && uv sync && uv run uvicorn app.main:app --reload
 | `make collect-once` | 手动触发一次真实采集（需栈已起并导出 `ADMIN_API_KEY`） |
 | `make brief` | 生成简报（`KIND=daily` 默认 / `KIND=weekly`；`FORCE=1` 强制重跑） |
 | `make ml` / `make reembed` | 安装本地语义向量依赖 / 换模型后重算向量与聚类 |
+| 生产镜像 | `docker build --build-arg WITH_ML=1 ./backend`（含 local 向量，约 4.3GB） |
 | `make entities` | 把历史 `analyses.entities` 回填进实体表（幂等） |
 | `make aliases` / `make entity-candidates` | 应用实体别名表（中国/China 合并）/ 列出疑似同实体的候选对 |
 | 管理台 `#/admin` → 实体候选 | 网页确认合并（只改数据库）；勾选后才写回 `backend/app/entity_aliases.yaml` |

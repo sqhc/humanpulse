@@ -95,4 +95,7 @@ local 下聚到的事件都跨了多个来源，例如"南非枪击"6 条来自 
   API 在生产环境检测到 `hash` 时会打 `embedding.hash_in_production` 警告。
 - `uv sync --extra ml`（或 `make ml`）装 sentence-transformers；CI 不装，保持快与省。
 - 切换提供方或调整阈值后用 `make reembed` 重算向量与聚类（幂等，会重建 embeddings/clusters）。
+- **注意**：reembed 是离线重放，聚类时间窗的锚点必须用文档时间而非墙钟；
+  早期版本锚在墙钟上，重放几天前的老数据时窗口为空、聚类整体失效（表现为 multi_doc_clusters=0，容易被误判成向量质量差）。
+  细节与修复见 [ADR-0012](0012-local-embeddings.md)。
 - 模型权重默认落在 `~/.cache/huggingface`，受限沙箱下会被拒绝；Makefile 已把 `HF_HOME`/`TORCH_HOME` 一并重定向到仓库内 `.cache/`。

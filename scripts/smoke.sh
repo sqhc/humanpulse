@@ -11,7 +11,8 @@ cd "$(dirname "$0")/.."
 
 export API_PORT="${SMOKE_API_PORT:-18000}"
 export POSTGRES_PORT="${SMOKE_POSTGRES_PORT:-15432}"
-COMPOSE="docker compose -p humanpulse-smoke -f docker-compose.yml"
+# 叠加 smoke.compose.yml：把 LLM/向量提供方钉成 fake/hash，避免冒烟受开发者 .env 影响
+COMPOSE="docker compose -p humanpulse-smoke -f docker-compose.yml -f scripts/smoke.compose.yml"
 BASE="http://localhost:${API_PORT}/api/v1"
 
 if ! docker info >/dev/null 2>&1; then

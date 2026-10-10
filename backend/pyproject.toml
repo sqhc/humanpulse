@@ -25,8 +25,12 @@ dependencies = [
 
 [project.optional-dependencies]
 # 本地多语种向量模型（体积大：会拉 torch）；EMBEDDING_PROVIDER=local 时必须安装
+# torch 必须显式列出（尽管它是 sentence-transformers 的传递依赖）：
+# 只有直接依赖才会被 tool.uv.sources 的 index 覆盖，否则 PyPI 的 linux wheel
+# 会连带拉 cuda-toolkit / nvidia-* 全套，把镜像撑到 11.9GB。见 ADR-0012。
 ml = [
     "sentence-transformers>=3.3",
+    "torch>=2.14",
 ]
 
 # 视频渲染（离线动作，不进 API 镜像）：PIL 画分镜，ffmpeg 编码
@@ -42,6 +46,19 @@ dev = [
 
 [tool.uv]
 package = false
+
+# PyPI 上的 torch 默认带 CUDA 运行时（镜像里会多出十几 GB，而服务器根本没有 GPU）。
+# 用 PyTorch 的 CPU 专用索引把体积压下来——这是 local 向量能否上生产的关键一步。
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[tool.uv.sources]
+# 让 torch 走 CPU 专用源：PyPI 的 linux wheel 会连带拉 cuda-toolkit/cuda-bindings，
+# 实测把镜像撑到 11.9GB（服务器没有 GPU，纯浪费）。见 ADR-0012。
+torch = { index = "pytorch-cpu" }
+torchvision = { index = "pytorch-cpu" }
 
 [tool.ruff]
 line-length = 100

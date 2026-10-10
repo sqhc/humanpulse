@@ -36,7 +36,22 @@ async def search_documents(
     if len(text) < 2:
         raise HTTPException(status_code=400, detail="查询太短")
 
-    query_vector = get_embedder().embed(text)
+    embedder = get_embedder()
+
+    # 库里的向量必须与本次查询用的是同一个模型，否则余弦相似度只是无意义的数字。
+    # 典型事故：切了 EMBEDDING_PROVIDER 但忘了 make reembed（或反过来）——
+    # 搜索仍然返回结果，只是结果毫无道理；所以这里宁可报错。
+    stored_models = set((await session.execute(select(Embedding.model).distinct())).scalars().all())
+    if stored_models and embedder.name not in stored_models:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"向量模型不一致：库中是 {sorted(stored_models)}，当前配置是 {embedder.name}。"
+                "请先执行 make reembed 重建向量，或把 EMBEDDING_PROVIDER 调回一致。"
+            ),
+        )
+
+    query_vector = embedder.embed(text)
     distance = Embedding.vec.cosine_distance(query_vector).label("distance")
     latest_analysis = (
         select(Analysis.id)

@@ -41,17 +41,64 @@ class NearestMatch:
     is_hot: bool
 
 
+def window_anchor(
+    *,
+    published_at: datetime | None,
+    fetched_at: datetime | None,
+    reference: datetime | None = None,
+) -> datetime | None:
+    """聚类时间窗的锚点。
+
+    为什么不用墙钟：find_nearest 原来拿 datetime.now() 当窗口起点，实时采集时没问题，
+    但 make reembed 是离线重放——如果最近一次采集是几天前，窗口内一篇文档都没有，
+    结果每篇文档各自成簇（multi_doc_clusters=0），看起来像语义向量没用，
+    实际是时间窗失效。锚点应以文档自身时间为主。
+
+    取 coalesce(published_at, fetched_at)；两者都缺才退回 reference。
+    另防脏数据：fetched_at 明显早于 published_at 时信任 published_at。
+    """
+    published = _as_utc(published_at)
+    fetched = _as_utc(fetched_at)
+    # 容错：抓取时间不该早于发布时间（时区错配或来源数据脏）
+    if published is not None and fetched is not None and fetched < published - timedelta(days=1):
+        return published
+    return published or fetched or _as_utc(reference)
+
+
+def is_recent(
+    moment: datetime,
+    *,
+    reference: datetime | None = None,
+    window_hours: int,
+) -> bool:
+    """moment 是否落在 reference 之前的 window_hours 内。
+
+    与 window_anchor 同理：reference 默认墙钟（实时采集），
+    离线重放时由调用方传入文档时间，热点判定才成立。
+    """
+    now = _as_utc(reference) or datetime.now(UTC)
+    anchored = _as_utc(moment)
+    return anchored is not None and anchored >= now - timedelta(hours=window_hours)
+
+
 async def find_nearest(
     session: AsyncSession,
     vec: list[float],
     *,
     exclude_document_id: int,
     window_hours: int | None = None,
+    anchor: datetime | None = None,
 ) -> NearestMatch | None:
-    """在时间窗内找最相似的已入库文档（pgvector cosine 距离）。"""
+    """在时间窗内找最相似的已入库文档（pgvector cosine 距离）。
+
+    anchor 是时间窗的中心时刻：实时采集传 now（缺省），离线重建（reembed）传文档自身时间。
+    若不传 anchor，重放几天前的老数据时窗口为空、聚类会整体失效（见 window_anchor）。
+    """
     settings = get_settings()
     hours = window_hours or settings.vector_dup_window_hours
-    since = datetime.now(UTC) - timedelta(hours=hours)
+    reference = _as_utc(anchor) or datetime.now(UTC)
+    since = reference - timedelta(hours=hours)
+    until = reference + timedelta(hours=hours)
 
     distance = Embedding.vec.cosine_distance(vec)
     stmt = (
@@ -63,7 +110,9 @@ async def find_nearest(
         )
         .join(Document, Document.id == Embedding.document_id)
         .where(Embedding.document_id != exclude_document_id)
+        # 双向窗口：离线重放时 anchor 落在文档时间轴上，同批次一起入库的文档也要能看到
         .where(func.coalesce(Document.published_at, Document.fetched_at) >= since)
+        .where(func.coalesce(Document.published_at, Document.fetched_at) <= until)
         .order_by(distance)
         .limit(1)
     )
@@ -72,11 +121,16 @@ async def find_nearest(
         return None
 
     document_id, raw_distance, published_at, fetched_at = row
-    moment = _as_utc(published_at) or _as_utc(fetched_at) or datetime.now(UTC)
+    moment = window_anchor(published_at=published_at, fetched_at=fetched_at, reference=reference)
     return NearestMatch(
         document_id=int(document_id),
         similarity=1.0 - float(raw_distance),
-        is_hot=moment >= datetime.now(UTC) - timedelta(hours=settings.vector_dup_window_hours),
+        # 热点判定同样相对 anchor：否则离线重建会把所有文档都当冷数据
+        is_hot=is_recent(
+            moment or reference,
+            reference=reference,
+            window_hours=settings.vector_dup_window_hours,
+        ),
     )
 
 
@@ -92,10 +146,16 @@ async def attach_cluster(
     vec: list[float],
     key_terms: list[str] | None = None,
 ) -> tuple[int, float | None]:
-    """把文档挂到最近的 cluster，超出阈值则新建。返回 (cluster_id, similarity)。"""
+    """把文档挂到最近的 cluster，超出阈值则新建。返回 (cluster_id, similarity)。
+
+    时间窗锚在**本文档的时间**上（而不是墙钟）：实时采集时两者几乎等价，
+    但 reembed 离线重放老数据时，只有用文档时间才能聚起来。
+    """
     settings = get_settings()
-    now = datetime.now(UTC)
-    nearest = await find_nearest(session, vec, exclude_document_id=document.id)
+    now = window_anchor(
+        published_at=document.published_at, fetched_at=document.fetched_at
+    ) or datetime.now(UTC)
+    nearest = await find_nearest(session, vec, exclude_document_id=document.id, anchor=now)
 
     if nearest is not None and is_duplicate(
         nearest.similarity,
