@@ -36,6 +36,18 @@ ml = [
 # 视频渲染（离线动作，不进 API 镜像）：PIL 画分镜，ffmpeg 编码
 video = ["pillow>=11"]
 
+# 本地判官模型（Laya）：类型化决策推理，给推演输出概率。
+# 体积大（torch + ~2.2GB 权重），与 ml 一样不进 API 镜像；权重用 make laya-model 单独下载。
+# typesafe-sdk 同时用于云端 Jev（同一套 state+questions 接口，只差 base_url）。
+judgement = [
+    "typesafe-sdk>=0.7",
+    "torch>=2.14",
+    "transformers>=4.45",
+    "safetensors>=0.4",
+    "numpy>=1.26",
+    "peft>=0.17",
+]
+
 [dependency-groups]
 dev = [
     "pytest>=8.3",

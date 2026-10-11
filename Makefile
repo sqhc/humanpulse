@@ -11,10 +11,22 @@ BUILDX_CONFIG ?= $(CACHE_ROOT)/buildx
 # 模型权重同样默认落在 ~/.cache，受限沙箱下会被拒绝，一并重定向
 HF_HOME ?= $(CACHE_ROOT)/huggingface
 TORCH_HOME ?= $(CACHE_ROOT)/torch
-export UV_CACHE_DIR BUILDX_CONFIG HF_HOME TORCH_HOME
+# uv tool 与 modelscope 都会往 $HOME 写（~/.local/share/uv、~/.modelscope），
+# 受限沙箱下直接失败，所以全部指到仓库内 .cache/
+UV_TOOL_DIR ?= $(CACHE_ROOT)/uv-tools
+UV_TOOL_BIN_DIR ?= $(CACHE_ROOT)/uv-bin
+MODELSCOPE_CACHE ?= $(CACHE_ROOT)/modelscope
+MODELSCOPE_HOME ?= $(CACHE_ROOT)/modelscope-home
+# 本地判官服务脚本：来自 jev-cookbook 第十章，暴露 Jev 兼容的 /v1/systemone
+LAYA_SERVE_SCRIPT ?= /Users/shenqing/Desktop/Jevstudy/jev-cookbook/main/10_本地模型/serve.py
+LAYA_MODEL_DIR ?= $(CACHE_ROOT)/laya/models/multilingual
+LAYA_PORT ?= 8077
+export UV_CACHE_DIR BUILDX_CONFIG HF_HOME TORCH_HOME UV_TOOL_DIR UV_TOOL_BIN_DIR \
+       MODELSCOPE_CACHE MODELSCOPE_HOME LAYA_MODEL_DIR LAYA_PORT
 
 .PHONY: help doctor bootstrap install ml lint typecheck test build verify openapi \
         migrate seed demo reembed brief entities aliases entity-candidates reprice dev dev-web logs dev-down smoke collect-once prod-config deploy \
+        judging laya-model laya-serve \
         restore-drill clean
 
 help: ## 显示所有可用命令
@@ -31,6 +43,18 @@ ml: ## 安装本地语义向量与视频渲染依赖（sentence-transformers + P
 	# 注意：uv 的 --extra 是「只保留这些 extra」而非累加——
 	# 只写 --extra ml 会把 Pillow 卸掉，渲染时报 ImportError: cannot import name Image
 	cd $(BACKEND) && uv sync --extra ml --extra video
+
+judging: ## 安装判官依赖（typesafe-sdk + torch/transformers；不含权重）
+	# --extra 是「只保留」而非累加：这里显式列全三个，避免互相卸载
+	cd $(BACKEND) && uv sync --extra ml --extra video --extra judgement
+
+laya-model: ## 下载 Laya multilingual 权重（约 2.2GB）到 .cache/laya/models
+	uv tool run --from modelscope-hub ms-hub download convaiinnovations/laya \
+		--local-dir $(CACHE_ROOT)/laya/models --include "multilingual/**"
+
+laya-serve: ## 起本地 Laya 判官服务（Jev 兼容路由，默认 127.0.0.1:$(LAYA_PORT)）
+	cd $(BACKEND) && uv run --extra judgement python "$(LAYA_SERVE_SCRIPT)" \
+		--model-dir "$(LAYA_MODEL_DIR)" --port $(LAYA_PORT)
 
 bootstrap: install ## 安装依赖并准备 .env
 	@test -f .env || (cp .env.example .env && echo "已生成 .env，请填入 DEEPSEEK_API_KEY / ADMIN_API_KEY")

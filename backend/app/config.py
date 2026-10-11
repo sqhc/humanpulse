@@ -76,6 +76,32 @@ class Settings(BaseSettings):
     tts_voice: str = "Tingting"
     tts_command: str = ""
 
+    # 判官模型（推演用）：输出类型化决策与概率，不生成文本。
+    # none = 不做推演；fake = 确定性假实现（CI）；laya = 本地 Laya；jev = 云端 TypeSafe。
+    # laya 与 jev 共用同一套请求协议，只差 base_url（本地 serve.py 暴露 Jev 兼容路由）。
+    judgement_provider: str = "none"
+    judgement_base_url: str = "http://127.0.0.1:8077"
+    judgement_api_key: str = ""
+    judgement_model: str = "laya-multilingual"
+    judgement_timeout_seconds: float = Field(default=30.0, gt=0)
+    # 本地 Laya serve 脚本位置（cookbook 的 serve.py）；留空则用环境变量 LAYA_SERVE_SCRIPT
+    judgement_serve_script: str = ""
+    # Laya multilingual 上下文上限 1024 token，state 留出余量
+    judgement_max_state_tokens: int = Field(default=900, gt=100)
+
+    # 推演（链路式后果分析）
+    projection_enabled: bool = False
+    projection_max_events: int = Field(default=3, ge=1, le=10)
+    projection_horizon_days: int = Field(default=14, ge=1, le=180)
+    # 低于此置信度的节点不进视频断言，只标为「待观察」
+    projection_min_confidence: float = Field(default=0.60, ge=0.0, le=1.0)
+    projection_chain_hops: int = Field(default=3, ge=1, le=5)
+
+    # 实体别名裁决（用判官做实体对齐）
+    alias_adjudication_enabled: bool = False
+    alias_auto_merge_confidence: float = Field(default=0.90, ge=0.0, le=1.0)
+    entity_wikidata_enabled: bool = False
+
     # 简报
     # 日报：几点生成、时间窗多长、最多选多少条素材（同一 cluster 只留一条代表）
     brief_hour: int = Field(default=6, ge=0, le=23)
