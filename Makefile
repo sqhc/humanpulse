@@ -18,10 +18,10 @@ UV_TOOL_BIN_DIR ?= $(CACHE_ROOT)/uv-bin
 MODELSCOPE_CACHE ?= $(CACHE_ROOT)/modelscope
 MODELSCOPE_HOME ?= $(CACHE_ROOT)/modelscope-home
 # 本地判官服务脚本：来自 jev-cookbook 第十章，暴露 Jev 兼容的 /v1/systemone
-LAYA_SERVE_SCRIPT ?= /Users/shenqing/Desktop/Jevstudy/jev-cookbook/main/10_本地模型/serve.py
+LAYA_CHAPTER_DIR ?= /Users/shenqing/Desktop/Jevstudy/jev-cookbook/main/10_本地模型
 LAYA_MODEL_DIR ?= $(CACHE_ROOT)/laya/models/multilingual
 LAYA_PORT ?= 8077
-export UV_CACHE_DIR BUILDX_CONFIG HF_HOME TORCH_HOME UV_TOOL_DIR UV_TOOL_BIN_DIR \
+export UV_CACHE_DIR BUILDX_CONFIG HF_HOME TORCH_HOME UV_TOOL_DIR UV_TOOL_BIN_DIR LAYA_CHAPTER_DIR \
        MODELSCOPE_CACHE MODELSCOPE_HOME LAYA_MODEL_DIR LAYA_PORT
 
 .PHONY: help doctor bootstrap install ml lint typecheck test build verify openapi \
@@ -53,7 +53,10 @@ laya-model: ## 下载 Laya multilingual 权重（约 2.2GB）到 .cache/laya/mod
 		--local-dir $(CACHE_ROOT)/laya/models --include "multilingual/**"
 
 laya-serve: ## 起本地 Laya 判官服务（Jev 兼容路由，默认 127.0.0.1:$(LAYA_PORT)）
-	cd $(BACKEND) && uv run --extra judgement python "$(LAYA_SERVE_SCRIPT)" \
+	# scripts/laya_serve.py 给第十章目录造一个合成包，解决相对导入问题
+	# （目录名 10_本地模型 不是合法包名，直接 python serve.py 会 ImportError）
+	cd $(BACKEND) && uv run --extra judgement python ../scripts/laya_serve.py \
+		--chapter-dir "$(LAYA_CHAPTER_DIR)" \
 		--model-dir "$(LAYA_MODEL_DIR)" --port $(LAYA_PORT)
 
 bootstrap: install ## 安装依赖并准备 .env
