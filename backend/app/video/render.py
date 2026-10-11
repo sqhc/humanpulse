@@ -70,19 +70,51 @@ def find_font(language: str = "zh", explicit: str | None = None) -> str:
     raise RenderError("找不到中文字体，渲染出来会是方框。请装 fonts-noto-cjk 或用 --font 指定")
 
 
+def _wrap_tokens(text: str) -> list[str]:
+    """切成不可再分的单元：CJK 一字一个，拉丁/数字整词一个。
+
+    为什么要分词而不是逐字符：英文逐字符折行会把单词劈开——
+    真实成片里出现过 commande / r in Gaza strike.，看起来像排版坏了。
+    CJK 没有词间空格，所以仍然按字折行。
+    """
+    tokens: list[str] = []
+    buffer = ""
+    for char in text:
+        if char.isspace():
+            if buffer:
+                tokens.append(buffer)
+                buffer = ""
+            tokens.append(" ")
+            continue
+        if ord(char) > 0x2E80:
+            if buffer:
+                tokens.append(buffer)
+                buffer = ""
+            tokens.append(char)
+            continue
+        buffer += char
+    if buffer:
+        tokens.append(buffer)
+    return tokens
+
+
 def wrap_text(text: str, *, width: int) -> list[str]:
-    """按显示宽度折行：CJK 算 2 列、其它算 1 列。"""
+    """按显示宽度折行：CJK 算 2 列、其它算 1 列；不切开拉丁单词。"""
     lines: list[str] = []
     current = ""
     used = 0
-    for char in " ".join(text.split()):
-        size = 2 if ord(char) > 0x2E80 else 1
+    for token in _wrap_tokens(" ".join(text.split())):
+        if token == " ":
+            if current:
+                current += " "
+                used += 1
+            continue
+        size = sum(2 if ord(char) > 0x2E80 else 1 for char in token)
         if used + size > width and current:
             lines.append(current.rstrip())
-            current = "" if char == " " else char
-            used = 0 if char == " " else size
-            continue
-        current += char
+            current = ""
+            used = 0
+        current += token
         used += size
     if current.strip():
         lines.append(current.rstrip())
@@ -118,9 +150,12 @@ def render_scene_png(
     language: str,
 ) -> None:
     """把单个分镜画成 PNG。"""
-    from PIL import Image, ImageDraw, ImageFont
+    from PIL import ImageDraw, ImageFont
 
-    image = Image.new("RGB", (width, height), BACKGROUND)
+    from app.video.artwork import build_background
+
+    # 背景是程序化生成的（渐变 + 关键词水印），不使用任何原文配图，见 artwork.py 顶部说明
+    image = build_background(scene, size=(width, height), font_path=font_path, language=language)
     draw = ImageDraw.Draw(image)
     body_size = 38 if language == "zh" else 34
     heading_size = 54 if language == "zh" else 48
