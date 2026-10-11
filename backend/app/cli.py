@@ -12,6 +12,7 @@ import asyncio
 import json
 import os
 import pathlib
+import sys
 import uuid
 from typing import Any
 
@@ -564,6 +565,35 @@ def cmd_reembed(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_eval_judgement(args: argparse.Namespace) -> int:
+    """评估判官在客观子问题上的概率质量（推演上线前的门禁）。"""
+    import json
+
+    from app.db import get_sessionmaker
+    from app.eval.judgement import run_evaluation
+
+    async def _run() -> dict[str, object]:
+        factory = get_sessionmaker()
+        async with factory() as session:
+            report = await run_evaluation(
+                session,
+                horizon_days=args.horizon_days,
+                sample=args.sample,
+                order=args.order,
+            )
+        return report.as_dict()
+
+    payload = asyncio.run(_run())
+    print(json.dumps(payload, ensure_ascii=False, indent=2))
+    if args.out:
+        out = pathlib.Path(args.out)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+        print(f"报告已写入 {out}", file=sys.stderr)
+    # 未过门时以非零码退出，方便直接用在脚本/CI 里
+    return 0 if payload.get("passed") else 2
+
+
 def cmd_migrate(args: argparse.Namespace) -> int:
     print(json.dumps(_migrate(), ensure_ascii=False))
     return 0
@@ -622,6 +652,21 @@ def build_parser() -> argparse.ArgumentParser:
     candidates_parser.add_argument("--min-shared", type=int, default=2)
     candidates_parser.add_argument("--limit", type=int, default=30)
     candidates_parser.set_defaults(func=cmd_entity_candidates)
+
+    eval_parser = sub.add_parser(
+        "eval-judgement",
+        help="评估判官的概率质量（Brier 技能分 / ECE / 可靠性 / 风险-覆盖）",
+    )
+    eval_parser.add_argument("--horizon-days", type=int, default=7)
+    eval_parser.add_argument("--sample", type=int, default=200)
+    eval_parser.add_argument(
+        "--order",
+        choices=("random", "prominent"),
+        default="random",
+        help="random=全体实体均匀抽样（门禁用）；prominent=最显眼实体（更难的检验）",
+    )
+    eval_parser.add_argument("--out", default="", help="把 JSON 报告写到指定路径")
+    eval_parser.set_defaults(func=cmd_eval_judgement)
 
     migrate = sub.add_parser("migrate", help="执行数据库迁移到 head")
     migrate.set_defaults(func=cmd_migrate)

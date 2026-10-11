@@ -26,7 +26,7 @@ export UV_CACHE_DIR BUILDX_CONFIG HF_HOME TORCH_HOME UV_TOOL_DIR UV_TOOL_BIN_DIR
 
 .PHONY: help doctor bootstrap install ml lint typecheck test build verify openapi \
         migrate seed demo reembed brief entities aliases entity-candidates reprice dev dev-web logs dev-down smoke collect-once prod-config deploy \
-        judging laya-model laya-serve \
+        judging laya-model laya-serve eval-judgement \
         restore-drill clean
 
 help: ## 显示所有可用命令
@@ -47,6 +47,12 @@ ml: ## 安装本地语义向量与视频渲染依赖（sentence-transformers + P
 judging: ## 安装判官依赖（typesafe-sdk + torch/transformers；不含权重）
 	# --extra 是「只保留」而非累加：这里显式列全三个，避免互相卸载
 	cd $(BACKEND) && uv sync --extra ml --extra video --extra judgement
+
+eval-judgement: ## 评估判官的概率质量（门禁：Brier 技能分 / ECE）
+	# 未过门时以非零码退出，可直接串在脚本里；报告同时写到 .cache/
+	cd $(BACKEND) && uv run python -m app.cli eval-judgement \
+		--horizon-days $(or $(HORIZON),7) --sample $(or $(SAMPLE),200) \
+		--order $(or $(ORDER),random) --out ../.cache/eval-judgement.json
 
 laya-model: ## 下载 Laya multilingual 权重（约 2.2GB）到 .cache/laya/models
 	uv tool run --from modelscope-hub ms-hub download convaiinnovations/laya \
