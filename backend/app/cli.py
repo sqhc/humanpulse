@@ -594,6 +594,31 @@ def cmd_eval_judgement(args: argparse.Namespace) -> int:
     return 0 if payload.get("passed") else 2
 
 
+def cmd_tune_judgement(args: argparse.Namespace) -> int:
+    """措辞对照 + Platt 校准实验（校准集拟合，锁定测试集报告）。"""
+    import json
+
+    from app.db import get_sessionmaker
+    from app.eval.experiment import run_experiment
+
+    async def _run() -> dict[str, object]:
+        factory = get_sessionmaker()
+        async with factory() as session:
+            report = await run_experiment(
+                session, horizon_days=args.horizon_days, sample=args.sample
+            )
+        return report.as_dict()
+
+    payload = asyncio.run(_run())
+    print(json.dumps(payload, ensure_ascii=False, indent=2))
+    if args.out:
+        out = pathlib.Path(args.out)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+        print("报告已写入 " + str(out), file=sys.stderr)
+    return 0
+
+
 def cmd_migrate(args: argparse.Namespace) -> int:
     print(json.dumps(_migrate(), ensure_ascii=False))
     return 0
@@ -667,6 +692,15 @@ def build_parser() -> argparse.ArgumentParser:
     )
     eval_parser.add_argument("--out", default="", help="把 JSON 报告写到指定路径")
     eval_parser.set_defaults(func=cmd_eval_judgement)
+
+    tune_parser = sub.add_parser(
+        "tune-judgement",
+        help="措辞对照 + Platt 校准（校准集拟合，锁定测试集报告）",
+    )
+    tune_parser.add_argument("--horizon-days", type=int, default=7)
+    tune_parser.add_argument("--sample", type=int, default=300)
+    tune_parser.add_argument("--out", default="")
+    tune_parser.set_defaults(func=cmd_tune_judgement)
 
     migrate = sub.add_parser("migrate", help="执行数据库迁移到 head")
     migrate.set_defaults(func=cmd_migrate)
