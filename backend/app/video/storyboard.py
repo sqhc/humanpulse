@@ -14,9 +14,17 @@ from app.briefs.schema import BriefContent
 from app.briefs.select import SelectedItem
 
 # 朗读速度：中文按字算，英文按字符算（英文单词平均 5 个字符，14 字符/秒约等于 170 词/分）
-CHARS_PER_SECOND = {"zh": 5.5, "en": 14.0}
+#
+# 中文实测校准：macOS say -v Tingting -r 180 读 28 个分镜，2834 字 / 585 秒 = 4.84 字/秒。
+# 历史教训：先后写死过 5.5 与 6.2，都偏乐观——没有配音时估算总长比真实朗读短 20-30%，
+# 于是每张卡停留时间不够读。不同语音/语速节奏不同，这个常数只是**兜底估算**；
+# 一旦启用配音（--voice），会用真实音频时长覆盖它（见 tts.apply_audio_durations）。
+CHARS_PER_SECOND = {"zh": 4.8, "en": 14.0}
 MIN_SCENE_SECONDS = 2.5
-MAX_SCENE_SECONDS = 22.0
+# 单镜时长**不设硬上限**：
+# 曾经写死 22 秒，结果一镜 597 字的内容画面只给 8 秒——没有配音时观众根本读不完。
+# 现在只在预测时长超过 soft 上限时**拆成多个分镜**（见 split_long_text），而不是压缩。
+SOFT_MAX_SCENE_SECONDS = 24.0
 DEFAULT_WIDTH = 1280
 DEFAULT_HEIGHT = 720
 DEFAULT_FPS = 25
@@ -25,10 +33,77 @@ SUMMARY_CHARS = 220
 
 
 def scene_seconds(text: str, *, language: str = "zh") -> float:
-    """按字数估时长，并夹在 [MIN, MAX] 内。空文本也留一个下限，避免 0 秒分镜。"""
+    """按字数估时长；只保证下限，不封顶（封顶会让长内容读不完，见 SOFT_MAX_SCENE_SECONDS）。"""
     per_second = CHARS_PER_SECOND.get(language, CHARS_PER_SECOND["zh"])
     raw = len(text.strip()) / per_second
-    return round(max(MIN_SCENE_SECONDS, min(MAX_SCENE_SECONDS, raw)), 1)
+    return round(max(MIN_SCENE_SECONDS, raw), 1)
+
+
+def split_long_text(text: str, *, language: str = "zh") -> list[str]:
+    """把过长的旁白按句子切成若干段，使每段的预测时长不超过 soft 上限。
+
+    按句末标点切分（中英文都覆盖），再贪心合并短句；宁可多切一段，也不要让一屏塞满文字。
+    """
+    per_second = CHARS_PER_SECOND.get(language, CHARS_PER_SECOND["zh"])
+    limit = int(SOFT_MAX_SCENE_SECONDS * per_second)
+    cleaned = " ".join((text or "").split())
+    if len(cleaned) <= limit:
+        return [cleaned] if cleaned else []
+
+    sentences: list[str] = []
+    current = ""
+    for char in cleaned:
+        current += char
+        if char in "。！？!?；;":
+            sentences.append(current.strip())
+            current = ""
+    if current.strip():
+        sentences.append(current.strip())
+
+    chunks: list[str] = []
+    buffer = ""
+    for sentence in sentences:
+        if buffer and len(buffer) + len(sentence) > limit:
+            chunks.append(buffer)
+            buffer = sentence
+        else:
+            buffer = f"{buffer} {sentence}".strip()
+    if buffer:
+        chunks.append(buffer)
+
+    # 单句本身超长（没有标点的长句）时硬切，保证不会出现一镜几百字
+    result: list[str] = []
+    for chunk in chunks:
+        while len(chunk) > limit:
+            result.append(chunk[:limit])
+            chunk = chunk[limit:]
+        if chunk:
+            result.append(chunk)
+
+    return merge_tiny_chunks(result)
+
+
+# 短于这个长度的碎片没有独立成镜的价值（曾经出现整整一张卡只写着一个「。」）
+MIN_CHUNK_CHARS = 8
+
+
+def merge_tiny_chunks(chunks: list[str]) -> list[str]:
+    """把过短的碎片并进相邻段：孤立的「。」单独成镜既浪费一次转场，念出来也没有意义。"""
+    merged: list[str] = []
+    for chunk in chunks:
+        stripped = chunk.strip()
+        if not stripped:
+            continue
+        if merged and len(stripped) < MIN_CHUNK_CHARS:
+            merged[-1] = f"{merged[-1]} {stripped}".strip()
+            continue
+        merged.append(stripped)
+
+    # 首段过短且后面还有内容时并到后面去，避免开场只有一个标点
+    if len(merged) > 1 and len(merged[0]) < MIN_CHUNK_CHARS:
+        merged[1] = f"{merged[0]} {merged[1]}".strip()
+        merged.pop(0)
+    return merged
 
 
 def _clip(text: str, limit: int = SUMMARY_CHARS) -> str:
@@ -50,6 +125,10 @@ class Scene:
     source: str | None = None
     url: str | None = None
     document_id: int | None = None
+    # 屏幕上显示的正文；为空则用 narration。
+    # 之所以要分开：来源清单这种内容适合「看」不适合「念」——
+    # 逐个念出「来源：英文标题」既难听，中文语音读英文还会明显加速（实测 8-12 字/秒）。
+    display: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -57,6 +136,7 @@ class Scene:
             "kind": self.kind,
             "heading": self.heading,
             "narration": self.narration,
+            "display": self.display,
             "duration_seconds": self.duration_seconds,
             "source": self.source,
             "url": self.url,
@@ -120,16 +200,41 @@ def build_storyboard(
     scenes: list[Scene] = []
 
     def add(scene_kind: str, heading: str, narration: str, **extra: Any) -> None:
-        scenes.append(
-            Scene(
-                index=len(scenes),
-                kind=scene_kind,
-                heading=heading,
-                narration=narration,
-                duration_seconds=scene_seconds(narration or heading, language=storyboard.language),
-                **extra,
-            )
+        """加一个分镜；旁白过长时自动拆成多张卡（而不是压缩成一张读不完的卡）。
+
+        来源/链接等信息只挂在最后一段上：连着几张卡重复来源没有意义。
+        """
+        # 有 display 时，语音读 narration、屏幕显示 display，拆段只看 narration 的长度
+        spoken = narration or heading
+        chunks = split_long_text(spoken, language=storyboard.language) or [""]
+        display_chunks = (
+            split_long_text(str(extra.get("display") or ""), language=storyboard.language)
+            if extra.get("display")
+            else []
         )
+        for position, chunk in enumerate(chunks):
+            is_first = position == 0
+            is_last = position == len(chunks) - 1
+            if is_first or not heading:
+                scene_heading = heading
+            else:
+                scene_heading = f"{heading}（续）" if zh else f"{heading} (cont.)"
+            scenes.append(
+                Scene(
+                    index=len(scenes),
+                    kind=scene_kind,
+                    heading=scene_heading,
+                    narration=chunk,
+                    duration_seconds=scene_seconds(
+                        chunk or scene_heading, language=storyboard.language
+                    ),
+                    # display 只在最后一段挂上（前面几段显示自己的 narration）
+                    display=(" ".join(display_chunks) if display_chunks else None)
+                    if is_last
+                    else None,
+                    **{k: v for k, v in extra.items() if k != "display"} if is_last else {},
+                )
+            )
 
     add("title", title, overview or title)
 
@@ -157,8 +262,19 @@ def build_storyboard(
 
     if items:
         heading = "来源清单" if zh else "Sources"
+        # 屏幕上列全量（供阅读/核对），语音只报「多少条、来自哪些源」——
+        # 逐条念「来源：英文标题」既难听，中文语音读英文还会飙到 8-12 字/秒。
         listed = "；".join(f"{item.source_name or 'unknown'}：{item.title}" for item in items[:12])
-        add("sources", heading, listed)
+        names = list(dict.fromkeys(item.source_name for item in items if item.source_name))
+        spoken = (
+            f"本期素材共 {len(items)} 条，来自 {len(names)} 个来源：{'、'.join(names[:8])}。"
+            if zh
+            else (
+                f"This issue draws on {len(items)} items from {len(names)} sources: "
+                f"{', '.join(names[:8])}."
+            )
+        )
+        add("sources", heading, spoken, display=listed)
 
     if closing:
         add("closing", "小结" if zh else "Wrap-up", closing)

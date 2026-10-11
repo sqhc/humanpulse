@@ -8,7 +8,15 @@ from app.briefs.schema import BriefContent, BriefSection
 from app.briefs.select import SelectedItem
 from app.video.render import RenderError, find_font, scene_lines, wrap_text
 from app.video.srt import format_timestamp, render_srt
-from app.video.storyboard import Scene, build_storyboard, scene_seconds
+from app.video.storyboard import (
+    CHARS_PER_SECOND,
+    MIN_CHUNK_CHARS,
+    SOFT_MAX_SCENE_SECONDS,
+    Scene,
+    build_storyboard,
+    scene_seconds,
+    split_long_text,
+)
 
 
 def _content() -> BriefContent:
@@ -54,8 +62,9 @@ def _items(count: int = 3) -> list[SelectedItem]:
 def test_scene_seconds_clamps() -> None:
     assert scene_seconds("", language="zh") == 2.5
     assert scene_seconds("短", language="zh") == 2.5
-    assert scene_seconds("字" * 200, language="zh") == 22.0
-    assert scene_seconds("字" * 55, language="zh") == 10.0
+    # 只保下限、不封顶：早先写死 22s 上限，导致 597 字的段落只给 8 秒画面，观众读不完
+    assert scene_seconds("字" * 200, language="zh") == round(200 / CHARS_PER_SECOND["zh"], 1)
+    assert scene_seconds("字" * 55, language="zh") == round(55 / CHARS_PER_SECOND["zh"], 1)
 
 
 def test_storyboard_scene_order_and_language() -> None:
@@ -78,9 +87,13 @@ def test_storyboard_scene_order_and_language() -> None:
 
 
 def test_storyboard_limits_item_scenes() -> None:
+    """max_items 限制的是**素材条数**；一条长摘要可以拆成多张卡。"""
     board = build_storyboard(_content(), language="zh", items=_items(20), max_items=4)
     item_scenes = [scene for scene in board.scenes if scene.kind == "item"]
-    assert len(item_scenes) == 4
+    # 只统计带 document_id 的卡：续卡的 extra 是空的
+    covered = {scene.document_id for scene in item_scenes if scene.document_id is not None}
+    assert len(covered) == 4
+    assert len(item_scenes) >= 4
 
 
 def test_storyboard_without_items_notes_it() -> None:
@@ -90,12 +103,15 @@ def test_storyboard_without_items_notes_it() -> None:
 
 
 def test_storyboard_item_carries_source_and_url() -> None:
+    """来源挂在某条素材的**最后一段**上，不跟着每一段重复。"""
     board = build_storyboard(_content(), language="zh", items=_items(2))
-    item = next(scene for scene in board.scenes if scene.kind == "item")
-    assert item.source == "Al Jazeera"
-    assert item.url == "https://example.test/1"
-    assert item.document_id == 1
-    assert item.narration.endswith("…")  # 摘要被截断
+    first_item_scenes = [s for s in board.scenes if s.document_id == 1]
+    assert first_item_scenes
+    assert first_item_scenes[-1].source == "Al Jazeera"
+    assert first_item_scenes[-1].url == "https://example.test/1"
+    # 中间段落不重复来源
+    assert all(s.source is None for s in first_item_scenes[:-1])
+    assert first_item_scenes[0].narration.endswith("…")  # 摘要被截断
 
 
 def test_format_timestamp() -> None:
@@ -164,3 +180,66 @@ def test_find_font_rejects_missing_explicit_path() -> None:
         assert "字体不存在" in str(exc)
     else:  # pragma: no cover - 只有文件恰好存在才会走到这里
         raise AssertionError("应当抛出 RenderError")
+
+
+def test_split_long_text_breaks_on_sentence_end() -> None:
+    """长段旁白要按句切开，而不是让一张卡塞满几百字。"""
+    text = "。".join([f"这是第{index}句话，用来测试切分。" for index in range(1, 21)])
+    chunks = split_long_text(text, language="zh")
+    assert len(chunks) > 1
+    limit = int(SOFT_MAX_SCENE_SECONDS * CHARS_PER_SECOND["zh"])
+    # 允许 MIN_CHUNK_CHARS 的溢出：合并过短碎片（例如孤立的一个「。」）比
+    # 严格卡住上限更重要——否则会出现只有一两个字的卡。
+    assert all(len(chunk) <= limit + MIN_CHUNK_CHARS for chunk in chunks)
+    # 切分不该丢内容（空白差异除外）
+    assert "".join(chunks).replace(" ", "") == text.replace(" ", "")
+
+
+def test_split_long_text_short_text_untouched() -> None:
+    assert split_long_text("一句很短的话。", language="zh") == ["一句很短的话。"]
+    assert split_long_text("", language="zh") == []
+
+
+def test_split_long_text_hard_cuts_when_no_punctuation() -> None:
+    """没有句末标点的超长文本必须硬切，否则还是会挤爆一张卡。"""
+    text = "字" * 900
+    chunks = split_long_text(text, language="zh")
+    limit = int(SOFT_MAX_SCENE_SECONDS * CHARS_PER_SECOND["zh"])
+    assert len(chunks) >= 6
+    assert all(len(chunk) <= limit for chunk in chunks)
+    assert "".join(chunks) == text
+
+
+def test_long_section_becomes_multiple_scenes() -> None:
+    """这是那个真实 bug 的回归测试：597 字的段落曾经只给 8 秒画面。"""
+    content = BriefContent(
+        title_zh="标题",
+        sections=[
+            BriefSection(
+                key="conflict",
+                heading_zh="冲突与安全",
+                bullets_zh=["要点。" * 120],
+            )
+        ],
+    )
+    board = build_storyboard(content, language="zh")
+    section_scenes = [scene for scene in board.scenes if scene.kind == "section"]
+    assert len(section_scenes) > 1
+    assert section_scenes[0].heading == "冲突与安全"
+    assert section_scenes[1].heading == "冲突与安全（续）"
+    # 每张卡的时长与它的字数相称，而不是被钉在 22 秒
+    limit = SOFT_MAX_SCENE_SECONDS + 1.0
+    assert all(scene.duration_seconds <= limit for scene in section_scenes)
+
+
+def test_providerless_estimate_is_not_truncated() -> None:
+    """没有配音时，估算总时长也要接近真实朗读时长（差得太多说明上限又在作祟）。"""
+    content = BriefContent(
+        title_zh="标题",
+        overview_zh="内容。" * 200,
+        sections=[],
+    )
+    board = build_storyboard(content, language="zh")
+    chars = sum(len(scene.narration or scene.heading) for scene in board.scenes)
+    expected = chars / CHARS_PER_SECOND["zh"]
+    assert abs(board.total_seconds - expected) < 2.0

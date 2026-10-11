@@ -70,6 +70,12 @@ class Settings(BaseSettings):
     process_interval_minutes: int = Field(default=2, gt=0)
     process_batch_size: int = Field(default=20, gt=0)
 
+    # 旁白语音合成（视频简报用）。none = 不做配音（默认）。
+    # macos-say 只在本机开发可用；生产 Linux 用 command 模板接 piper / edge-tts / 云 TTS。
+    tts_provider: str = "none"
+    tts_voice: str = "Tingting"
+    tts_command: str = ""
+
     # 简报
     # 日报：几点生成、时间窗多长、最多选多少条素材（同一 cluster 只留一条代表）
     brief_hour: int = Field(default=6, ge=0, le=23)

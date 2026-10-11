@@ -1,8 +1,12 @@
+<img src="web/public/icon-512.png" alt="humanpulse" width="112" align="right" />
+
 # humanpulse
 
 > 一个观察人类冲突、科学技术发展与全球社会运动的追踪平台：多源采集 → 去重 → AI 双语摘要与评分 → 聚类 → 日报/周报 → Web 阅读。
 
-当前状态：**Phase 1 完成**。采集（RSS/GDELT/手动上传）→ SimHash 前置去重 → DeepSeek 双语摘要与评分 → 向量去重/聚类 → Web Feed 与详情页，全链路已用真实数据跑通（21 个源 → 430 条入库 → 处理成可读条目）。下一步是 Phase 2 的日报/周报与管理台。
+当前状态：**Phase 1–2 完成，Phase 3 大部分完成**。33 个源（中文 12）→ 单轮约 430 条入库 →
+双语摘要与评分 → 语义向量聚类 → 日报/周报 → 实体时间线 → 视频简报 → 语义搜索 → PWA。
+全链路已用真实数据跑通；剩余：TTS 配音、实体别名自动化、VPS 部署。
 
 - 数据源政策：[docs/adr/0002-data-source-policy.md](docs/adr/0002-data-source-policy.md)
 - 架构决策：[docs/adr/](docs/adr/)
@@ -63,6 +67,7 @@ cd backend && uv sync && uv run uvicorn app.main:app --reload
 | `make aliases` / `make entity-candidates` | 应用实体别名表（中国/China 合并）/ 列出疑似同实体的候选对 |
 | 管理台 `#/admin` → 实体候选 | 网页确认合并（只改数据库）；勾选后才写回 `backend/app/entity_aliases.yaml` |
 | `make video` | 生成视频脚本与字幕（`BRIEF_ID=` 指定某期，`RENDER=1` 出 MP4，需 ffmpeg + `uv sync --extra video`） |
+| `make video VOICE=1` | 加旁白配音（`TTS_PROVIDER=macos-say` 或 `command` 接 piper/云 TTS，见 [ADR-0013](docs/adr/0013-video-tts.md)） |
 | 安装到主屏 | 生产构建带 PWA 清单与 Service Worker（只缓存外壳，接口数据不缓存，见 [ADR-0011](docs/adr/0011-pwa.md)） |
 | `make reprice` | 按官方定价重算历史成本（输入按未命中计，属上界） |
 
@@ -114,7 +119,7 @@ scripts/           doctor / smoke / deploy / restore-drill
 - 日报/周报：由已筛选记录按事件去重后取 Top N 生成，结构化 JSON 入库、Markdown 由服务端渲染（见 [ADR-0006](docs/adr/0006-daily-briefs.md)）。
 - 成本：单价取自 [DeepSeek 官方定价页](https://api-docs.deepseek.com/quick_start/pricing/)，按模型与缓存命中/未命中分别计价，高峰时段自动翻倍（见 `backend/app/llm/pricing.py`）。
 - 实体：LLM 输出的实体写入 `entities`/`entity_mentions`，支持按天时间线（[ADR-0007](docs/adr/0007-entity-timeline.md)）；
-- 视频简报：简报 → 分镜脚本 → SRT 字幕（确定性、不调模型）→ 可选 ffmpeg 渲染 MP4，见 [ADR-0010](docs/adr/0010-video-brief.md)。
+- 视频简报：简报 → 分镜脚本 → SRT 字幕（确定性、不调模型）→ 可选 ffmpeg 渲染 MP4 + 可选 TTS 配音，见 [ADR-0010](docs/adr/0010-video-brief.md) 与 [ADR-0013](docs/adr/0013-video-tts.md)。
   跨语言写法由人工别名表合并成一条（`backend/app/entity_aliases.yaml`，[ADR-0009](docs/adr/0009-entity-alias-merge.md)）。
 - 内容质量兜底：发布早于 `MAX_ITEM_AGE_DAYS`（默认 45 天）的条目记 `rejected/too_old`；只有标题可用的条目（如 GDELT）走 headline 提示词，摘要必须标注"仅据标题"并打 `headline-only` 标签。
 

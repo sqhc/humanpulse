@@ -27,8 +27,10 @@ install: ## 安装前后端依赖
 	cd $(BACKEND) && uv sync
 	pnpm install
 
-ml: ## 安装本地语义向量依赖（sentence-transformers，体积较大）
-	cd $(BACKEND) && uv sync --extra ml
+ml: ## 安装本地语义向量与视频渲染依赖（sentence-transformers + Pillow）
+	# 注意：uv 的 --extra 是「只保留这些 extra」而非累加——
+	# 只写 --extra ml 会把 Pillow 卸掉，渲染时报 ImportError: cannot import name Image
+	cd $(BACKEND) && uv sync --extra ml --extra video
 
 bootstrap: install ## 安装依赖并准备 .env
 	@test -f .env || (cp .env.example .env && echo "已生成 .env，请填入 DEEPSEEK_API_KEY / ADMIN_API_KEY")
@@ -81,8 +83,10 @@ aliases: ## 应用实体别名表（合并 中国/China 这类写法，幂等）
 entity-candidates: ## 列出疑似同一实体的候选对（人工确认用）
 	cd $(BACKEND) && uv run python -m app.cli entity-candidates
 
-video: ## 生成视频脚本与字幕（BRIEF_ID= 指定某期；RENDER=1 同时出 MP4）
-	cd $(BACKEND) && uv run python -m app.cli video $(if $(BRIEF_ID),--brief $(BRIEF_ID),) $(if $(LANG),--lang $(LANG),) $(if $(RENDER),--render,)
+video: ## 生成视频脚本与字幕（BRIEF_ID=；RENDER=1 出 MP4；VOICE=1 加配音）
+	cd $(BACKEND) && uv run --extra ml --extra video python -m app.cli video \
+		$(if $(BRIEF_ID),--brief $(BRIEF_ID),) $(if $(LANG),--lang $(LANG),) \
+		$(if $(RENDER),--render,) $(if $(VOICE),--voice,)
 
 
 entities: ## 把历史 analyses.entities 回填进实体表（幂等）
@@ -92,7 +96,7 @@ reprice: ## 按官方定价重算历史成本（输入按未命中计）
 	cd $(BACKEND) && uv run python -m app.cli reprice
 
 reembed: ## 用当前向量模型重新嵌入并重建聚类（需 uv sync --extra ml）
-	cd $(BACKEND) && uv run python -m app.cli reembed
+	cd $(BACKEND) && uv run --extra ml python -m app.cli reembed
 
 dev: ## 启动本地依赖服务（db + api + worker）
 	docker compose up -d --wait db api worker

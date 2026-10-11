@@ -90,14 +90,18 @@ def wrap_text(text: str, *, width: int) -> list[str]:
 
 
 def scene_lines(scene: Scene, *, wrap_width: int) -> list[tuple[str, str]]:
-    """返回 [(角色, 文本)]，角色用于决定字号/颜色：heading 大字、body 正文、footnote 小字。"""
+    """返回 [(角色, 文本)]，角色用于决定字号/颜色：heading 大字、body 正文、footnote 小字。
+
+    正文优先取 display（只看不念的内容，例如来源清单），没有再退回 narration。
+    """
     rows: list[tuple[str, str]] = []
     if scene.heading:
         rows.extend(("heading", line) for line in wrap_text(scene.heading, width=wrap_width))
-    if scene.narration and scene.narration != scene.heading:
+    body = scene.display or scene.narration
+    if body and body != scene.heading:
         if rows:
             rows.append(("gap", ""))
-        rows.extend(("body", line) for line in wrap_text(scene.narration, width=wrap_width))
+        rows.extend(("body", line) for line in wrap_text(body, width=wrap_width))
     if scene.source:
         rows.append(("gap", ""))
         rows.append(("footnote", f"来源：{scene.source}"))
@@ -173,8 +177,9 @@ def render_video(
     *,
     font: str | None = None,
     keep_scenes: bool = False,
+    audio_path: Path | None = None,
 ) -> dict[str, Any]:
-    """渲染 MP4；返回 path/seconds/width/height/bytes/font/scenes。"""
+    """渲染 MP4；返回 path/seconds/width/height/bytes/font/scenes/audio。"""
     ffmpeg = ffmpeg_path()
     if ffmpeg is None:
         raise RenderError("未找到 ffmpeg，无法渲染视频（脚本与字幕仍可正常导出）")
@@ -254,6 +259,40 @@ def render_video(
     if result.returncode != 0:
         raise RenderError(f"拼接失败：{result.stderr.strip()[:400]}")
 
+    # 有音轨就混流进来：-shortest 让视频/音频取较短者，避免尾部出现黑屏或静音拖尾
+    audio_note: str | None = None
+    if audio_path is not None and audio_path.is_file():
+        with_audio = out_dir / f"{final.stem}-audio.mp4"
+        mux = subprocess.run(
+            [
+                ffmpeg,
+                "-y",
+                "-hide_banner",
+                "-loglevel",
+                "error",
+                "-i",
+                str(final.resolve()),
+                "-i",
+                str(audio_path.resolve()),
+                "-c:v",
+                "copy",
+                "-c:a",
+                "aac",
+                "-b:a",
+                "128k",
+                "-shortest",
+                str(with_audio.resolve()),
+            ],
+            capture_output=True,
+            text=True,
+        )
+        if mux.returncode != 0:
+            # 混流失败不该丢掉已经渲染好的无声视频
+            audio_note = f"混流失败，已保留无声视频：{mux.stderr.strip()[:200]}"
+        else:
+            final.unlink(missing_ok=True)
+            with_audio.rename(final)
+
     if not keep_scenes:
         shutil.rmtree(scenes_dir, ignore_errors=True)
 
@@ -266,6 +305,8 @@ def render_video(
         "bytes": final.stat().st_size,
         "font": font_path,
         "scenes": len(scene_files),
+        "has_audio": audio_path is not None and audio_path.is_file() and audio_note is None,
+        "audio_note": audio_note,
     }
 
 

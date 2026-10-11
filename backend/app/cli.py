@@ -415,9 +415,17 @@ async def _entity_candidates(min_shared: int, limit: int) -> dict[str, Any]:
 
 
 async def _video(
-    brief_id: int | None, language: str, out_dir: str, render: bool, font: str | None
+    brief_id: int | None,
+    language: str,
+    out_dir: str,
+    render: bool,
+    font: str | None,
+    voice: bool = False,
 ) -> dict[str, Any]:
-    """生成视频脚本与字幕；render=True 时再调 ffmpeg 出 MP4。"""
+    """生成视频脚本与字幕；render=True 时再调 ffmpeg 出 MP4；voice=True 时做配音。
+
+    配音会**用真实音频时长覆盖脚本里的估算时长**，这样字幕/画面/旁白才对得上。
+    """
     from sqlalchemy import select
 
     from app.briefs.schema import BriefContent
@@ -466,19 +474,59 @@ async def _video(
         "storyboard": str(story_path),
         "subtitles": str(srt_path),
     }
+    audio_path: pathlib.Path | None = None
+    if voice:
+        from app.video.tts import (
+            TtsError,
+            apply_audio_durations,
+            concat_audio,
+            get_tts,
+            narrate,
+        )
+
+        provider = get_tts()
+        if provider is None:
+            result["voice_error"] = (
+                "未配置 TTS（TTS_PROVIDER=none）：跳过配音。"
+                "macOS 本机可设 TTS_PROVIDER=macos-say；Linux 用 TTS_PROVIDER=command + TTS_COMMAND"
+            )
+        elif not provider.available():
+            result["voice_error"] = f"TTS 提供方 {provider.name} 在当前环境不可用"
+        else:
+            try:
+                clips = narrate(storyboard, target / "voice", provider)
+                apply_audio_durations(storyboard, clips)
+                merged = concat_audio(clips, storyboard, target / f"{stem}-audio.wav")
+                # 时长被改写了，脚本与字幕要重新落盘，否则与成片不一致
+                story_path.write_text(
+                    json.dumps(storyboard.to_dict(), ensure_ascii=False, indent=2),
+                    encoding="utf-8",
+                )
+                srt_path.write_text(render_srt(storyboard), encoding="utf-8")
+                audio_path = merged
+                result["voice"] = {
+                    "provider": provider.name,
+                    "clips": len(clips),
+                    "audio": str(merged) if merged else None,
+                }
+            except TtsError as exc:
+                result["voice_error"] = str(exc)
+
     if render:
         if ffmpeg_path() is None:
             result["render_error"] = "未找到 ffmpeg：脚本与字幕已生成，装好后重跑 --render 即可"
         else:
             try:
-                result["video"] = render_video(storyboard, target, font=font)
+                result["video"] = render_video(storyboard, target, font=font, audio_path=audio_path)
             except RenderError as exc:
                 result["render_error"] = str(exc)
     return result
 
 
 def cmd_video(args: argparse.Namespace) -> int:
-    result = asyncio.run(_video(args.brief, args.lang, args.out, args.render, args.font))
+    result = asyncio.run(
+        _video(args.brief, args.lang, args.out, args.render, args.font, args.voice)
+    )
     print(json.dumps(result, ensure_ascii=False))
     return 0
 
@@ -558,6 +606,9 @@ def build_parser() -> argparse.ArgumentParser:
     video_parser.add_argument("--out", default=".cache/video", help="输出目录")
     video_parser.add_argument("--render", action="store_true", help="调用 ffmpeg 渲染 MP4")
     video_parser.add_argument("--font", default=None, help="中文字体文件路径")
+    video_parser.add_argument(
+        "--voice", action="store_true", help="生成旁白配音（TTS_PROVIDER=macos-say 或 command）"
+    )
     video_parser.set_defaults(func=cmd_video)
 
     candidates_parser = sub.add_parser("entity-candidates", help="列出疑似同一实体的候选对")
