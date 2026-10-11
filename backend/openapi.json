@@ -1910,7 +1910,8 @@
               "enum": [
                 "collect",
                 "process",
-                "brief"
+                "brief",
+                "resolve-predictions"
               ],
               "title": "Job Name",
               "type": "string"
@@ -2986,6 +2987,94 @@
         "summary": "存活探针",
         "tags": [
           "health"
+        ]
+      }
+    },
+    "/api/v1/predictions": {
+      "get": {
+        "description": "列出预测；status 可选，用于只看待核对/已判定。",
+        "operationId": "list_predictions_api_v1_predictions_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response List Predictions Api V1 Predictions Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "预测登记列表",
+        "tags": [
+          "predictions"
+        ]
+      }
+    },
+    "/api/v1/predictions/calibration": {
+      "get": {
+        "description": "校准汇总：Brier、基率、可靠性曲线、各状态计数。\n\n注意这里只统计**已判定**的预测；未判定的单独计数，不混进 Brier 里充数。",
+        "operationId": "get_calibration_api_v1_predictions_calibration_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Calibration Api V1 Predictions Calibration Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "预测校准汇总",
+        "tags": [
+          "predictions"
         ]
       }
     },

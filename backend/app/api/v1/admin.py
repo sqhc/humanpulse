@@ -28,6 +28,7 @@ from app.pipeline.aliases import (
     load_alias_groups,
     refresh_alias_index,
 )
+from app.predictions import resolve_due
 from app.schemas.admin import (
     EntityAliasApplyIn,
     EntityAliasApplyOut,
@@ -45,7 +46,7 @@ SessionDep = Annotated[AsyncSession, Depends(get_session)]
 
 @router.post("/jobs/{job_name}/run", response_model=JobResultOut, summary="手动触发作业（管理员）")
 async def run_job(
-    job_name: Literal["collect", "process", "brief"],
+    job_name: Literal["collect", "process", "brief", "resolve-predictions"],
     session: SessionDep,
     _admin: AdminDep,
     force: Annotated[bool, Query(description="忽略 cadence 立即采集")] = False,
@@ -57,6 +58,9 @@ async def run_job(
         stats = (await collect_all(session, force=force)).model_dump()
     elif job_name == "process":
         stats = (await run_process(session, limit=limit)).model_dump()
+    elif job_name == "resolve-predictions":
+        # 核对到期预测：需要判官（JUDGEMENT_PROVIDER != none）
+        stats = (await resolve_due(session, limit=limit or 50)).as_dict()
     else:
         stats = await run_brief(session, kind=kind, force=force)
     return JobResultOut(job=job_name, stats=stats)

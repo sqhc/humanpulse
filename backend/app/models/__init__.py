@@ -5,10 +5,12 @@ from app.models.base import Base, TimestampMixin
 from app.models.document import Document, FetchRun
 from app.models.entity import Entity, EntityMention
 from app.models.ops import LlmUsageDay, ManualUpload, TakedownRequest
+from app.models.prediction import PREDICTION_STATUSES, Prediction
 from app.models.source import Source, SourceCursor
 from app.models.summary import Brief, BriefItem
 
 __all__ = [
+    "PREDICTION_STATUSES",
     "Analysis",
     "Base",
     "Brief",
@@ -22,6 +24,7 @@ __all__ = [
     "FetchRun",
     "LlmUsageDay",
     "ManualUpload",
+    "Prediction",
     "Source",
     "SourceCursor",
     "TakedownRequest",

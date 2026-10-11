@@ -328,6 +328,48 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/predictions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 预测登记列表
+         * @description 列出预测；status 可选，用于只看待核对/已判定。
+         */
+        get: operations["list_predictions_api_v1_predictions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/predictions/calibration": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 预测校准汇总
+         * @description 校准汇总：Brier、基率、可靠性曲线、各状态计数。
+         *
+         *     注意这里只统计**已判定**的预测；未判定的单独计数，不混进 Brier 里充数。
+         */
+        get: operations["get_calibration_api_v1_predictions_calibration_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/ready": {
         parameters: {
             query?: never;
@@ -1235,7 +1277,7 @@ export interface operations {
                 "X-API-Key"?: string | null;
             };
             path: {
-                job_name: "collect" | "process" | "brief";
+                job_name: "collect" | "process" | "brief" | "resolve-predictions";
             };
             cookie?: never;
         };
@@ -1739,6 +1781,62 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HealthResponse"];
+                };
+            };
+        };
+    };
+    list_predictions_api_v1_predictions_get: {
+        parameters: {
+            query?: {
+                status?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_calibration_api_v1_predictions_calibration_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
         };
