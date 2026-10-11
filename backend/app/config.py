@@ -76,6 +76,9 @@ class Settings(BaseSettings):
     tts_voice: str = "Tingting"
     tts_command: str = ""
 
+    # 视频配色：light = 浅色编辑风（对照排版参考截屏，默认）；dark = 旧深色
+    video_theme: str = "light"
+
     # 判官模型（推演用）：输出类型化决策与概率，不生成文本。
     # none = 不做推演；fake = 确定性假实现（CI）；laya = 本地 Laya；jev = 云端 TypeSafe。
     # laya 与 jev 共用同一套请求协议，只差 base_url（本地 serve.py 暴露 Jev 兼容路由）。

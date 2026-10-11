@@ -429,6 +429,7 @@ async def _video(
     from sqlalchemy import select
 
     from app.briefs.schema import BriefContent
+    from app.config import get_settings
     from app.db import session_scope
     from app.models.summary import Brief
     from app.video.render import RenderError, ffmpeg_path, render_video
@@ -517,7 +518,13 @@ async def _video(
             result["render_error"] = "未找到 ffmpeg：脚本与字幕已生成，装好后重跑 --render 即可"
         else:
             try:
-                result["video"] = render_video(storyboard, target, font=font, audio_path=audio_path)
+                result["video"] = render_video(
+                    storyboard,
+                    target,
+                    font=font,
+                    audio_path=audio_path,
+                    theme_name=get_settings().video_theme,
+                )
             except RenderError as exc:
                 result["render_error"] = str(exc)
     return result

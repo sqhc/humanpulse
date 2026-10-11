@@ -129,6 +129,8 @@ class Scene:
     # 之所以要分开：来源清单这种内容适合「看」不适合「念」——
     # 逐个念出「来源：英文标题」既难听，中文语音读英文还会明显加速（实测 8-12 字/秒）。
     display: str | None = None
+    # 卡片版式（参考截屏）：[(小标题, 正文), ...]；非空时渲染成卡片网格而不是单栏正文
+    cards: list[tuple[str, str]] | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -137,6 +139,7 @@ class Scene:
             "heading": self.heading,
             "narration": self.narration,
             "display": self.display,
+            "cards": self.cards,
             "duration_seconds": self.duration_seconds,
             "source": self.source,
             "url": self.url,

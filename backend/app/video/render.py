@@ -13,8 +13,10 @@
 from __future__ import annotations
 
 import json
+import re
 import shutil
 import subprocess
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
@@ -148,62 +150,242 @@ def render_scene_png(
     width: int,
     height: int,
     language: str,
+    theme_name: str | None = None,
+    tab_labels: Sequence[str] = (),
+    active_tab: int = 0,
 ) -> None:
-    """把单个分镜画成 PNG。"""
-    from PIL import ImageDraw, ImageFont
+    """把单个分镜画成 PNG。
 
-    from app.video.artwork import build_background
+    版式对照用户提供的排版参考截屏：暖色浅底、顶部章节 tab 条（当前章节高亮）、
+    主色大标题、白色圆角卡片承载正文。卡片内容放在 scene.cards 时渲染成两列网格。
+    """
+    from PIL import Image, ImageDraw, ImageFont
 
-    # 背景是程序化生成的（渐变 + 关键词水印），不使用任何原文配图，见 artwork.py 顶部说明
-    image = build_background(scene, size=(width, height), font_path=font_path, language=language)
+    from app.video.layout import (
+        column_positions,
+        draw_icon,
+        draw_rounded_card,
+        draw_tab_bar,
+        fit_scale,
+        section_color,
+        section_icon_kind,
+        total_height,
+    )
+    from app.video.theme import get_theme
+
+    theme = get_theme(theme_name)
+    image = Image.new("RGB", (width, height), theme.page)
     draw = ImageDraw.Draw(image)
-    body_size = 38 if language == "zh" else 34
-    heading_size = 54 if language == "zh" else 48
-    footnote_size = 26
-    wrap_width = 34 if language == "zh" else 68
 
+    heading_size = theme.heading_size if language == "zh" else int(theme.heading_size * 0.88)
+    body_size = theme.body_size if language == "zh" else int(theme.body_size * 0.92)
+    small_size = theme.small_size
     fonts = {
         "heading": ImageFont.truetype(font_path, heading_size),
         "body": ImageFont.truetype(font_path, body_size),
-        "footnote": ImageFont.truetype(font_path, footnote_size),
+        "small": ImageFont.truetype(font_path, small_size),
+        "card": ImageFont.truetype(font_path, theme.card_title_size),
+        "tab": ImageFont.truetype(font_path, theme.tab_size),
+        "icon": ImageFont.truetype(font_path, small_size),
     }
-    colors = {"heading": INK, "body": INK, "footnote": MUTED}
-    spacing = 16
 
-    rows = scene_lines(scene, wrap_width=wrap_width)
-    measured: list[tuple[str, str, float]] = []
-    total_height: float = 0.0
-    for role, text in rows:
-        if role == "gap":
-            measured.append((role, text, 0.0))
-            total_height += spacing
-            continue
-        box = draw.textbbox((0, 0), text or " ", font=fonts[role])
-        line_height = box[3] - box[1]
-        measured.append((role, text, line_height))
-        total_height += line_height + spacing
-
-    cursor = max(60.0, (height - total_height) / 2)
-    for role, text, line_height in measured:
-        if role == "gap":
-            cursor += spacing
-            continue
-        box = draw.textbbox((0, 0), text, font=fonts[role])
-        draw.text(
-            ((width - (box[2] - box[0])) / 2 - box[0], cursor - box[1]),
-            text,
-            font=fonts[role],
-            fill=colors[role],
+    top = 24.0
+    if tab_labels:
+        draw_tab_bar(
+            draw,
+            labels=list(tab_labels),
+            active=active_tab,
+            theme=theme,
+            font=fonts["tab"],
+            width=width,
         )
-        cursor += line_height + spacing
+        top = 64.0 + 34.0
 
-    # 底部固定标注：AI 生成 + 分镜序号，避免截图被误当成原文
+    # 标题：主色大字（截屏里的大标题就是这个颜色）
+    title = scene.heading.strip()
+    if title:
+        wrap_width = 30 if language == "zh" else 58
+        lines = wrap_text(title, width=wrap_width)
+        cursor = top
+        for line in lines:
+            box = draw.textbbox((0, 0), line, font=fonts["heading"])
+            draw.text(
+                ((width - (box[2] - box[0])) / 2 - box[0], cursor - box[1]),
+                line,
+                font=fonts["heading"],
+                fill=theme.accent,
+            )
+            cursor += (box[3] - box[1]) + 14
+        top = cursor + 18
+
+    card_left = 64.0
+    card_right = width - 64.0
+    card_width = card_right - card_left
+    bottom_limit = height - 74.0
+
+    if scene.cards:
+        # 两列卡片网格 + 自适应缩放：卡片越多，字号与内边距按比例收缩，保证不溢出画框
+        gap = 22.0
+        column_width = (card_width - gap) / 2
+        available = bottom_limit - top
+        base_pad_x, base_pad_y = 26.0, 20.0
+
+        def metrics(scale: float) -> tuple[float, float, int, int, int, int, int]:
+            pad_x = base_pad_x * scale
+            pad_y = base_pad_y * scale
+            title_size = max(16, int(theme.card_title_size * scale))
+            text_size = max(15, int(body_size * scale))
+            line_gap = max(4, int(10 * scale))
+            icon_gap = max(24, int(40 * scale))
+            # 正文不缩进（只有小标题那行给图标让位），所以折行宽度按整卡可用宽算。
+            # 之前把 icon_gap 也减掉，导致正文被误判成 2 行、卡片高度虚高、
+            # 自适应把字号缩到 0.6 左右，画面右下角留出一大片空白。
+            usable = max(120.0, column_width - 2 * pad_x)
+            wrap_width = max(8, int(2 * usable / text_size))
+            return pad_x, pad_y, title_size, text_size, line_gap, icon_gap, wrap_width
+
+        def build(scale: float) -> tuple[list[tuple[str, list[str], float]], float]:
+            _pad_x, _pad_y, title_size, text_size, line_gap, _icon_gap, wrap_width = metrics(scale)
+            entries: list[tuple[str, list[str], float]] = []
+            heights: list[float] = []
+            for label, body in scene.cards or []:
+                body_lines = wrap_text(body, width=wrap_width)
+                height = 2 * base_pad_y * scale + (title_size + 12 * scale if label else 0.0)
+                height += len(body_lines) * (text_size + line_gap)
+                entries.append((label, body_lines, height))
+                heights.append(height)
+            positions = column_positions(heights, top=top, card_width=column_width, gap=gap)
+            return entries, total_height(positions, heights)
+
+        scale = fit_scale(lambda value: build(value)[1], available=available)
+        entries, _ = build(scale)
+        pad_x, pad_y, title_size, text_size, line_gap, icon_gap, _wrap = metrics(scale)
+        heights = [entry[2] for entry in entries]
+        positions = column_positions(heights, top=top, card_width=column_width, gap=gap)
+        small_card_font = ImageFont.truetype(font_path, title_size)
+        small_body_font = ImageFont.truetype(font_path, text_size)
+
+        # 注意：这里不能用 height 当循环变量，它会覆盖函数参数（画框高度），
+        # 导致循环之后的页脚被画到错误位置。mypy 抓到了这个遮蔽。
+        for (label, body_lines, card_height), (offset_x, offset_y) in zip(
+            entries, positions, strict=True
+        ):
+            box = (
+                card_left + offset_x,
+                offset_y,
+                card_left + offset_x + column_width,
+                offset_y + card_height,
+            )
+            draw_rounded_card(draw, box, theme=theme, radius=18)
+            inner_x = box[0] + pad_x
+            cursor_y = box[1] + pad_y
+            if label:
+                color = section_color(theme, scene.kind)
+                draw_icon(
+                    draw,
+                    kind=section_icon_kind(scene.kind),
+                    center=(inner_x + icon_gap * 0.35, cursor_y + title_size / 2),
+                    color=color,
+                    size=max(18, int(26 * scale)),
+                )
+                draw.text((inner_x + icon_gap, cursor_y), label, font=small_card_font, fill=color)
+                cursor_y += title_size + 12 * scale
+            for line in body_lines:
+                if cursor_y + text_size > box[3] - pad_y * 0.5:
+                    break
+                draw.text((inner_x, cursor_y), line, font=small_body_font, fill=theme.ink)
+                cursor_y += text_size + line_gap
+    else:
+        body = scene.display or scene.narration
+        rows = wrap_text(body, width=34 if language == "zh" else 64) if body else []
+        source_line = f"来源：{scene.source}" if scene.source else ""
+        inner_wrap = 32 if language == "zh" else 60
+        if source_line:
+            rows = [*rows, "", *wrap_text(source_line, width=inner_wrap)]
+        card_height = min(
+            bottom_limit - top,
+            max(180.0, 56.0 + len([r for r in rows if r]) * (body_size + 12)),
+        )
+        # 内容短时把卡片在可用区域里居中，否则整块贴顶、下半屏空得很难看
+        card_top = top + max(0.0, (bottom_limit - top - card_height) / 2)
+        box = (card_left, card_top, card_right, card_top + card_height)
+        draw_rounded_card(draw, box, theme=theme, radius=20)
+        cursor_y = box[1] + 34
+        for line in rows:
+            if not line:
+                cursor_y += 10
+                continue
+            if cursor_y + body_size > box[3] - 20:
+                break
+            draw.text((box[0] + 34, cursor_y), line, font=fonts["body"], fill=theme.ink)
+            cursor_y += body_size + 12
+
     tag = "AI 生成摘要 · humanpulse" if language == "zh" else "AI-generated summary · humanpulse"
-    draw.text((48, height - 60), tag, font=fonts["footnote"], fill=ACCENT)
+    draw.text((64, height - 54), tag, font=fonts["small"], fill=theme.footer)
     draw.text(
-        (width - 140, height - 60), f"{scene.index + 1:02d}", font=fonts["footnote"], fill=MUTED
+        (width - 110, height - 54),
+        f"{scene.index + 1:02d}",
+        font=fonts["small"],
+        fill=theme.footer,
     )
     image.save(target)
+
+
+MAX_TABS = 7  # 含 Intro 与 Outro
+
+
+def _base_section_name(heading: str) -> str:
+    """去掉「（续）」这类续页后缀，让同一章节的多个分镜合并成一个 tab。"""
+    name = heading.strip()
+    while True:
+        stripped = re.sub(r"[（(]\s*(续|续页|cont\.?|continued)\s*[)）]\s*$", "", name).strip()
+        if stripped == name or not stripped:
+            return name
+        name = stripped
+
+
+def storyboard_tabs(storyboard: Storyboard) -> list[str]:
+    """从分镜里推出顶部 tab 的章节名：Intro + 各 section 标题 + Outro。
+
+    两处容易踩的坑（都真的踩过）：
+    1. 长章节会被切成「冲突与安全」与「冲突与安全（续）」多个 section 分镜，
+       直接收集会把同一个章节算成好几个 tab —— 必须按去掉续页后缀的名字去重；
+    2. tab 数量必须设上限，否则十来个 tab 挤在 1280 宽里文字会叠成一团。
+    """
+    sections: list[str] = []
+    for scene in storyboard.scenes:
+        if scene.kind != "section":
+            continue
+        name = _base_section_name(scene.heading)
+        if name and name not in sections:
+            sections.append(name)
+    if not sections:
+        return []
+    if len(sections) > MAX_TABS - 2:
+        # 章节太多就均匀取样，保证首尾都在
+        step = len(sections) / (MAX_TABS - 2)
+        sections = [
+            sections[min(len(sections) - 1, int(index * step))] for index in range(MAX_TABS - 2)
+        ]
+    return ["Intro", *sections, "Outro"]
+
+
+def tab_index_for(scene: Scene, storyboard: Storyboard) -> int:
+    """当前分镜应高亮第几个 tab：它之前（含）最后一个 section 的位置。"""
+    tabs = storyboard_tabs(storyboard)
+    if not tabs:
+        return 0
+    sections = [name.strip() for name in tabs[1:-1]]
+    active = 0
+    for candidate in storyboard.scenes:
+        if candidate.index > scene.index:
+            break
+        if candidate.kind != "section":
+            continue
+        name = _base_section_name(candidate.heading)
+        if name in sections:
+            active = sections.index(name) + 1
+    return active
 
 
 def render_video(
@@ -213,6 +395,7 @@ def render_video(
     font: str | None = None,
     keep_scenes: bool = False,
     audio_path: Path | None = None,
+    theme_name: str | None = None,
 ) -> dict[str, Any]:
     """渲染 MP4；返回 path/seconds/width/height/bytes/font/scenes/audio。"""
     ffmpeg = ffmpeg_path()
@@ -229,6 +412,7 @@ def render_video(
     scenes_dir.mkdir(exist_ok=True)
 
     width, height, fps = storyboard.width, storyboard.height, storyboard.fps
+    tabs = storyboard_tabs(storyboard)
     scene_files: list[Path] = []
     for scene in storyboard.scenes:
         image = scenes_dir / f"scene_{scene.index:03d}.png"
@@ -239,6 +423,9 @@ def render_video(
             width=width,
             height=height,
             language=storyboard.language,
+            theme_name=theme_name,
+            tab_labels=tabs,
+            active_tab=tab_index_for(scene, storyboard),
         )
         target = scenes_dir / f"scene_{scene.index:03d}.mp4"
         command = [
