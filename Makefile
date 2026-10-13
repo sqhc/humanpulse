@@ -26,7 +26,7 @@ export UV_CACHE_DIR BUILDX_CONFIG HF_HOME TORCH_HOME UV_TOOL_DIR UV_TOOL_BIN_DIR
 
 .PHONY: help doctor bootstrap install ml lint typecheck test build verify openapi \
         migrate seed demo reembed brief entities aliases entity-candidates reprice dev dev-web logs dev-down smoke collect-once prod-config deploy \
-        judging laya-model laya-serve eval-judgement tune-judgement \
+        judging laya-model laya-serve eval-judgement tune-judgement eval-alignment \
         restore-drill clean
 
 help: ## 显示所有可用命令
@@ -52,6 +52,9 @@ tune-judgement: ## 措辞对照 + Platt 校准实验（校准集拟合，锁定�
 	cd $(BACKEND) && uv run python -m app.cli tune-judgement \
 		--horizon-days $(or $(HORIZON),7) --sample $(or $(SAMPLE),300) \
 		--out ../.cache/tune-judgement.json
+
+eval-alignment: ## 用人工别名表评估实体对齐（分类任务，金标准为人工标注）
+	cd $(BACKEND) && uv run python -m app.cli eval-alignment --out ../.cache/eval-alignment.json
 
 eval-judgement: ## 评估判官的概率质量（门禁：Brier 技能分 / ECE）
 	# 未过门时以非零码退出，可直接串在脚本里；报告同时写到 .cache/

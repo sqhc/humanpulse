@@ -619,6 +619,29 @@ def cmd_tune_judgement(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_eval_alignment(args: argparse.Namespace) -> int:
+    """用人工别名表评估判官的实体对齐能力（分类任务）。"""
+    import json
+
+    from app.db import get_sessionmaker
+    from app.eval.alignment import run_alignment_eval
+
+    async def _run() -> dict[str, object]:
+        factory = get_sessionmaker()
+        async with factory() as session:
+            report = await run_alignment_eval(session)
+        return report.as_dict()
+
+    payload = asyncio.run(_run())
+    print(json.dumps(payload, ensure_ascii=False, indent=2))
+    if args.out:
+        out = pathlib.Path(args.out)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+        print("报告已写入 " + str(out), file=sys.stderr)
+    return 0 if payload.get("passed") else 2
+
+
 def cmd_migrate(args: argparse.Namespace) -> int:
     print(json.dumps(_migrate(), ensure_ascii=False))
     return 0
@@ -701,6 +724,13 @@ def build_parser() -> argparse.ArgumentParser:
     tune_parser.add_argument("--sample", type=int, default=300)
     tune_parser.add_argument("--out", default="")
     tune_parser.set_defaults(func=cmd_tune_judgement)
+
+    align_parser = sub.add_parser(
+        "eval-alignment",
+        help="用人工别名表评估实体对齐（金标准为人工标注，非模型生成）",
+    )
+    align_parser.add_argument("--out", default="")
+    align_parser.set_defaults(func=cmd_eval_alignment)
 
     migrate = sub.add_parser("migrate", help="执行数据库迁移到 head")
     migrate.set_defaults(func=cmd_migrate)
