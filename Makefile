@@ -53,6 +53,11 @@ tune-judgement: ## 措辞对照 + Platt 校准实验（校准集拟合，锁定�
 		--horizon-days $(or $(HORIZON),7) --sample $(or $(SAMPLE),300) \
 		--out ../.cache/tune-judgement.json
 
+alias-adjudicate: ## 用判官裁决实体别名候选（两段式；需 JUDGEMENT_PROVIDER != none）
+	cd $(BACKEND) && uv run python -m app.cli alias-adjudicate \
+		--limit $(or $(LIMIT),30) --min-shared $(or $(MIN_SHARED),2) \
+		--out ../.cache/alias-adjudication.json
+
 eval-alignment: ## 用人工别名表评估实体对齐（分类任务，金标准为人工标注）
 	cd $(BACKEND) && uv run python -m app.cli eval-alignment --out ../.cache/eval-alignment.json
 

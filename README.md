@@ -27,6 +27,29 @@ ReliefWeb/       DeepSeek 双语摘要+评分+标签 →   ├─ Web (React + V
 - 处理流水线每一步幂等可重跑：`documents.status` 走 `pending → enriched / rejected / deduped / failed`。
 - 部署：单台 VPS + docker compose + Caddy（[ADR-0004](docs/adr/0004-deployment.md)）。
 
+## 判官模型与推演（Jev / Laya）
+
+项目的差异点不是复述新闻，而是**推演事件的后续影响**。这由一个「判官」模型提供概率——
+它与 LLM 平行、**不生成文本**，只回答类型化问题（Choice / Score / Noul）。
+
+**关键结论：概率还不能发布。** 实测 Laya 零样本在客观子问题上 Brier 技能分 **-1.69**、
+ECE **0.36**（门槛 >0.05 / <0.15）；Platt 校准虽把 ECE 修到 0.07，但拟合斜率仅 0.0199，
+校准器几乎完全忽略模型输入。因此 `projection_enabled` 保持 `false`，推演强制标注「未经校准」。
+
+同一个模型做**分类**是可用的：人工别名表上实体对齐 AUC **0.796**、F1 **0.882**
+（校准集选阈值，锁定测试集报告），已用于实体别名裁决。
+
+```bash
+make laya-model        # 下载 Laya multilingual 权重（约 660MB）
+make laya-serve        # 起本地判官服务（Jev 兼容路由，127.0.0.1:8077）
+
+make eval-judgement    # 概率质量门禁（未过门以非零码退出）
+make tune-judgement    # 措辞对照 + Platt 校准（校准集拟合，锁定测试集报告）
+make eval-alignment    # 实体对齐评估（金标准为人工别名表）
+make alias-adjudicate  # 用判官裁决实体别名候选
+```
+
+详见 [ADR-0015](docs/adr/0015-judgement-and-projection.md)。
 ## 快速开始
 
 ```bash
@@ -69,6 +92,7 @@ cd backend && uv sync && uv run uvicorn app.main:app --reload
 | `make video` | 生成视频脚本与字幕（`BRIEF_ID=` 指定某期，`RENDER=1` 出 MP4，需 ffmpeg + `uv sync --extra video`） |
 | `make video VOICE=1` | 加旁白配音（`TTS_PROVIDER=macos-say` 或 `command` 接 piper/云 TTS，见 [ADR-0013](docs/adr/0013-video-tts.md)） |
 | 分镜视觉 | 程序化生成背景（渐变 + 圆弧 + 关键词水印），**不使用原文配图**，见 [ADR-0014](docs/adr/0014-scene-artwork.md) |
+| 预测登记 | 推演节点登记为可证伪的预测，到期自动核对并公开校准（Brier / 可靠性曲线），见 [ADR-0015](docs/adr/0015-judgement-and-projection.md) |
 | 安装到主屏 | 生产构建带 PWA 清单与 Service Worker（只缓存外壳，接口数据不缓存，见 [ADR-0011](docs/adr/0011-pwa.md)） |
 | `make reprice` | 按官方定价重算历史成本（输入按未命中计，属上界） |
 

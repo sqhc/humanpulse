@@ -642,6 +642,30 @@ def cmd_eval_alignment(args: argparse.Namespace) -> int:
     return 0 if payload.get("passed") else 2
 
 
+def cmd_alias_adjudicate(args: argparse.Namespace) -> int:
+    """用判官裁决启发式实体别名候选（两段式：启发式召回 + 判官裁决）。"""
+    import json
+
+    from app.db import get_sessionmaker
+    from app.pipeline.alias_adjudication import adjudicate_candidates
+
+    async def _run() -> dict[str, object]:
+        factory = get_sessionmaker()
+        async with factory() as session:
+            report = await adjudicate_candidates(
+                session, limit=args.limit, min_shared_docs=args.min_shared
+            )
+        return report.as_dict()
+
+    payload = asyncio.run(_run())
+    print(json.dumps(payload, ensure_ascii=False, indent=2))
+    if args.out:
+        out = pathlib.Path(args.out)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    return 0
+
+
 def cmd_migrate(args: argparse.Namespace) -> int:
     print(json.dumps(_migrate(), ensure_ascii=False))
     return 0
@@ -731,6 +755,15 @@ def build_parser() -> argparse.ArgumentParser:
     )
     align_parser.add_argument("--out", default="")
     align_parser.set_defaults(func=cmd_eval_alignment)
+
+    adjudicate_parser = sub.add_parser(
+        "alias-adjudicate",
+        help="用判官裁决实体别名候选（需 JUDGEMENT_PROVIDER != none）",
+    )
+    adjudicate_parser.add_argument("--limit", type=int, default=30)
+    adjudicate_parser.add_argument("--min-shared", type=int, default=2)
+    adjudicate_parser.add_argument("--out", default="")
+    adjudicate_parser.set_defaults(func=cmd_alias_adjudicate)
 
     migrate = sub.add_parser("migrate", help="执行数据库迁移到 head")
     migrate.set_defaults(func=cmd_migrate)
