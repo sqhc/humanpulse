@@ -15,7 +15,9 @@ import structlog
 
 from app.config import get_settings
 from app.db import session_scope
+from app.judgement import get_judgement_client
 from app.logging import configure_logging
+from app.predictions import resolve_due
 from app.workers.jobs import collect_all, run_brief, run_process
 
 log = structlog.get_logger("worker")
@@ -53,6 +55,21 @@ async def main() -> None:
         async with session_scope() as session:
             await run_process(session)
 
+    async def resolve_predictions_job() -> None:
+        # 到期核对：判官未配置时直接跳过（不报错，也不假装做了）
+        if get_judgement_client() is None:
+            return
+        async with session_scope() as session:
+            report = await resolve_due(session, limit=settings.prediction_resolve_batch)
+        if report.checked:
+            log.info(
+                "predictions.resolved",
+                checked=report.checked,
+                hit=report.hit,
+                missed=report.missed,
+                unresolved=report.unresolved,
+            )
+
     async def brief_job() -> None:
         # 到点之后每 15 分钟探一次；生成函数本身幂等（同周期已有就跳过）
         now = datetime.now(UTC)
@@ -73,6 +90,12 @@ async def main() -> None:
         _loop("collect", settings.collect_interval_minutes * 60, collect_job, stop),
         _loop("process", settings.process_interval_minutes * 60, process_job, stop),
         _loop("brief", 900.0, brief_job, stop),
+        _loop(
+            "resolve-predictions",
+            settings.prediction_resolve_interval_minutes * 60,
+            resolve_predictions_job,
+            stop,
+        ),
     )
     log.info("worker.stop")
 

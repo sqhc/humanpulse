@@ -100,6 +100,11 @@ class Settings(BaseSettings):
     projection_min_confidence: float = Field(default=0.60, ge=0.0, le=1.0)
     projection_chain_hops: int = Field(default=3, ge=1, le=5)
 
+    # 预测到期核对（worker 定时跑；判官未配置时自动跳过）
+    # 每天一次足够：预测的到期粒度是天，跑太勤没有意义
+    prediction_resolve_interval_minutes: int = Field(default=1440, gt=0)
+    prediction_resolve_batch: int = Field(default=50, ge=1, le=500)
+
     # 实体别名裁决（用判官做实体对齐）
     alias_adjudication_enabled: bool = False
     alias_auto_merge_confidence: float = Field(default=0.90, ge=0.0, le=1.0)
