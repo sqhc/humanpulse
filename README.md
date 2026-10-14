@@ -160,4 +160,3 @@ scripts/           doctor / smoke / deploy / restore-drill
 | Phase 1 | 数据模型、RSS/GDELT/手动上传、SimHash + DeepSeek 摘要 + 向量去重与聚类、读取接口、Web Feed 与详情 | 已完成 |
 | Phase 2 | 日报/周报、管理台、更多源、SSE、VPS 上线 | 已完成（VPS 待注册后部署） |
 | Phase 3 | 视频简报、移动端、实体时间线、语义搜索、深度调查 agent | 进行中（实体时间线 + 别名合并已完成；视频/移动端待做） |
-| Phase 3 | 视频简报、移动端、实体时间线、语义搜索、深度调查 agent | 待开始 |
