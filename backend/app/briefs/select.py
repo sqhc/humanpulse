@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
+from typing import Any
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -27,6 +28,10 @@ class SelectedItem:
     url: str
     published_at: datetime | None
     headline_only: bool
+    # P0a：深挖卡片用（可选；来自 Analysis，供视频「单事件深挖」信息槽填充）
+    tags: list[str] | None = None
+    regions: list[str] | None = None
+    entities: list[dict[str, Any]] | None = None
 
 
 def pick_representatives(items: list[SelectedItem], limit: int) -> list[SelectedItem]:
@@ -85,6 +90,9 @@ async def select_items(
             url=document.url,
             published_at=document.published_at,
             headline_only="headline-only" in list(analysis.tags or []),
+            tags=list(analysis.tags or []),
+            regions=list(analysis.regions or []),
+            entities=list(analysis.entities or []),
         )
         for document, analysis, cluster_id, source_name in rows
     ]

@@ -105,7 +105,7 @@ def test_storyboard_without_items_notes_it() -> None:
 def test_storyboard_item_carries_source_and_url() -> None:
     """来源挂在某条素材的**最后一段**上，不跟着每一段重复。"""
     board = build_storyboard(_content(), language="zh", items=_items(2))
-    first_item_scenes = [s for s in board.scenes if s.document_id == 1]
+    first_item_scenes = [s for s in board.scenes if s.kind == "item" and s.document_id == 1]
     assert first_item_scenes
     assert first_item_scenes[-1].source == "Al Jazeera"
     assert first_item_scenes[-1].url == "https://example.test/1"
@@ -216,6 +216,63 @@ def test_cards_empty_by_default() -> None:
     item_scenes = [scene for scene in board.scenes if scene.kind == "item"]
     assert item_scenes, "应有 item 分镜"
     assert all(scene.cards is None for scene in item_scenes)
+
+
+def test_deep_dive_fills_info_slots() -> None:
+    """P0a：深挖分镜用确定性信息槽填卡片（事件/来源/要点/话题/涉及方/地区）。"""
+    item = SelectedItem(
+        document_id=1,
+        cluster_id=1,
+        title="测试事件",
+        summary_zh="这是首句。这是第二句。",
+        summary_en="First sentence. Second sentence.",
+        score=90,
+        source_name="测试来源",
+        url="https://example.test/1",
+        published_at=datetime(2026, 9, 27, tzinfo=UTC),
+        headline_only=False,
+        tags=["conflict", "diplomacy"],
+        regions=["中东"],
+        entities=[
+            {"name": "实体A", "kind": "org", "salience": 0.9},
+            {"name": "实体B", "kind": "person", "salience": 0.5},
+            {"name": "实体C", "kind": "place", "salience": 0.2},
+        ],
+    )
+    board = build_storyboard(_content(), language="zh", items=[item])
+    deep = [s for s in board.scenes if s.kind == "deep_dive"]
+    assert len(deep) == 1
+    cards = deep[0].cards
+    assert cards is not None and 1 <= len(cards) <= 6
+    labels = [label for label, _ in cards]
+    assert labels[0] == "事件"
+    assert {"来源", "要点", "话题", "涉及方", "地区"} <= set(labels)
+    involved = next(body for label, body in cards if label == "涉及方")
+    assert "实体A" in involved and "实体B" in involved and "实体C" in involved
+
+
+def test_deep_dive_omits_empty_slots() -> None:
+    """P0a：空槽省略——没有来源/话题/涉及方/地区就不出现这些卡。"""
+    item = SelectedItem(
+        document_id=1,
+        cluster_id=1,
+        title="标题",
+        summary_zh="一句话摘要。",
+        summary_en="One sentence.",
+        score=70,
+        source_name=None,
+        url="https://example.test/1",
+        published_at=None,
+        headline_only=False,
+    )
+    board = build_storyboard(_content(), language="zh", items=[item])
+    deep = [s for s in board.scenes if s.kind == "deep_dive"]
+    assert len(deep) == 1
+    labels = {label for label, _ in (deep[0].cards or [])}
+    assert "话题" not in labels
+    assert "涉及方" not in labels
+    assert "地区" not in labels
+    assert "来源" not in labels
 
 
 def test_long_section_becomes_multiple_scenes() -> None:

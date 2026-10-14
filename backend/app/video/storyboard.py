@@ -113,6 +113,56 @@ def _clip(text: str, limit: int = SUMMARY_CHARS) -> str:
     return cleaned[:limit].rstrip() + "…"
 
 
+def _first_sentence(text: str) -> str:
+    """取首句（按句末标点切）；没有句末标点就截断前 80 字。"""
+    cleaned = " ".join((text or "").split())
+    for index, char in enumerate(cleaned):
+        if char in "。！？!?；;":
+            return cleaned[: index + 1]
+    return _clip(cleaned, 80)
+
+
+def _deep_dive_cards(item: SelectedItem, *, zh: bool) -> list[tuple[str, str]]:
+    """P0a：深挖卡片——用确定性信息槽填充（空槽省略，最多 6 张）。
+
+    这里只做占位：未来由「深度调查 agent」产出 6 个语义 facet
+    （官方回应/研究/技术手法/媒体披露/监管合作/第三方观点）替换这些信息槽。
+    """
+    cards: list[tuple[str, str]] = []
+    if item.title:
+        cards.append(("事件", item.title))
+
+    source_time = item.source_name or ""
+    if item.published_at is not None:
+        stamp = item.published_at.strftime("%Y-%m-%d")
+        source_time = f"{source_time} · {stamp}" if source_time else stamp
+    if source_time:
+        cards.append(("来源", source_time))
+
+    first = _first_sentence(item.summary_zh if zh else item.summary_en)
+    if first:
+        cards.append(("要点", first))
+
+    if item.tags:
+        cards.append(("话题", "、".join(item.tags[:6])))
+
+    if item.entities:
+        ranked = sorted(
+            item.entities,
+            key=lambda entry: float((entry or {}).get("salience", 0) or 0),
+            reverse=True,
+        )
+        names = [str((entry or {}).get("name", "")).strip() for entry in ranked]
+        names = [name for name in names if name]
+        if names:
+            cards.append(("涉及方", "、".join(names[:3])))
+
+    if item.regions:
+        cards.append(("地区", "、".join(item.regions[:6])))
+
+    return cards[:6]
+
+
 @dataclass(slots=True)
 class Scene:
     """一个分镜：屏幕上显示什么、旁白念什么、来自哪里。"""
@@ -262,6 +312,30 @@ def build_storyboard(
             url=item.url,
             document_id=item.document_id,
         )
+
+    if items:
+        # P0a：单事件深挖——取评分最高的 1 条，用卡片网格呈现确定性信息槽
+        top = max(items, key=lambda it: it.score)
+        cards = _deep_dive_cards(top, zh=zh)
+        if cards:
+            narration = _clip(top.summary_zh if zh else top.summary_en) or top.title
+            card_text = "".join(label + body for label, body in cards)
+            scenes.append(
+                Scene(
+                    index=len(scenes),
+                    kind="deep_dive",
+                    heading="本期深挖" if zh else "Deep dive",
+                    narration=narration,
+                    duration_seconds=max(
+                        scene_seconds(narration, language=storyboard.language),
+                        scene_seconds(card_text, language=storyboard.language),
+                    ),
+                    cards=cards,
+                    source=top.source_name,
+                    url=top.url,
+                    document_id=top.document_id,
+                )
+            )
 
     if items:
         heading = "来源清单" if zh else "Sources"

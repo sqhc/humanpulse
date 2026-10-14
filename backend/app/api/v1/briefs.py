@@ -143,6 +143,9 @@ async def _load_items(session: AsyncSession, brief_id: int) -> list[SelectedItem
                 published_at=document.published_at,
                 # headline-only 不是列，而是处理阶段打的标签（见 pipeline/process.py）
                 headline_only=bool(analysis) and "headline-only" in list(analysis.tags or []),
+                tags=list(analysis.tags or []) if analysis else None,
+                regions=list(analysis.regions or []) if analysis else None,
+                entities=list(analysis.entities or []) if analysis else None,
             )
         )
     return items
