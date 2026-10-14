@@ -19,6 +19,7 @@ from app.eval.metrics import (
     majority_accuracy,
     reliability_curve,
     risk_coverage,
+    roc_auc,
 )
 
 
@@ -161,3 +162,56 @@ def test_empty_inputs_are_safe() -> None:
     assert expected_calibration_error([]) == 0.0
     assert reliability_curve([]) == []
     assert risk_coverage([]) == []
+    assert roc_auc([]) == 0.0
+
+
+def test_roc_auc_perfect_and_inverted() -> None:
+    # 完美排序：所有正样本概率都高于所有负样本
+    perfect = [
+        Observation(key="a", probability=0.9, outcome=True),
+        Observation(key="b", probability=0.8, outcome=True),
+        Observation(key="c", probability=0.2, outcome=False),
+        Observation(key="d", probability=0.1, outcome=False),
+    ]
+    assert roc_auc(perfect) == 1.0
+    # 完全反了：正样本概率更低 → AUC 0.0
+    inverted = [
+        Observation(key="a", probability=0.1, outcome=True),
+        Observation(key="b", probability=0.9, outcome=False),
+    ]
+    assert roc_auc(inverted) == 0.0
+
+
+def test_roc_auc_ties_count_as_half() -> None:
+    # 全部同分：并列按 0.5 计 → 恰好等于随机
+    tied = [
+        Observation(key="a", probability=0.5, outcome=True),
+        Observation(key="b", probability=0.5, outcome=False),
+    ]
+    assert roc_auc(tied) == 0.5
+
+
+def test_roc_auc_needs_both_classes() -> None:
+    # 只有一个类别时无从排序，返回 0 而不是 0.5（不能让「没算出来」看起来像随机）
+    only_positive = [Observation(key="a", probability=0.9, outcome=True)]
+    assert roc_auc(only_positive) == 0.0
+
+
+def test_auc_catches_degenerate_calibration_that_skill_misses() -> None:
+    """这个测试存在的理由，就是仓库里真实发生过的一次误读。
+
+    Laya 在覆盖预测上 Brier skill ≈ 0（-0.005），单看它像是「只差一点就过门」。
+    但真相是模型**没有排序能力**：AUC=0.52。下面的数据复现同一个模式——
+    概率被压到基率附近（skill 接近 0），而排序其实完全反了（AUC=0.0）。
+    两个指标必须一起看，否则会把「不可用」读成「接近可用」。
+    """
+    base = 0.78
+    observations = (
+        # 正样本拿到略低的概率，负样本拿到略高的概率 → 排序全错
+        [Observation(key=f"p{i}", probability=base - 0.01, outcome=True) for i in range(11)]
+        + [Observation(key=f"n{i}", probability=base + 0.01, outcome=False) for i in range(3)]
+    )
+    # skill 接近 0：看起来「不差」
+    assert abs(brier_skill_score(observations)) < 0.05
+    # 但 AUC 直接暴露真相
+    assert roc_auc(observations) == 0.0

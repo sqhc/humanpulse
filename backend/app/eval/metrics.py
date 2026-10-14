@@ -103,6 +103,32 @@ def log_loss(observations: Sequence[Observation]) -> float:
     return total / len(observations)
 
 
+def roc_auc(observations: Sequence[Observation]) -> float:
+    """ROC AUC：只看「发生的事是否比没发生的排得更靠前」，与阈值、绝对标度无关。
+
+    为什么这个指标必须和 Brier skill 一起报：
+    Brier skill 会被**退化校准**骗过去。把概率全压到基率附近（近似常数输出）时
+    Brier 会接近基线，skill 趋近 0——看起来「差一点点就通过」，
+    但模型其实没有任何区分能力。实测 Laya 在覆盖预测上就是这种情况：
+    skill=-0.005（几乎像要过门），AUC=0.52（等于随机）。
+    两个指标一起看才能区分「有排序能力但没校准好」和「根本没有信息」。
+
+    AUC 0.5 = 随机，1.0 = 完美排序。用秩和（Mann-Whitney U），并列算 0.5。
+    """
+    positives = [item.probability for item in observations if item.outcome]
+    negatives = [item.probability for item in observations if not item.outcome]
+    if not positives or not negatives:
+        return 0.0
+    wins = 0.0
+    for positive in positives:
+        for negative in negatives:
+            if positive > negative:
+                wins += 1.0
+            elif positive == negative:
+                wins += 0.5
+    return wins / (len(positives) * len(negatives))
+
+
 def expected_calibration_error(observations: Sequence[Observation], *, bins: int = 5) -> float:
     """按概率分箱，算 |平均预测 - 实际频率| 的加权平均。
 

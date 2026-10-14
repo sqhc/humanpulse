@@ -37,6 +37,7 @@ from app.eval.metrics import (
     majority_accuracy,
     reliability_curve,
     risk_coverage,
+    roc_auc,
 )
 from app.judgement import JudgementClient, JudgementError, NoulQuestion, get_judgement_client
 
@@ -78,6 +79,8 @@ class EvalReport:
     majority_accuracy: float
     log_loss: float
     ece: float
+    # 与 skill 一起报：只有 skill 会被「退化成常数输出」骗过去（见 metrics.roc_auc）
+    auc: float = 0.0
     reliability: list[CalibrationBucket] = field(default_factory=list)
     risk_coverage: list[CoveragePoint] = field(default_factory=list)
     observations: list[Observation] = field(default_factory=list)
@@ -98,6 +101,7 @@ class EvalReport:
             "brier": self.brier,
             "brier_baseline": self.brier_baseline,
             "brier_skill_score": self.skill,
+            "auc": self.auc,
             "accuracy": self.accuracy,
             "majority_accuracy": self.majority_accuracy,
             "log_loss": self.log_loss,
@@ -328,6 +332,7 @@ async def run_evaluation(
         majority_accuracy=round(majority_accuracy(observations), 4),
         log_loss=round(log_loss(observations), 4),
         ece=round(expected_calibration_error(observations), 4),
+        auc=round(roc_auc(observations), 4),
         reliability=reliability_curve(observations),
         risk_coverage=risk_coverage(observations),
         observations=observations,
@@ -347,9 +352,18 @@ async def run_evaluation(
         report.verdict = f"通过评估门（{threshold_note}）：概率有信息量且校准可接受"
     else:
         report.passed = False
+        # 把「没有排序能力」和「校准不好」分开说：前者不可用 Platt/攒样本救，
+        # 否则 skill 接近 0 会被误读成「只差一点」。
+        reason = (
+            f"原始 AUC={report.auc}（0.5=随机）：判官没有区分能力，"
+            "属于本质不可用，换更强的判官或换问题口径才有可能改善；"
+            if report.auc < 0.55
+            else f"原始 AUC={report.auc}：有排序信号，但概率不可直接发布。"
+        )
         report.verdict = (
             f"未通过评估门（{threshold_note}）："
             f"实际 skill={report.skill}, ECE={report.ece}。"
-            "推演输出必须继续标注「未经校准」，不得当作预测发布"
+            + reason
+            + "推演输出必须继续标注「未经校准」，不得当作预测发布"
         )
     return report

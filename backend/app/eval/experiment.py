@@ -31,6 +31,7 @@ from app.eval.metrics import (
     log_loss,
     majority_accuracy,
     reliability_curve,
+    roc_auc,
 )
 from app.judgement import JudgementClient, JudgementError, NoulQuestion, get_judgement_client
 
@@ -57,6 +58,7 @@ class Metrics:
     majority_accuracy: float
     log_loss: float
     ece: float
+    auc: float
 
     def as_dict(self) -> dict[str, float]:
         return {
@@ -69,6 +71,7 @@ class Metrics:
             "majority_accuracy": self.majority_accuracy,
             "log_loss": self.log_loss,
             "ece": self.ece,
+            "auc": self.auc,
         }
 
 
@@ -83,6 +86,7 @@ def summarize(observations: Sequence[Observation]) -> Metrics:
         majority_accuracy=round(majority_accuracy(observations), 4),
         log_loss=round(log_loss(observations), 4),
         ece=round(expected_calibration_error(observations), 4),
+        auc=round(roc_auc(observations), 4),
     )
 
 
@@ -255,10 +259,30 @@ async def run_experiment(
             f"（skill={best.calibrated_test.skill}, ECE={best.calibrated_test.ece}）"
         )
     else:
+        # 区分两种失败：有排序能力但没校准好（可救） vs 根本没有信息（不可救）。
+        # 后者再怎么攒样本、调 Platt 都不会变好，必须说出来，否则会被误读成
+        # 「skill 已经是 -0.005 了，再等等就过门」。
+        raw_auc = best.raw_test.auc
+        diagnostics = []
+        if raw_auc < 0.55:
+            details = (
+                f"原始 AUC={raw_auc}（0.5=随机）说明判官对这些事件**没有区分能力**，"
+                "不是校准不足。继续积累样本或重拟合 Platt 都不会改善排序；"
+                "要提升只能换更强的判官（云端 Jev）或换一个真正可预测的问题口径。"
+            )
+        elif best.raw_test.skill < 0.05:
+            details = (
+                f"原始 AUC={raw_auc} 说明有一定排序能力，但 Brier skill "
+                f"{best.raw_test.skill} 未超过基线；属于「有信号但概率不可用」。"
+            )
+        else:
+            details = f"原始 AUC={raw_auc}，校准后仍未同时满足 skill>0.05 与 ECE<0.15。"
+        diagnostics.append(details)
         report.verdict = (
             "未通过：所有措辞（含 Platt 校准后）都没能在锁定测试集上超过基线。"
             f"最好的一项是 {best.variant}，"
             f"skill={best.calibrated_test.skill}, ECE={best.calibrated_test.ece}。"
-            "结论：当前判官在这些问题上不可用，推演保持标注「未经校准」"
+            + "".join(diagnostics)
+            + "结论：当前判官在这些问题上不可用，推演保持标注「未经校准」"
         )
     return report
