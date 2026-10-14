@@ -13,13 +13,15 @@ from typing import Any
 from app.briefs.schema import BriefContent
 from app.briefs.select import SelectedItem
 
-# 朗读速度：中文按字算，英文按字符算（英文单词平均 5 个字符，14 字符/秒约等于 170 词/分）
+# 朗读速度：中文按字算，英文按字符算。
 #
 # 中文实测校准：macOS say -v Tingting -r 180 读 28 个分镜，2834 字 / 585 秒 = 4.84 字/秒。
+# 英文实测校准（2026-10-13）：macOS say -v Samantha/-v Daniel -r 180 读 749 字符样文，
+# 测得 19.3~19.6 字符/秒，取 19.0 兜底（略保守，避免重蹈中文「偏乐观」的覆辙）。
 # 历史教训：先后写死过 5.5 与 6.2，都偏乐观——没有配音时估算总长比真实朗读短 20-30%，
 # 于是每张卡停留时间不够读。不同语音/语速节奏不同，这个常数只是**兜底估算**；
 # 一旦启用配音（--voice），会用真实音频时长覆盖它（见 tts.apply_audio_durations）。
-CHARS_PER_SECOND = {"zh": 4.8, "en": 14.0}
+CHARS_PER_SECOND = {"zh": 4.8, "en": 19.0}
 MIN_SCENE_SECONDS = 2.5
 # 单镜时长**不设硬上限**：
 # 曾经写死 22 秒，结果一镜 597 字的内容画面只给 8 秒——没有配音时观众根本读不完。

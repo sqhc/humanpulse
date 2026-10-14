@@ -532,10 +532,12 @@ async def _video(
 
 
 def cmd_video(args: argparse.Namespace) -> int:
-    result = asyncio.run(
-        _video(args.brief, args.lang, args.out, args.render, args.font, args.voice)
-    )
-    print(json.dumps(result, ensure_ascii=False))
+    langs = ("zh", "en") if args.lang == "both" else (args.lang,)
+    results = [
+        asyncio.run(_video(args.brief, lang, args.out, args.render, args.font, args.voice))
+        for lang in langs
+    ]
+    print(json.dumps(results if len(results) > 1 else results[0], ensure_ascii=False))
     return 0
 
 
@@ -711,7 +713,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     video_parser = sub.add_parser("video", help="生成视频脚本与字幕（--render 时用 ffmpeg 出 MP4）")
     video_parser.add_argument("--brief", type=int, default=None, help="简报 id，缺省最新一期")
-    video_parser.add_argument("--lang", choices=("zh", "en"), default="zh")
+    video_parser.add_argument("--lang", choices=("zh", "en", "both"), default="zh")
     video_parser.add_argument("--out", default=".cache/video", help="输出目录")
     video_parser.add_argument("--render", action="store_true", help="调用 ffmpeg 渲染 MP4")
     video_parser.add_argument("--font", default=None, help="中文字体文件路径")
