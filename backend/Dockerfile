@@ -17,6 +17,10 @@ COPY pyproject.toml uv.lock ./
 RUN if [ "$WITH_ML" = "1" ]; then uv sync --frozen --no-install-project --no-dev --extra ml; \
     else uv sync --frozen --no-install-project --no-dev; fi
 
+# 判官客户端（JUDGEMENT_PROVIDER=laya/jev 时需要）：typesafe-sdk 仅 ~37KB，直接装；
+# 不拉完整的 judgement extra（那会带 transformers/peft 等本地推理依赖）。
+RUN uv pip install --no-cache --python /app/.venv/bin/python "typesafe-sdk==0.7.4"
+
 # 模型权重在构建期下载好：容器运行时不该依赖 HuggingFace 可达（版本也没法审计）。
 # 写成一个脚本文件比塞在 RUN 里更易读。
 ARG EMBEDDING_MODEL=paraphrase-multilingual-MiniLM-L12-v2

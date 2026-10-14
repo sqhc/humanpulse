@@ -28,6 +28,8 @@ services:
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-humanpulse}:${POSTGRES_PASSWORD:-humanpulse}@db:5432/${POSTGRES_DB:-humanpulse}
       API_HOST: 0.0.0.0
       API_PORT: "8000"
+      # 判官服务跑在宿主机（make laya-serve）；容器内经 host.docker.internal 访问
+      JUDGEMENT_BASE_URL: http://host.docker.internal:8077
     command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
     ports:
       - "${API_PORT:-8000}:8000"
@@ -51,6 +53,8 @@ services:
       - .env
     environment:
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-humanpulse}:${POSTGRES_PASSWORD:-humanpulse}@db:5432/${POSTGRES_DB:-humanpulse}
+      # 判官服务跑在宿主机（make laya-serve）；容器内经 host.docker.internal 访问
+      JUDGEMENT_BASE_URL: http://host.docker.internal:8077
     command: ["python", "-m", "app.workers.scheduler"]
     volumes:
       - ./backend/app:/app/app
