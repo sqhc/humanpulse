@@ -11,10 +11,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import AdminDep
 from app.db import get_session
+from app.judgement import JudgementError
 from app.models.document import FetchRun
 from app.models.entity import Entity
 from app.models.ops import LlmUsageDay
 from app.models.source import Source
+from app.pipeline.alias_adjudication import adjudicate_candidates
 from app.pipeline.alias_table import (
     EntityRef,
     groups_from_merges,
@@ -154,18 +156,36 @@ async def list_entity_candidates(
         max_ratio=max_ratio,
         limit=limit,
     )
+    # P2：用判官给候选打「模型建议 + 分数」（判官未配置/失败时 score/verdict 为 None）
+    scores: dict[tuple[int, int], tuple[float, str, float | None]] = {}
+    try:
+        report = await adjudicate_candidates(session, candidates=raw)
+        for adj in report.results:
+            scores[(adj.left_id, adj.right_id)] = (adj.score, adj.verdict, adj.confidence)
+    except JudgementError:
+        pass
+
     groups = load_alias_groups()
-    return EntityCandidateListOut(
-        candidates=[
+    candidates: list[EntityCandidateOut] = []
+    for item in raw:
+        left = item["left"]
+        right = item["right"]
+        key = (int(left.get("id", 0)), int(right.get("id", 0)))
+        score, verdict, confidence = scores.get(key, (None, None, None))
+        candidates.append(
             EntityCandidateOut(
                 kind=item["kind"],
-                left=EntityCandidateSide(**item["left"]),
-                right=EntityCandidateSide(**item["right"]),
+                left=EntityCandidateSide(**left),
+                right=EntityCandidateSide(**right),
                 shared_documents=item["shared_documents"],
                 jaccard=item["jaccard"],
+                score=score,
+                verdict=verdict,
+                confidence=confidence,
             )
-            for item in raw
-        ],
+        )
+    return EntityCandidateListOut(
+        candidates=candidates,
         alias_group_count=len(groups),
         alias_problems=validate_alias_file(),
         scanned_pairs=len(raw),

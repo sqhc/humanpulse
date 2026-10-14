@@ -854,14 +854,20 @@ export interface components {
         };
         /** EntityCandidateOut */
         EntityCandidateOut: {
+            /** Confidence */
+            confidence?: number | null;
             /** Jaccard */
             jaccard: number;
             /** Kind */
             kind: string;
             left: components["schemas"]["EntityCandidateSide"];
             right: components["schemas"]["EntityCandidateSide"];
+            /** Score */
+            score?: number | null;
             /** Shared Documents */
             shared_documents: number;
+            /** Verdict */
+            verdict?: string | null;
         };
         /** EntityCandidateSide */
         EntityCandidateSide: {

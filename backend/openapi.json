@@ -852,6 +852,17 @@
       },
       "EntityCandidateOut": {
         "properties": {
+          "confidence": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confidence"
+          },
           "jaccard": {
             "title": "Jaccard",
             "type": "number"
@@ -866,9 +877,31 @@
           "right": {
             "$ref": "#/components/schemas/EntityCandidateSide"
           },
+          "score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Score"
+          },
           "shared_documents": {
             "title": "Shared Documents",
             "type": "integer"
+          },
+          "verdict": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verdict"
           }
         },
         "required": [

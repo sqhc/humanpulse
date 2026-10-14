@@ -19,6 +19,13 @@ function readStoredKey(): string {
   return window.localStorage.getItem(ADMIN_KEY_STORAGE) ?? "";
 }
 
+function verdictLabel(verdict: string | null | undefined, t: Messages): string {
+  if (verdict === "merge") return t.adminCandidatesVerdictMerge;
+  if (verdict === "review") return t.adminCandidatesVerdictReview;
+  if (verdict === "reject") return t.adminCandidatesVerdictReject;
+  return verdict ?? "";
+}
+
 interface SectionStateProps {
   message: string;
   error?: boolean;
@@ -335,6 +342,15 @@ export function AdminView({ t, lang }: AdminViewProps) {
                   {t.adminCandidatesShared}: {candidate.shared_documents} ·{" "}
                   {t.adminCandidatesOverlap}: {candidate.jaccard}
                 </p>
+                {candidate.score != null ? (
+                  <p className="text-xs text-accent">
+                    {t.adminCandidatesSuggestion}: {verdictLabel(candidate.verdict, t)} ·{" "}
+                    {t.adminCandidatesScore} {candidate.score.toFixed(2)}
+                    {candidate.confidence != null
+                      ? ` · conf ${candidate.confidence.toFixed(2)}`
+                      : ""}
+                  </p>
+                ) : null}
                 <div className="flex flex-wrap gap-2">
                   <button
                     type="button"

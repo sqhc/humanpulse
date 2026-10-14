@@ -38,6 +38,10 @@ class EntityCandidateOut(BaseModel):
     right: EntityCandidateSide
     shared_documents: int
     jaccard: float
+    # P2：判官裁决结果（模型建议）；判官未配置或失败时为 None
+    score: float | None = None
+    verdict: str | None = None
+    confidence: float | None = None
 
 
 class EntityCandidateListOut(BaseModel):
