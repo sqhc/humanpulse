@@ -21,6 +21,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from typing import TYPE_CHECKING
 
 import structlog
 from sqlalchemy import select, text
@@ -37,6 +38,9 @@ from app.eval.metrics import (
 )
 from app.judgement import JudgementClient, JudgementError, NoulQuestion, get_judgement_client
 from app.models.prediction import Prediction
+
+if TYPE_CHECKING:
+    from app.briefs.select import SelectedItem
 
 log = structlog.get_logger("predictions.registry")
 
@@ -114,6 +118,46 @@ async def register_chain(
     if created:
         await session.flush()
     return created
+
+
+async def register_brief_projection(
+    session: AsyncSession,
+    items: Sequence[SelectedItem],
+    *,
+    brief_id: int,
+) -> int:
+    """为一期简报生成推演并把可证伪节点登记成预测（P3：校准样本积累）。
+
+    判官未配置时 generate_projection 返回 None，这里静默返回 0（不影响简报生成）。
+    只登记、不发布：projection_enabled=false 时推演不写进简报正文，视频/页面不展示；
+    这里只做「把带概率的节点登记成可核对预测」，为将来校准与领域微调攒样本。
+    """
+    from app.briefs.projection import generate_projection
+    from app.config import get_settings
+
+    settings = get_settings()
+    projection = await generate_projection(
+        items,
+        horizon_days=settings.projection_horizon_days,
+        max_events=settings.projection_max_events,
+        hops=settings.projection_chain_hops,
+        min_confidence=settings.projection_min_confidence,
+    )
+    if projection is None:
+        return 0
+    provider = str(projection.method.get("provider", ""))
+    registered = 0
+    for chain in projection.chains:
+        created = await register_chain(
+            session,
+            chain,
+            brief_id=brief_id,
+            provider=provider,
+            model=settings.judgement_model,
+            horizon_days=projection.horizon_days,
+        )
+        registered += len(created)
+    return registered
 
 
 async def due_predictions(

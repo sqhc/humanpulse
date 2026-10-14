@@ -4,6 +4,7 @@ from app.predictions.registry import (
     ResolveReport,
     calibration_summary,
     due_predictions,
+    register_brief_projection,
     register_chain,
     resolve_due,
 )
@@ -12,6 +13,7 @@ __all__ = [
     "ResolveReport",
     "calibration_summary",
     "due_predictions",
+    "register_brief_projection",
     "register_chain",
     "resolve_due",
 ]

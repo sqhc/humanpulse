@@ -210,6 +210,14 @@ def test_split_long_text_hard_cuts_when_no_punctuation() -> None:
     assert "".join(chunks) == text
 
 
+def test_cards_empty_by_default() -> None:
+    """验证 Scene.cards 默认为 None（P0 填卡片网格前，item 分镜不带 cards）。"""
+    board = build_storyboard(_content(), language="zh", items=_items(2))
+    item_scenes = [scene for scene in board.scenes if scene.kind == "item"]
+    assert item_scenes, "应有 item 分镜"
+    assert all(scene.cards is None for scene in item_scenes)
+
+
 def test_long_section_becomes_multiple_scenes() -> None:
     """这是那个真实 bug 的回归测试：597 字的段落曾经只给 8 秒画面。"""
     content = BriefContent(

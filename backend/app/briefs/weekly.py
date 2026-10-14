@@ -331,6 +331,13 @@ async def generate_weekly_brief(
         )
     await record_usage(session, usage)
     await session.flush()
+
+    # 预测登记（P3 校准样本积累）：判官未配置时静默跳过；不发布推演（projection_enabled=false）
+    # 局部导入避免 app.briefs ↔ app.predictions 的循环依赖
+    from app.predictions import register_brief_projection
+
+    await register_brief_projection(session, items, brief_id=brief.id)
+
     log.info(
         "weekly_brief.created",
         brief_id=brief.id,

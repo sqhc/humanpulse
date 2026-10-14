@@ -11,6 +11,7 @@ from decimal import Decimal
 import pytest
 
 from app.briefs.schema import ProjectionChain, ProjectionNode
+from app.briefs.select import SelectedItem
 from app.models.prediction import PREDICTION_STATUSES, Prediction
 from app.predictions.registry import (
     HIT_THRESHOLD,
@@ -19,6 +20,7 @@ from app.predictions.registry import (
     ResolveReport,
     _defer,
     _resolve_question,
+    register_brief_projection,
     register_chain,
     tracked_kinds,
 )
@@ -54,6 +56,21 @@ def _chain() -> ProjectionChain:
             ProjectionNode(hop=2, kind="second_order", statement_zh="外溢", probability=0.31),
             ProjectionNode(hop=2, kind="second_order", statement_zh="空话术", probability=0.2),
         ],
+    )
+
+
+def _item(document_id: int = 1, title: str = "测试事件") -> SelectedItem:
+    return SelectedItem(
+        document_id=document_id,
+        cluster_id=7,
+        title=title,
+        summary_zh="这是一段用于推演的中文摘要。",
+        summary_en="An English summary for projection.",
+        score=80,
+        source_name="test",
+        url="https://example.test/a",
+        published_at=datetime(2026, 9, 27, tzinfo=UTC),
+        headline_only=False,
     )
 
 
@@ -121,6 +138,53 @@ def test_register_chain_skips_empty_statements() -> None:
         register_chain(session, chain, brief_id=None, provider="fake", model="m", horizon_days=7)
     )
     assert len(created) == 4  # 空话术不登记
+
+
+def test_register_brief_projection_skips_without_judge(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """判官未配置时静默跳过，不登记任何预测、不影响简报生成。"""
+    import asyncio
+
+    from app.config import get_settings
+    from app.judgement import get_judgement_client
+
+    get_settings.cache_clear()
+    get_judgement_client.cache_clear()
+    monkeypatch.setenv("JUDGEMENT_PROVIDER", "none")
+    try:
+        session = FakeSession()
+        count = asyncio.run(register_brief_projection(session, [_item()], brief_id=3))
+        assert count == 0
+        assert session.added == []
+    finally:
+        get_settings.cache_clear()
+        get_judgement_client.cache_clear()
+
+
+def test_register_brief_projection_registers_with_fake_judge(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """判官配置后，把每条链的可证伪节点登记成预测（P3 样本积累）。"""
+    import asyncio
+
+    from app.config import get_settings
+    from app.judgement import get_judgement_client
+
+    get_settings.cache_clear()
+    get_judgement_client.cache_clear()
+    monkeypatch.setenv("JUDGEMENT_PROVIDER", "fake")
+    try:
+        session = FakeSession()
+        items = [_item(document_id=1), _item(document_id=2, title="第二条事件")]
+        count = asyncio.run(register_brief_projection(session, items, brief_id=3))
+        assert count > 0
+        assert session.flushed >= 1
+        assert all(item.brief_id == 3 for item in session.added)
+        assert all(item.status == "open" for item in session.added)
+    finally:
+        get_settings.cache_clear()
+        get_judgement_client.cache_clear()
 
 
 def _prediction(deferrals: int = 0) -> Prediction:
