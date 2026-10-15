@@ -162,13 +162,13 @@ def render_scene_png(
     from PIL import Image, ImageDraw, ImageFont
 
     from app.video.layout import (
+        card_color,
+        card_icon_kind,
         column_positions,
         draw_icon,
         draw_rounded_card,
         draw_tab_bar,
         fit_scale,
-        section_color,
-        section_icon_kind,
         total_height,
     )
     from app.video.theme import get_theme
@@ -224,9 +224,14 @@ def render_scene_png(
     bottom_limit = height - 74.0
 
     if scene.cards:
-        # 两列卡片网格 + 自适应缩放：卡片越多，字号与内边距按比例收缩，保证不溢出画框
+        # 卡片网格 + 自适应缩放：默认 3 列（对照排版参考截屏的 3×2 版式）。
+        # 卡片少时列多会挤，所以按数量挑列数：<=2 单列、3~4 两列、5+ 三列。
+        from app.video.layout import CARD_GRID_COLUMNS
+
+        count = len(scene.cards)
+        columns = 1 if count <= 2 else (2 if count <= 4 else CARD_GRID_COLUMNS)
         gap = 22.0
-        column_width = (card_width - gap) / 2
+        column_width = (card_width - gap * (columns - 1)) / columns
         available = bottom_limit - top
         base_pad_x, base_pad_y = 26.0, 20.0
 
@@ -254,21 +259,30 @@ def render_scene_png(
                 height += len(body_lines) * (text_size + line_gap)
                 entries.append((label, body_lines, height))
                 heights.append(height)
-            positions = column_positions(heights, top=top, card_width=column_width, gap=gap)
+            positions = column_positions(
+                heights, top=top, card_width=column_width, gap=gap, columns=columns
+            )
             return entries, total_height(positions, heights)
 
         scale = fit_scale(lambda value: build(value)[1], available=available)
         entries, _ = build(scale)
         pad_x, pad_y, title_size, text_size, line_gap, icon_gap, _wrap = metrics(scale)
         heights = [entry[2] for entry in entries]
-        positions = column_positions(heights, top=top, card_width=column_width, gap=gap)
+        positions = column_positions(
+            heights, top=top, card_width=column_width, gap=gap, columns=columns
+        )
+        # 内容比可用区域矮时把整块网格垂直居中，否则卡片全贴顶、下半屏空得很难看
+        grid_bottom = total_height(positions, heights)
+        offset_y_center = max(0.0, (bottom_limit - grid_bottom) / 2)
+        if offset_y_center > 0:
+            positions = [(x, y + offset_y_center) for x, y in positions]
         small_card_font = ImageFont.truetype(font_path, title_size)
         small_body_font = ImageFont.truetype(font_path, text_size)
 
         # 注意：这里不能用 height 当循环变量，它会覆盖函数参数（画框高度），
         # 导致循环之后的页脚被画到错误位置。mypy 抓到了这个遮蔽。
-        for (label, body_lines, card_height), (offset_x, offset_y) in zip(
-            entries, positions, strict=True
+        for card_index, ((label, body_lines, card_height), (offset_x, offset_y)) in enumerate(
+            zip(entries, positions, strict=True)
         ):
             box = (
                 card_left + offset_x,
@@ -280,10 +294,11 @@ def render_scene_png(
             inner_x = box[0] + pad_x
             cursor_y = box[1] + pad_y
             if label:
-                color = section_color(theme, scene.kind)
+                # 逐卡配色（截屏里 6 张卡是 4 色轮转），图标跟着小标题语义走
+                color = card_color(theme, card_index)
                 draw_icon(
                     draw,
-                    kind=section_icon_kind(scene.kind),
+                    kind=card_icon_kind(label),
                     center=(inner_x + icon_gap * 0.35, cursor_y + title_size / 2),
                     color=color,
                     size=max(18, int(26 * scale)),

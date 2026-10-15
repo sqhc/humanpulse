@@ -8,7 +8,14 @@ from __future__ import annotations
 
 import pytest
 
-from app.video.layout import column_positions, fit_scale, total_height
+from app.video.layout import (
+    CARD_GRID_COLUMNS,
+    card_color,
+    card_icon_kind,
+    column_positions,
+    fit_scale,
+    total_height,
+)
 from app.video.theme import DARK, LIGHT, get_theme
 
 # ---------- 主题 ----------
@@ -78,6 +85,82 @@ def test_total_height_is_the_tallest_column_bottom() -> None:
     positions = column_positions(heights, top=10.0, card_width=100.0, gap=10.0)
     assert total_height(positions, heights) == pytest.approx(110.0)
     assert total_height([], []) == 0.0
+
+
+# ---------- 三列网格（对照排版参考截屏的 3×2 版式）----------
+
+
+def test_card_grid_columns_is_three() -> None:
+    assert CARD_GRID_COLUMNS == 3
+
+
+def test_column_positions_three_columns_round_robin() -> None:
+    """6 张等高的卡在三列下应排成 2 行，x 依次为 0 / 1 / 2 列。"""
+    heights = [100.0] * 6
+    positions = column_positions(heights, top=0.0, card_width=400.0, gap=20.0, columns=3)
+    xs = [round(x) for x, _ in positions]
+    assert xs == [0, 420, 840, 0, 420, 840]
+    # 第二行在同一列的第一行之下
+    assert positions[3][1] == pytest.approx(120.0)
+
+
+def test_column_positions_three_columns_balances_uneven() -> None:
+    heights = [300.0, 80.0, 80.0, 80.0]
+    positions = column_positions(heights, top=0.0, card_width=300.0, gap=10.0, columns=3)
+    # 第一张很高，后面都进最矮的列
+    assert positions[0] == (0.0, 0.0)
+    assert positions[1][0] == pytest.approx(310.0)
+    assert positions[2][0] == pytest.approx(620.0)
+    assert positions[3][0] == pytest.approx(310.0)
+
+
+# ---------- 逐卡配色与图标 ----------
+
+
+def test_card_color_cycles_through_palette() -> None:
+    """参考截屏里 6 张卡用 4 色轮转，不是整屏一个颜色。"""
+    palette = LIGHT.card_colors
+    assert len(palette) >= 2
+    colors = [card_color(LIGHT, index) for index in range(len(palette) * 2)]
+    assert colors[: len(palette)] == list(palette)
+    assert colors[len(palette)] == palette[0]
+
+
+def test_card_color_falls_back_to_accent_without_palette() -> None:
+    from dataclasses import replace
+
+    bare = replace(LIGHT, card_colors=())
+    assert card_color(bare, 3) == LIGHT.accent
+
+
+def test_card_icon_kind_maps_by_keyword() -> None:
+    assert card_icon_kind("官方回应") == "sources"
+    assert card_icon_kind("研究判断") == "science"
+    assert card_icon_kind("技术手法") == "labor"
+    assert card_icon_kind("媒体披露") == "sources"
+    assert card_icon_kind("监管合作") == "trends"
+    assert card_icon_kind("第三方观点") == "other"
+    # 占位信息槽也要各有图标，不能全落到 other
+    assert card_icon_kind("事件") == "calendar"
+    assert card_icon_kind("来源") == "sources"
+    assert card_icon_kind("要点") == "layers"
+    assert card_icon_kind("话题") == "tag"
+    assert card_icon_kind("涉及方") == "person"
+    assert card_icon_kind("地区") == "pin"
+    # 认不出来不能抛异常，落到 other
+    assert card_icon_kind("") == "other"
+
+
+def test_card_icon_kinds_are_visually_distinct_for_slots() -> None:
+    """6 个占位槽位的图标必须两两不同——截图里每张卡的图标都不一样。"""
+    slots = ["事件", "来源", "要点", "话题", "涉及方", "地区"]
+    kinds = [card_icon_kind(slot) for slot in slots]
+    assert len(set(kinds)) == len(slots)
+
+
+def test_card_icon_kind_is_deterministic() -> None:
+    assert card_icon_kind("争议") == card_icon_kind("争议")
+    assert card_icon_kind("DISPUTE") == card_icon_kind("dispute")
 
 
 # ---------- 自适应缩放 ----------

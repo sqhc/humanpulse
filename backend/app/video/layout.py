@@ -174,6 +174,93 @@ def draw_icon(
             draw.ellipse([cx - half, y - 3, cx - half + 6, y + 3], fill=color)
             draw.line([(cx - half + 14, y), (cx + half, y)], fill=color, width=width)
         return
+    if kind == "calendar":
+        # 日历：外框 + 顶部挂钉 + 内横线（事件发生在某时）
+        draw.rounded_rectangle(
+            [cx - half, cy - half * 0.75, cx + half, cy + half * 0.8],
+            radius=max(2, int(size * 0.12)),
+            outline=color,
+            width=width,
+        )
+        draw.line(
+            [(cx - half, cy - half * 0.25), (cx + half, cy - half * 0.25)],
+            fill=color,
+            width=width,
+        )
+        draw.line(
+            [(cx - half * 0.45, cy - half * 1.0), (cx - half * 0.45, cy - half * 0.55)],
+            fill=color,
+            width=width,
+        )
+        draw.line(
+            [(cx + half * 0.45, cy - half * 1.0), (cx + half * 0.45, cy - half * 0.55)],
+            fill=color,
+            width=width,
+        )
+        return
+    if kind == "layers":
+        # 图层：三层菱形堆叠（要点分层）
+        for offset in (-0.45, 0.0, 0.45):
+            draw.polygon(
+                [
+                    (cx, cy + half * offset - half * 0.42),
+                    (cx + half * 0.9, cy + half * offset),
+                    (cx, cy + half * offset + half * 0.42),
+                    (cx - half * 0.9, cy + half * offset),
+                ],
+                outline=color,
+                width=width,
+            )
+        return
+    if kind == "tag":
+        # 标签：圆角方 + 小孔（话题）
+        draw.rounded_rectangle(
+            [cx - half, cy - half * 0.72, cx + half, cy + half * 0.72],
+            radius=max(3, int(size * 0.2)),
+            outline=color,
+            width=width,
+        )
+        draw.ellipse(
+            [cx - half * 0.55, cy - half * 0.18, cx - half * 0.15, cy + half * 0.22],
+            fill=color,
+        )
+        return
+    if kind == "person":
+        # 人像：头 + 肩（涉及方）
+        draw.ellipse(
+            [cx - half * 0.38, cy - half, cx + half * 0.38, cy - half * 0.22],
+            outline=color,
+            width=width,
+        )
+        draw.arc(
+            [cx - half, cy - half * 0.15, cx + half, cy + half * 1.5],
+            start=200,
+            end=340,
+            fill=color,
+            width=width,
+        )
+        return
+    if kind == "pin":
+        # 定位针：水滴 + 圆心（地区）
+        draw.ellipse(
+            [cx - half, cy - half, cx + half, cy + half * 0.15],
+            outline=color,
+            width=width,
+        )
+        draw.polygon(
+            [
+                (cx - half * 0.42, cy + half * 0.05),
+                (cx, cy + half),
+                (cx + half * 0.42, cy + half * 0.05),
+            ],
+            outline=color,
+            width=width,
+        )
+        draw.ellipse(
+            [cx - half * 0.22, cy - half * 0.22, cx + half * 0.22, cy + half * 0.22],
+            fill=color,
+        )
+        return
     # other：圆圈 + i
     draw.ellipse([cx - half, cy - half, cx + half, cy + half], outline=color, width=width)
     draw.line([(cx, cy - half * 0.35), (cx, cy + half * 0.5)], fill=color, width=width)
@@ -224,6 +311,52 @@ def section_icon_kind(key: str) -> str:
 
 def section_color(theme: Theme, key: str) -> RGB:
     return theme.section_colors.get(key, theme.accent)
+
+
+# 卡片网格每列/每行的默认列数（参考截屏是 3 列 × 2 行）
+CARD_GRID_COLUMNS = 3
+
+
+def card_color(theme: Theme, index: int) -> RGB:
+    """第 index 张卡的标题/图标色：按参考截屏的 4 色循环。
+
+    逐卡配色而不是整屏一个颜色——截屏里 6 张卡用了 4 种颜色轮转，
+    目的是让「这是不同角度」在视觉上立刻可辨。
+    """
+    palette = theme.card_colors or (theme.accent,)
+    return palette[index % len(palette)]
+
+
+# facet 标签 -> 图标类型。截屏里每张卡的图标跟着语义走
+# （日历=回应、图层=研究、齿轮人头=模型/手法、警示=争议、列表=披露…）。
+_CARD_ICON_RULES: tuple[tuple[tuple[str, ...], str], ...] = (
+    (("官方", "回应", "声明", "表态", "official", "response"), "sources"),
+    (("研究", "论文", "报告", "research", "study"), "science"),
+    (("技术", "手法", "模型", "算法", "method", "technique"), "labor"),
+    (("警示", "争议", "风险", "质疑", "risk", "dispute"), "conflict"),
+    (("披露", "报道", "媒体", "传阅", "media", "report"), "sources"),
+    (("监管", "合作", "政策", "法规", "regulat", "policy"), "trends"),
+    (("第三方", "他方", "评论", "观点", "third", "opinion"), "other"),
+    # 占位信息槽（P0a）：让 6 张确定性卡片也有各自不同的图标
+    (("事件", "标题", "event", "title"), "calendar"),
+    (("来源", "source"), "sources"),
+    (("要点", "摘要", "point", "summary"), "layers"),
+    (("话题", "标签", "tag", "topic"), "tag"),
+    (("涉及方", "实体", "entity"), "person"),
+    (("地区", "区域", "region", "place"), "pin"),
+)
+
+
+def card_icon_kind(label: str) -> str:
+    """把卡片小标题映射成图标类型；认不出来就用 other（圆圈 + i）。
+
+    纯字符串规则、确定性：同一张卡每次渲染出的图标完全一致。
+    """
+    lowered = (label or "").strip().lower()
+    for keywords, kind in _CARD_ICON_RULES:
+        if any(word in lowered for word in keywords):
+            return kind
+    return "other"
 
 
 def fit_scale(

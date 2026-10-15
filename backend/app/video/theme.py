@@ -29,6 +29,9 @@ class Theme:
     footer: RGB
     # 各章节图标/标题色，让「现在看的是哪一类」有颜色直觉
     section_colors: dict[str, RGB] = field(default_factory=dict)
+    # 卡片网格的逐卡配色：参考截屏里 6 张卡不是同一个颜色，而是 4 色循环，
+    # 让「这是不同角度」在视觉上立刻可辨（采样自用户提供的排版参考截屏）。
+    card_colors: tuple[RGB, ...] = ()
     heading_size: int = 54
     card_title_size: int = 34
     body_size: int = 30
@@ -56,6 +59,8 @@ LIGHT = Theme(
         "trends": (47, 125, 140),
         "sources": (120, 117, 110),
     },
+    # 逐卡配色，采样自参考截屏的 6 张卡标题（陶土 / 芥黄 / 石板蓝 / 深红）
+    card_colors=((200, 120, 80), (216, 168, 88), (64, 96, 112), (160, 64, 56)),
 )
 
 DARK = Theme(
@@ -77,6 +82,7 @@ DARK = Theme(
         "trends": (129, 140, 248),
         "sources": (148, 163, 184),
     },
+    card_colors=((248, 113, 113), (251, 191, 36), (96, 165, 250), (167, 139, 250)),
 )
 
 THEMES: dict[str, Theme] = {"light": LIGHT, "dark": DARK}
