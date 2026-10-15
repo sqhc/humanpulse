@@ -631,7 +631,7 @@ def cmd_eval_alignment(args: argparse.Namespace) -> int:
     async def _run() -> dict[str, object]:
         factory = get_sessionmaker()
         async with factory() as session:
-            report = await run_alignment_eval(session)
+            report = await run_alignment_eval(session, use_context=args.use_context)
         return report.as_dict()
 
     payload = asyncio.run(_run())
@@ -756,6 +756,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="用人工别名表评估实体对齐（金标准为人工标注，非模型生成）",
     )
     align_parser.add_argument("--out", default="")
+    align_parser.add_argument(
+        "--use-context",
+        action="store_true",
+        help="把每边的最近报道标题也塞进 prompt（默认关；实测会让 Laya 排序反转，仅实验用）",
+    )
     align_parser.set_defaults(func=cmd_eval_alignment)
 
     adjudicate_parser = sub.add_parser(

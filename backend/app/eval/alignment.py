@@ -193,6 +193,7 @@ class AlignmentReport:
     decision_threshold: float = ALIGNMENT_THRESHOLD
     auc: float = 0.0
     calibrated: CalibrationReport = field(default_factory=CalibrationReport)
+    used_context: bool = False
 
     def as_dict(self) -> dict[str, object]:
         base: dict[str, object] = {
@@ -202,6 +203,7 @@ class AlignmentReport:
             "decision_threshold": self.decision_threshold,
             "auc": round(self.auc, 4),
             "calibrated": self.calibrated.as_dict(),
+            "used_context": self.used_context,
             "errors": self.errors,
             "passed": self.passed,
             "verdict": self.verdict,
@@ -273,13 +275,22 @@ async def _contexts(
 
 
 async def run_alignment_eval(
-    session: AsyncSession,
+    session: AsyncSession | None = None,
     *,
     limit: int | None = None,
     client: JudgementClient | None = None,
     groups: Sequence[AliasGroup] | None = None,
+    use_context: bool = False,
 ) -> AlignmentReport:
-    """用人工别名表评估判官的实体对齐能力。"""
+    """用人工别名表评估判官的实体对齐能力。
+
+    默认**不带**入库标题 context：2026-10-15 实测（同一 60 对，正负各 30）显示，
+    把每边的最近报道标题塞进 prompt 会让 Laya 的排序反转——
+    不带 context AUC 0.809，带 context 0.172（换措辞/加指令只到 0.317/0.378，救不回来）；
+    而且生产路径 `app/pipeline/alias_adjudication.py` 本来就只拿名称问判官
+    （`_as_pair` 不填 context）。**评估必须复现生产口径**，否则测出来的不是模型能力。
+    `use_context=True` 保留给「想知道 context 有没有害」的实验，报告里会有标注。
+    """
     judge = client or get_judgement_client()
     if judge is None:
         raise JudgementError("未配置判官（JUDGEMENT_PROVIDER=none），无法评估")
@@ -291,12 +302,17 @@ async def run_alignment_eval(
     if not pairs:
         raise JudgementError("人工别名表里没有可用的标注对")
 
-    all_names = sorted({pair.left for pair in pairs} | {pair.right for pair in pairs})
-    contexts = await _contexts(session, all_names)
+    contexts: dict[str, str] = {}
+    if use_context:
+        if session is None:
+            raise JudgementError("use_context=True 需要数据库会话")
+        all_names = sorted({pair.left for pair in pairs} | {pair.right for pair in pairs})
+        contexts = await _contexts(session, all_names)
     question = alignment_question()
 
     report = AlignmentReport()
     report.provider = judge.provider
+    report.used_context = use_context
     # 只存原始分数：名义阈值、AUC、校准段都从这一份推出来，避免三处各判一次
     scored_raw: list[tuple[Pair, float]] = []
     for pair in pairs:
@@ -329,6 +345,10 @@ async def run_alignment_eval(
         "只评估「判断是否同一实体」这一步，不含召回（候选发现）的质量。",
         f"metrics 是名义阈值 {report.decision_threshold} 下的结果，会被量表压缩惩罚"
         "（判官几乎不使用最高档位）；判断能力请看 auc 与 calibrated（校准阈值 + 锁定测试集）。",
+        "本次评估"
+        + ("带" if use_context else "不带")
+        + "入库标题 context；带 context 实测会把 Laya 的排序反转（AUC 0.809 → 0.172），"
+        "生产别名裁决只按名称提问，所以默认不带。",
     ]
     metrics = report.metrics
     calibrated = report.calibrated

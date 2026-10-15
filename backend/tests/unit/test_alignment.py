@@ -5,6 +5,9 @@
 
 from __future__ import annotations
 
+import asyncio
+from typing import Any
+
 import pytest
 
 from app.eval.alignment import (
@@ -20,10 +23,12 @@ from app.eval.alignment import (
     in_calibration,
     pairs_from_alias_groups,
     roc_auc,
+    run_alignment_eval,
     score_pairs,
     split_pairs,
     split_scored,
 )
+from app.judgement import JudgementAnswer, JudgementError, JudgementResponse
 from app.pipeline.aliases import AliasGroup
 
 
@@ -243,3 +248,52 @@ def test_report_exposes_threshold_free_fields() -> None:
     assert payload["decision_threshold"] == ALIGNMENT_THRESHOLD
     assert payload["calibrated"]["threshold"] == ALIGNMENT_THRESHOLD
     assert payload["calibrated"]["test_size"] == 0
+
+
+class _CapturingJudge:
+    """只记录 prompt、固定回答「同一实体」的假判官。"""
+
+    provider = "capture"
+
+    def __init__(self) -> None:
+        self.prompts: list[str] = []
+
+    async def ask(
+        self, state: str, questions: Any, *, model: str | None = None
+    ) -> JudgementResponse:
+        self.prompts.append(state)
+        answer = JudgementAnswer(key="same_entity", kind="score", score=1.0)
+        return JudgementResponse(answers={"same_entity": answer}, model="capture")
+
+
+def _two_groups() -> list[AliasGroup]:
+    return [
+        AliasGroup("China", "place", ("中国",)),
+        AliasGroup("Iran", "place", ("伊朗",)),
+    ]
+
+
+def test_alignment_eval_defaults_to_name_only_prompt() -> None:
+    """默认必须复现生产口径：只问名称，不塞入库标题。
+
+    实测把标题塞进 prompt 会让 Laya 排序反转（AUC 0.809 → 0.172），
+    而生产别名裁决（alias_adjudication）本来就只按名称提问。
+    """
+    judge = _CapturingJudge()
+    report = asyncio.run(
+        run_alignment_eval(client=judge, groups=_two_groups())  # type: ignore[arg-type]
+    )
+    assert report.used_context is False
+    assert len(judge.prompts) == 3  # 2 个正样本 + 1 个跨组负样本
+    assert all("上下文" not in prompt for prompt in judge.prompts)
+    assert report.as_dict()["used_context"] is False
+
+
+def test_alignment_eval_context_is_opt_in_and_needs_session() -> None:
+    judge = _CapturingJudge()
+    with pytest.raises(JudgementError):
+        asyncio.run(
+            run_alignment_eval(  # type: ignore[arg-type]
+                None, client=judge, groups=_two_groups(), use_context=True
+            )
+        )
