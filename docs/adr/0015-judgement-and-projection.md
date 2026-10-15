@@ -151,9 +151,10 @@ Jev 在同一口径上同样失败（AUC≈0.5），说明「该实体 7 天内�
 评估口径问题：①`eval-alignment` 只用写死的名义中点阈值 1.5（`ALIGNMENT_THRESHOLD`）
 出二分类指标，而判官几乎不用最高档位（见「踩过的坑」第 1 条），Laya 的分数挤在
 低档，名义阈值下几乎全判「不同」；同模块的 `roc_auc / choose_threshold /
-split_pairs` 早已实现却从未被该命令调用。②`5670eb3` 之前的版本还把每边最近
+split_pairs` 早已实现却从未被该命令调用。②`16b5383` 之前的版本还把每边最近
 报道标题塞进 prompt（context 污染），会让 Laya 的排序反转——
-「acc 0.226 / AUC 0.232」就是带 context 旧口径的产物，**已作废**
+**两个数字各归一项**：`acc 0.226` 属 ①（名义阈值假象，带不带 context 都≈0.22），
+`AUC 0.232` 属 ②（带 context 的旧口径 AUC）——两者**均已作废**
 （证据：`docs/evidence/eval-alignment-laya-ctx.json`、60 对诊断见
 `docs/evidence/README-context.md`）。生产口径（不带 context、按模型校准阈值）
 的真实数字是 **AUC 0.799 / F1 0.882 / recall 0.964**（
