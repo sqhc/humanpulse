@@ -160,8 +160,9 @@ split_pairs` 早已实现却从未被该命令调用。②`16b5383` 之前的版
 `AUC 0.232` 属 ②（带 context 的旧口径 AUC）——两者**均已作废**
 （证据：`docs/evidence/eval-alignment-laya-ctx.json`、60 对诊断见
 `docs/evidence/README-context.md`）。生产口径（不带 context、按模型校准阈值）
-的真实数字是 **AUC 0.799 / F1 0.882 / recall 0.964**（
-`docs/evidence/alignment-split.json`，与最早一次评估精确复现）。
+的真实数字是 **AUC 0.799（274 对全量）/ F1 0.882 / recall 0.964**（锁定测试集口径为
+AUC 0.796——`alignment-split.json` 的 auc_all / auc_test，两者都对，别当成不一致；
+与最早一次评估精确复现）。
 **正确表述：Laya 分类可用、需阈值校准（名义阈值下原始 acc 仅 0.219——
 不是模型不行，是默认阈值不匹配它的分数分布）；Jev 原始量表即可用且近乎完美
 （精确率 1.0 / 0 误合并）。**「跨模型规律」指的是分工方向（分类可用/概率不可用），
