@@ -162,6 +162,7 @@ def render_scene_png(
     from PIL import Image, ImageDraw, ImageFont
 
     from app.video.layout import (
+        align_row_heights,
         card_color,
         card_icon_kind,
         column_positions,
@@ -259,15 +260,18 @@ def render_scene_png(
                 height += len(body_lines) * (text_size + line_gap)
                 entries.append((label, body_lines, height))
                 heights.append(height)
+            # 行内等高：参考截屏是规整网格，同一行下沿齐平
+            aligned = align_row_heights(heights, columns=columns)
             positions = column_positions(
-                heights, top=top, card_width=column_width, gap=gap, columns=columns
+                aligned, top=top, card_width=column_width, gap=gap, columns=columns
             )
-            return entries, total_height(positions, heights)
+            return entries, total_height(positions, aligned)
 
         scale = fit_scale(lambda value: build(value)[1], available=available)
         entries, _ = build(scale)
         pad_x, pad_y, title_size, text_size, line_gap, icon_gap, _wrap = metrics(scale)
         heights = [entry[2] for entry in entries]
+        heights = align_row_heights(heights, columns=columns)
         positions = column_positions(
             heights, top=top, card_width=column_width, gap=gap, columns=columns
         )

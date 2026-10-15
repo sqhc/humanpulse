@@ -10,6 +10,7 @@ import pytest
 
 from app.video.layout import (
     CARD_GRID_COLUMNS,
+    align_row_heights,
     card_color,
     card_icon_kind,
     column_positions,
@@ -85,6 +86,53 @@ def test_total_height_is_the_tallest_column_bottom() -> None:
     positions = column_positions(heights, top=10.0, card_width=100.0, gap=10.0)
     assert total_height(positions, heights) == pytest.approx(110.0)
     assert total_height([], []) == 0.0
+
+
+# ---------- 行内等高（规整网格）----------
+
+
+def test_align_row_heights_raises_on_bad_columns() -> None:
+    with pytest.raises(ValueError):
+        align_row_heights([10.0], columns=0)
+
+
+def test_align_row_heights_lifts_each_row_to_its_max() -> None:
+    # 第 1 行最高 120，第 2 行最高 80
+    assert align_row_heights([120.0, 90.0, 60.0, 80.0, 30.0, 50.0], columns=3) == [
+        120.0,
+        120.0,
+        120.0,
+        80.0,
+        80.0,
+        80.0,
+    ]
+
+
+def test_align_row_heights_handles_partial_last_row() -> None:
+    # 4 张卡 3 列：最后一行只有 1 张，不应被拉伸
+    assert align_row_heights([100.0, 50.0, 50.0, 70.0], columns=3) == [
+        100.0,
+        100.0,
+        100.0,
+        70.0,
+    ]
+    assert align_row_heights([], columns=3) == []
+
+
+def test_aligned_grid_is_row_major_and_flat() -> None:
+    """行内等高后，「填最矮列」退化成规整网格：两行下沿各自齐平。"""
+    heights = [120.0, 90.0, 60.0, 80.0, 30.0, 50.0]
+    aligned = align_row_heights(heights, columns=3)
+    positions = column_positions(aligned, top=0.0, card_width=400.0, gap=20.0, columns=3)
+    xs = [round(x) for x, _ in positions]
+    ys = [round(y) for _, y in positions]
+    assert xs == [0, 420, 840, 0, 420, 840]
+    # 同一行 y 相同
+    assert ys[0] == ys[1] == ys[2]
+    assert ys[3] == ys[4] == ys[5]
+    # 行内高度一致 -> 下沿齐平
+    first_row_bottoms = {ys[i] + aligned[i] for i in range(3)}
+    assert len(first_row_bottoms) == 1
 
 
 # ---------- 三列网格（对照排版参考截屏的 3×2 版式）----------

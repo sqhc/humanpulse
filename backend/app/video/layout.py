@@ -52,6 +52,25 @@ def total_height(
     return max(y + height for (_, y), height in zip(positions, heights, strict=True))
 
 
+def align_row_heights(heights: Sequence[float], *, columns: int) -> list[float]:
+    """把同一行的卡片高度抬到该行最高者。
+
+    排版参考截屏是**规整网格**：同一行的卡片下沿齐平，内容短的卡留白，
+    而不是把下一行提前。配合 column_positions 使用即可得到规整网格——
+    行内等高时「填最矮列」自然退化成按行填充。
+    """
+    if columns < 1:
+        raise ValueError("columns 必须 >= 1")
+    items = list(heights)
+    aligned: list[float] = []
+    for start in range(0, len(items), columns):
+        row = items[start : start + columns]
+        if not row:
+            continue
+        aligned.extend([max(row)] * len(row))
+    return aligned
+
+
 def fit_font_size(
     text: str,
     *,
