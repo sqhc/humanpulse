@@ -209,7 +209,9 @@ Jev 原始量表即可用且近乎完美（精确率 1.0 / 0 误合并）。**�
 命令使用。同日第二个修正是 context 污染（`16b5383`）：把每边最近报道标题塞进
 prompt 会让 Laya 的 AUC 从 0.809 反转到 0.172（负样本均值反超正样本），
 生产路径 `alias_adjudication.py` 本来就只按名称提问——上一轮「Laya 0.226 不可用」
-的结论测的是提示写法的副作用，不是模型能力。
+的结论测的是提示写法的副作用，不是模型能力。数字与复现步骤存档在
+`docs/evidence/README-context.md`：60 对诊断 0.809 → 0.172（负样本均值 0.606 → 1.178），
+274 对全量带 context 对照 0.232（`docs/evidence/eval-alignment-laya-ctx.json`）。
 
 修正后重跑（同一金标准 274 对，不带 context，锁定测试集）：
 
@@ -233,7 +235,9 @@ Laya 回退后别名裁决**仍可用**（AUC 0.799 / F1 0.882），只是弱于
 key 有效期内，判官推荐配置为**云端 Jev**：
 `JUDGEMENT_PROVIDER=jev` + `JUDGEMENT_BASE_URL=https://api.typesafe.ai` +
 `JUDGEMENT_MODEL=jev-latest`（已写入 `.env.example` 注释，`82b5da2`）。
-理由：实体对齐只有 Jev 接近完美；概率两边都未过门，切换不改变概率侧结论；
+理由：实体对齐 Jev 接近完美（AUC 1.000），Laya 可用但明显更弱（AUC 0.799）——
+推荐 Jev 是为了分类质量，不是为了替换掉一个不能用的模型；概率两边都未过门，
+切换不改变概率侧结论；
 成本实测每期简报 ≤9 次调用 ≈ 1.3 万输入 token（TypeSafe 牌价不足一美分，可忽略）。
 
 三条边界同时写死：

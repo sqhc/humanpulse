@@ -1,0 +1,52 @@
+{
+  "provider": "laya",
+  "model": "laya-multilingual",
+  "metrics": {
+    "sample_size": 274,
+    "positives": 214,
+    "negatives": 60,
+    "base_rate": 0.781,
+    "accuracy": 0.2153,
+    "majority_accuracy": 0.781,
+    "precision": 0.0,
+    "recall": 0.0,
+    "f1": 0.0,
+    "true_positive": 0,
+    "false_positive": 1,
+    "true_negative": 59,
+    "false_negative": 214,
+    "failures": 0
+  },
+  "decision_threshold": 1.5,
+  "auc": 0.2319,
+  "calibrated": {
+    "threshold": 0.442,
+    "calibration_size": 133,
+    "test_size": 141,
+    "test_metrics": {
+      "sample_size": 141,
+      "positives": 112,
+      "negatives": 29,
+      "base_rate": 0.7943,
+      "accuracy": 0.773,
+      "majority_accuracy": 0.7943,
+      "precision": 0.7899,
+      "recall": 0.9732,
+      "f1": 0.872,
+      "true_positive": 109,
+      "false_positive": 29,
+      "true_negative": 0,
+      "false_negative": 3,
+      "failures": 0
+    }
+  },
+  "errors": [],
+  "passed": false,
+  "verdict": "未通过：准确率 0.215 未明显高于多数类基线 0.781；AUC 0.232（阈值无关）；校准阈值 0.442 下锁定测试集 F1 0.872",
+  "limitations": [
+    "金标准只有 31 组人工别名，正样本几十对、负样本采样 60 对，样本量小；",
+    "负样本是不同国家的常见实体（容易），没有覆盖「同名不同实体」这类真正困难的情况；",
+    "只评估「判断是否同一实体」这一步，不含召回（候选发现）的质量。",
+    "metrics 是名义阈值 1.5 下的结果，会被量表压缩惩罚（判官几乎不使用最高档位）；判断能力请看 auc 与 calibrated（校准阈值 + 锁定测试集）。"
+  ]
+}
