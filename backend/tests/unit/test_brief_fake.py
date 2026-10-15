@@ -29,7 +29,9 @@ async def test_fake_client_returns_usable_deep_dive() -> None:
     assert content.deep_dive is not None
     facets = content.deep_dive.usable_facets()
     assert len(facets) >= 3
-    assert all(facet.label and facet.body for facet in facets)
+    # 双语分面都必须有内容，否则英文版成片会中英混排
+    assert all(facet.label_zh and facet.body_zh for facet in facets)
+    assert all(facet.label_en and facet.body_en for facet in facets)
 
 
 async def test_fake_client_is_deterministic() -> None:

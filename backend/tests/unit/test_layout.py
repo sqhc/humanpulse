@@ -298,3 +298,24 @@ def test_tab_index_advances_with_sections() -> None:
     assert tab_index_for(scenes[1], storyboard) == 1
     assert tab_index_for(scenes[2], storyboard) == 1
     assert tab_index_for(scenes[3], storyboard) == 2
+
+
+def test_card_icon_kind_cycles_when_label_is_unknown() -> None:
+    """模型给的角度名往往事件专有（「US Warning」「Ceasefire Context」）。
+
+    关键词盖不全时不能全部落到 other——否则一屏 6 张卡图标一模一样。
+    """
+    labels = ["Zelenskyy Statement", "Intel Importance", "Ceasefire Context", "Polish FM Stance"]
+    # 都不含可识别关键词，但按序号轮转后互不相同
+    kinds = [card_icon_kind(label, index) for index, label in enumerate(labels)]
+    assert len(set(kinds)) == len(labels)
+
+
+def test_card_icon_kind_english_keywords_map() -> None:
+    assert card_icon_kind("US Warning") == "conflict"
+    assert card_icon_kind("Media report") == "sources"
+    assert card_icon_kind("Research study") == "science"
+
+
+def test_card_icon_kind_cycle_is_deterministic() -> None:
+    assert card_icon_kind("未知标签", 3) == card_icon_kind("未知标签", 3)

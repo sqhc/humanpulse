@@ -319,9 +319,12 @@ def build_storyboard(
     # 没有分面时退回评分最高那条的确定性信息槽（空槽省略，不调模型）。
     dive = content.deep_dive
     dive_cards: list[tuple[str, str]] = (
-        [(facet.label, facet.body) for facet in dive.usable_facets()] if dive is not None else []
+        [facet.text_for(storyboard.language) for facet in dive.usable_facets()]
+        if dive is not None
+        else []
     )
-    dive_heading = (dive.title if dive is not None and dive.title else "") or (
+    dive_cards = [(label, body) for label, body in dive_cards if body.strip()]
+    dive_heading = (dive.title_for(storyboard.language) if dive is not None else "") or (
         "本期深挖" if zh else "Deep dive"
     )
     if dive_cards:

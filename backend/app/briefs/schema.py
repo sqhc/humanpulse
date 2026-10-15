@@ -57,18 +57,31 @@ class BriefSection(BaseModel):
 
 
 class DeepDiveFacet(BaseModel):
-    """深挖卡片的一个分面：小标题 + 一句正文。
+    """深挖卡片的一个分面：小标题 + 一句正文（双语）。
 
     模型只允许从素材里提取，**没有素材支撑的分面必须省略**，不许凑数。
+    双语是必须的：同一个简报要出中英两版成片（`--lang both`），
+    分面若只有一种语言，另一种语言的卡片就会中英混排。
     """
 
-    label: str = Field(default="", max_length=40)
-    body: str = Field(default="", max_length=300)
+    label_zh: str = Field(default="", max_length=40)
+    label_en: str = Field(default="", max_length=60)
+    body_zh: str = Field(default="", max_length=300)
+    body_en: str = Field(default="", max_length=600)
 
-    @field_validator("label", "body", mode="before")
+    @field_validator("label_zh", "label_en", "body_zh", "body_en", mode="before")
     @classmethod
     def _clean(cls, value: object) -> str:
         return " ".join(str(value or "").split())
+
+    def has_body(self) -> bool:
+        return bool(self.body_zh.strip() or self.body_en.strip())
+
+    def text_for(self, language: str) -> tuple[str, str]:
+        """按语言取 (label, body)；该语言缺失时回退另一种，宁可混排也不给空卡。"""
+        if language == "en":
+            return self.label_en or self.label_zh, self.body_en or self.body_zh
+        return self.label_zh or self.label_en, self.body_zh or self.body_en
 
 
 class DeepDive(BaseModel):
@@ -78,10 +91,11 @@ class DeepDive(BaseModel):
     视频链路只读库存字段——这样「文案全部来自已入库简报、零模型调用、可复现」的约束不被破坏。
     """
 
-    title: str = Field(default="", max_length=200)
+    title_zh: str = Field(default="", max_length=200)
+    title_en: str = Field(default="", max_length=200)
     facets: list[DeepDiveFacet] = Field(default_factory=list)
 
-    @field_validator("title", mode="before")
+    @field_validator("title_zh", "title_en", mode="before")
     @classmethod
     def _clean_title(cls, value: object) -> str:
         return " ".join(str(value or "").split())
@@ -101,9 +115,14 @@ class DeepDive(BaseModel):
         kept: list[object] = [item for item in value if isinstance(item, (dict, DeepDiveFacet))]
         return kept[:MAX_DEEP_DIVE_FACETS]
 
+    def title_for(self, language: str) -> str:
+        if language == "en":
+            return self.title_en or self.title_zh
+        return self.title_zh or self.title_en
+
     def usable_facets(self) -> list[DeepDiveFacet]:
         """真正能上屏的分面：必须有正文；只写标题的空壳丢弃。"""
-        return [facet for facet in self.facets if facet.body.strip()][:MAX_DEEP_DIVE_FACETS]
+        return [facet for facet in self.facets if facet.has_body()][:MAX_DEEP_DIVE_FACETS]
 
 
 class BriefContent(BaseModel):

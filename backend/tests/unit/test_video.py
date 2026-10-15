@@ -278,11 +278,27 @@ def test_deep_dive_omits_empty_slots() -> None:
 def _content_with_deep_dive() -> BriefContent:
     content = _content()
     content.deep_dive = DeepDive(
-        title="深挖：某事件",
+        title_zh="深挖：某事件",
+        title_en="Deep dive: an event",
         facets=[
-            DeepDiveFacet(label="官方回应", body="官方已就此表态。"),
-            DeepDiveFacet(label="研究判断", body="研究者给出了初步判断。"),
-            DeepDiveFacet(label="技术手法", body="涉事方使用了特定技术手段。"),
+            DeepDiveFacet(
+                label_zh="官方回应",
+                label_en="Official response",
+                body_zh="官方已就此表态。",
+                body_en="Officials have responded.",
+            ),
+            DeepDiveFacet(
+                label_zh="研究判断",
+                label_en="Research view",
+                body_zh="研究者给出了初步判断。",
+                body_en="Researchers offered a preliminary view.",
+            ),
+            DeepDiveFacet(
+                label_zh="技术手法",
+                label_en="Technical method",
+                body_zh="涉事方使用了特定技术手段。",
+                body_en="A specific technical method was used.",
+            ),
         ],
     )
     return content
@@ -315,6 +331,31 @@ def test_deep_dive_prefers_brief_facets() -> None:
     assert deep[0].source is None
 
 
+def test_deep_dive_uses_english_facets_for_english_video() -> None:
+    """英文版成片必须取英文分面，否则会中英混排。"""
+    item = SelectedItem(
+        document_id=1,
+        cluster_id=1,
+        title="Title",
+        summary_zh="摘要。",
+        summary_en="Summary.",
+        score=80,
+        source_name="Test",
+        url="https://example.test/1",
+        published_at=datetime(2026, 9, 27, tzinfo=UTC),
+        headline_only=False,
+    )
+    board = build_storyboard(_content_with_deep_dive(), language="en", items=[item])
+    deep = [s for s in board.scenes if s.kind == "deep_dive"]
+    assert len(deep) == 1
+    assert deep[0].heading == "Deep dive: an event"
+    assert deep[0].cards == [
+        ("Official response", "Officials have responded."),
+        ("Research view", "Researchers offered a preliminary view."),
+        ("Technical method", "A specific technical method was used."),
+    ]
+
+
 def test_deep_dive_falls_back_to_slots_without_facets() -> None:
     """没有分面时退回确定性信息槽，且保持同一分镜 kind。"""
     item = SelectedItem(
@@ -340,8 +381,8 @@ def test_deep_dive_ignores_empty_facets() -> None:
     """只有标题、没有正文的空壳分面不进卡片；整条深挖因此退回信息槽。"""
     content = _content()
     content.deep_dive = DeepDive(
-        title="深挖：空壳",
-        facets=[DeepDiveFacet(label="官方回应", body="   ")],
+        title_zh="深挖：空壳",
+        facets=[DeepDiveFacet(label_zh="官方回应", body_zh="   ")],
     )
     item = SelectedItem(
         document_id=1,

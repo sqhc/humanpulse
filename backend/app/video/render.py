@@ -302,7 +302,7 @@ def render_scene_png(
                 color = card_color(theme, card_index)
                 draw_icon(
                     draw,
-                    kind=card_icon_kind(label),
+                    kind=card_icon_kind(label, card_index),
                     center=(inner_x + icon_gap * 0.35, cursor_y + title_size / 2),
                     color=color,
                     size=max(18, int(26 * scale)),

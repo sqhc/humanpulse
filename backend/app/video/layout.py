@@ -367,13 +367,13 @@ def card_color(theme: Theme, index: int) -> RGB:
 # （日历=回应、图层=研究、齿轮人头=模型/手法、警示=争议、列表=披露…）。
 _CARD_ICON_RULES: tuple[tuple[tuple[str, ...], str], ...] = (
     # 语义 facet（简报里模型产出的 6 个角度）：六个角度两两不同，对照截屏
-    (("官方", "回应", "声明", "表态", "official", "response"), "speech"),
-    (("研究", "论文", "报告", "research", "study"), "science"),
-    (("技术", "手法", "模型", "算法", "method", "technique"), "labor"),
+    (("官方", "回应", "声明", "表态", "official", "response", "statement"), "speech"),
+    (("研究", "论文", "报告", "research", "study", "analysis"), "science"),
+    (("技术", "手法", "模型", "算法", "method", "technique", "technical"), "labor"),
     (("媒体", "披露", "报道", "传阅", "media", "report"), "sources"),
     (("监管", "合作", "政策", "法规", "regulat", "policy"), "trends"),
     (("第三方", "他方", "观点", "评论", "third", "opinion"), "person"),
-    (("警示", "争议", "风险", "质疑", "risk", "dispute"), "conflict"),
+    (("警示", "争议", "风险", "质疑", "risk", "dispute", "warn"), "conflict"),
     # 占位信息槽（P0a）：让 6 张确定性卡片也有各自不同的图标
     (("事件", "标题", "event", "title"), "calendar"),
     (("来源", "source"), "sources"),
@@ -383,17 +383,31 @@ _CARD_ICON_RULES: tuple[tuple[tuple[str, ...], str], ...] = (
     (("地区", "区域", "region", "place"), "pin"),
 )
 
+# 认不出语义时按卡片序号轮转。模型给的角度名常常是事件专有的
+# （「泽伦斯基声明」「US Warning」），关键词表注定盖不全；若全部落到 other，
+# 一屏 6 张卡的图标会一模一样——而参考截屏里每张卡都不同。
+_ICON_CYCLE: tuple[str, ...] = (
+    "other",
+    "calendar",
+    "layers",
+    "tag",
+    "person",
+    "pin",
+    "science",
+    "trends",
+)
 
-def card_icon_kind(label: str) -> str:
-    """把卡片小标题映射成图标类型；认不出来就用 other（圆圈 + i）。
 
-    纯字符串规则、确定性：同一张卡每次渲染出的图标完全一致。
+def card_icon_kind(label: str, index: int = 0) -> str:
+    """把卡片小标题映射成图标类型；认不出语义时按序号轮转，保证同屏不重样。
+
+    纯字符串规则 + 确定性序号，同一张卡每次渲染出的图标完全一致。
     """
     lowered = (label or "").strip().lower()
     for keywords, kind in _CARD_ICON_RULES:
         if any(word in lowered for word in keywords):
             return kind
-    return "other"
+    return _ICON_CYCLE[index % len(_ICON_CYCLE)]
 
 
 def fit_scale(

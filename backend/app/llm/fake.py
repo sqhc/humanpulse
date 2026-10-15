@@ -119,19 +119,26 @@ class FakeLlmClient:
                     },
                 ],
                 "deep_dive": {
-                    "title": "fake 深挖事件（离线演示）",
+                    "title_zh": "fake 深挖事件（离线演示）",
+                    "title_en": "fake deep-dive event (offline demo)",
                     "facets": [
                         {
-                            "label": "官方回应",
-                            "body": "fake 客户端生成的确定性分面，供 CI 覆盖深挖卡片路径。",
+                            "label_zh": "官方回应",
+                            "label_en": "Official response",
+                            "body_zh": "fake 客户端生成的确定性分面，供 CI 覆盖深挖卡片路径。",
+                            "body_en": "Deterministic facet for CI coverage.",
                         },
                         {
-                            "label": "研究判断",
-                            "body": "第二条确定性分面；fake 客户端不读正文，仅保证结构合法。",
+                            "label_zh": "研究判断",
+                            "label_en": "Research view",
+                            "body_zh": "第二条确定性分面；fake 客户端不读正文，仅保证结构合法。",
+                            "body_en": "Second deterministic facet.",
                         },
                         {
-                            "label": "技术手法",
-                            "body": "第三条确定性分面，用来验证「3 列 × 2 行」版式取到多张卡。",
+                            "label_zh": "技术手法",
+                            "label_en": "Technical method",
+                            "body_zh": "第三条确定性分面，用来验证「3 列 × 2 行」版式取到多张卡。",
+                            "body_en": "Third deterministic facet, exercising the 3x2 card grid.",
                         },
                     ],
                 },
