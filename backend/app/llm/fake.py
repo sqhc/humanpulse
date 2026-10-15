@@ -118,6 +118,23 @@ class FakeLlmClient:
                         "bullets_en": ["Science-related records were present (contents not read)."],
                     },
                 ],
+                "deep_dive": {
+                    "title": "fake 深挖事件（离线演示）",
+                    "facets": [
+                        {
+                            "label": "官方回应",
+                            "body": "fake 客户端生成的确定性分面，供 CI 覆盖深挖卡片路径。",
+                        },
+                        {
+                            "label": "研究判断",
+                            "body": "第二条确定性分面；fake 客户端不读正文，仅保证结构合法。",
+                        },
+                        {
+                            "label": "技术手法",
+                            "body": "第三条确定性分面，用来验证「3 列 × 2 行」版式取到多张卡。",
+                        },
+                    ],
+                },
                 "closing_zh": "",
                 "closing_en": "",
             }

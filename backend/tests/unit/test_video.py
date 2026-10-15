@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from app.briefs.schema import BriefContent, BriefSection
+from app.briefs.schema import BriefContent, BriefSection, DeepDive, DeepDiveFacet
 from app.briefs.select import SelectedItem
 from app.video.render import RenderError, find_font, scene_lines, wrap_text
 from app.video.srt import format_timestamp, render_srt
@@ -273,6 +273,93 @@ def test_deep_dive_omits_empty_slots() -> None:
     assert "涉及方" not in labels
     assert "地区" not in labels
     assert "来源" not in labels
+
+
+def _content_with_deep_dive() -> BriefContent:
+    content = _content()
+    content.deep_dive = DeepDive(
+        title="深挖：某事件",
+        facets=[
+            DeepDiveFacet(label="官方回应", body="官方已就此表态。"),
+            DeepDiveFacet(label="研究判断", body="研究者给出了初步判断。"),
+            DeepDiveFacet(label="技术手法", body="涉事方使用了特定技术手段。"),
+        ],
+    )
+    return content
+
+
+def test_deep_dive_prefers_brief_facets() -> None:
+    """简报里有模型产出的分面时，优先用它（视频链路不调模型，只读库存字段）。"""
+    item = SelectedItem(
+        document_id=1,
+        cluster_id=1,
+        title="标题",
+        summary_zh="摘要。",
+        summary_en="Summary.",
+        score=80,
+        source_name="测试来源",
+        url="https://example.test/1",
+        published_at=datetime(2026, 9, 27, tzinfo=UTC),
+        headline_only=False,
+    )
+    board = build_storyboard(_content_with_deep_dive(), language="zh", items=[item])
+    deep = [s for s in board.scenes if s.kind == "deep_dive"]
+    assert len(deep) == 1
+    assert deep[0].heading == "深挖：某事件"
+    assert deep[0].cards == [
+        ("官方回应", "官方已就此表态。"),
+        ("研究判断", "研究者给出了初步判断。"),
+        ("技术手法", "涉事方使用了特定技术手段。"),
+    ]
+    # 分面卡自带内容，不应再挂某条素材的来源（模型未必选的是评分最高那条）
+    assert deep[0].source is None
+
+
+def test_deep_dive_falls_back_to_slots_without_facets() -> None:
+    """没有分面时退回确定性信息槽，且保持同一分镜 kind。"""
+    item = SelectedItem(
+        document_id=1,
+        cluster_id=1,
+        title="标题",
+        summary_zh="摘要。",
+        summary_en="Summary.",
+        score=80,
+        source_name="测试来源",
+        url="https://example.test/1",
+        published_at=datetime(2026, 9, 27, tzinfo=UTC),
+        headline_only=False,
+    )
+    board = build_storyboard(_content(), language="zh", items=[item])
+    deep = [s for s in board.scenes if s.kind == "deep_dive"]
+    assert len(deep) == 1
+    labels = [label for label, _ in (deep[0].cards or [])]
+    assert labels[0] == "事件"
+
+
+def test_deep_dive_ignores_empty_facets() -> None:
+    """只有标题、没有正文的空壳分面不进卡片；整条深挖因此退回信息槽。"""
+    content = _content()
+    content.deep_dive = DeepDive(
+        title="深挖：空壳",
+        facets=[DeepDiveFacet(label="官方回应", body="   ")],
+    )
+    item = SelectedItem(
+        document_id=1,
+        cluster_id=1,
+        title="标题",
+        summary_zh="摘要。",
+        summary_en="Summary.",
+        score=80,
+        source_name="测试来源",
+        url="https://example.test/1",
+        published_at=datetime(2026, 9, 27, tzinfo=UTC),
+        headline_only=False,
+    )
+    board = build_storyboard(content, language="zh", items=[item])
+    deep = [s for s in board.scenes if s.kind == "deep_dive"]
+    assert len(deep) == 1
+    labels = [label for label, _ in (deep[0].cards or [])]
+    assert labels[0] == "事件"  # 回退到信息槽
 
 
 def test_long_section_becomes_multiple_scenes() -> None:

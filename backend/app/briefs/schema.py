@@ -11,6 +11,9 @@ PROMPT_VERSION = "v1"
 SectionKey = Literal["conflict", "science", "labor", "other"]
 SECTION_KEYS: tuple[str, ...] = ("conflict", "science", "labor", "other")
 
+# 深挖卡片的张数上限：视频版式是 3 列 × 2 行，多于 6 张会挤爆
+MAX_DEEP_DIVE_FACETS = 6
+
 DEFAULT_HEADINGS: dict[str, tuple[str, str]] = {
     "conflict": ("冲突与安全", "Conflict & security"),
     "science": ("科技与科学", "Science & technology"),
@@ -53,6 +56,56 @@ class BriefSection(BaseModel):
         return cleaned[:8]
 
 
+class DeepDiveFacet(BaseModel):
+    """深挖卡片的一个分面：小标题 + 一句正文。
+
+    模型只允许从素材里提取，**没有素材支撑的分面必须省略**，不许凑数。
+    """
+
+    label: str = Field(default="", max_length=40)
+    body: str = Field(default="", max_length=300)
+
+    @field_validator("label", "body", mode="before")
+    @classmethod
+    def _clean(cls, value: object) -> str:
+        return " ".join(str(value or "").split())
+
+
+class DeepDive(BaseModel):
+    """对单个事件的深挖：一句标题 + 若干「角度」分面（如官方回应/技术手法/监管合作）。
+
+    分面内容在**简报生成的那次 LLM 调用**里产出并存进 `briefs.structured`，
+    视频链路只读库存字段——这样「文案全部来自已入库简报、零模型调用、可复现」的约束不被破坏。
+    """
+
+    title: str = Field(default="", max_length=200)
+    facets: list[DeepDiveFacet] = Field(default_factory=list)
+
+    @field_validator("title", mode="before")
+    @classmethod
+    def _clean_title(cls, value: object) -> str:
+        return " ".join(str(value or "").split())
+
+    @field_validator("facets", mode="before")
+    @classmethod
+    def _clean_facets(cls, value: object) -> list[object]:
+        # 模型偶尔会交回字符串、单个对象或混杂项；丢掉不可解析的项，并截到上限。
+        # 注意要同时放行 dict 与已构造好的 DeepDiveFacet——只认 dict 会把
+        # 代码里直接传 DeepDiveFacet 的调用静默清空。
+        if value is None:
+            return []
+        if isinstance(value, (dict, DeepDiveFacet)):
+            value = [value]
+        if not isinstance(value, list):
+            return []
+        kept: list[object] = [item for item in value if isinstance(item, (dict, DeepDiveFacet))]
+        return kept[:MAX_DEEP_DIVE_FACETS]
+
+    def usable_facets(self) -> list[DeepDiveFacet]:
+        """真正能上屏的分面：必须有正文；只写标题的空壳丢弃。"""
+        return [facet for facet in self.facets if facet.body.strip()][:MAX_DEEP_DIVE_FACETS]
+
+
 class BriefContent(BaseModel):
     """日报的完整内容（双语）。Markdown 由我们自己渲染，保证可复现。"""
 
@@ -66,6 +119,8 @@ class BriefContent(BaseModel):
     # 周报用：基于统计数字的趋势观察（日报留空）
     trends_zh: list[str] = Field(default_factory=list)
     trends_en: list[str] = Field(default_factory=list)
+    # 深挖：本期最值得深挖的一条事件的分面卡片（未产出时为空）
+    deep_dive: DeepDive | None = None
     # 推演：链路式后果分析（未启用推演时为空）
     projection: ProjectionContent | None = None
 

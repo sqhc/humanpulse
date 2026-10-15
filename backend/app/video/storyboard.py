@@ -315,8 +315,32 @@ def build_storyboard(
             document_id=item.document_id,
         )
 
-    if items:
-        # P0a：单事件深挖——取评分最高的 1 条，用卡片网格呈现确定性信息槽
+    # 深挖分镜。优先用简报里**模型产出的分面**（存库字段，视频链路零模型调用）；
+    # 没有分面时退回评分最高那条的确定性信息槽（空槽省略，不调模型）。
+    dive = content.deep_dive
+    dive_cards: list[tuple[str, str]] = (
+        [(facet.label, facet.body) for facet in dive.usable_facets()] if dive is not None else []
+    )
+    dive_heading = (dive.title if dive is not None and dive.title else "") or (
+        "本期深挖" if zh else "Deep dive"
+    )
+    if dive_cards:
+        narration = _clip("；".join(body for _, body in dive_cards)) or dive_heading
+        card_text = "".join(label + body for label, body in dive_cards)
+        scenes.append(
+            Scene(
+                index=len(scenes),
+                kind="deep_dive",
+                heading=dive_heading,
+                narration=narration,
+                duration_seconds=max(
+                    scene_seconds(narration, language=storyboard.language),
+                    scene_seconds(card_text, language=storyboard.language),
+                ),
+                cards=dive_cards,
+            )
+        )
+    elif items:
         top = max(items, key=lambda it: it.score)
         cards = _deep_dive_cards(top, zh=zh)
         if cards:

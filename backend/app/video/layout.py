@@ -280,6 +280,23 @@ def draw_icon(
             fill=color,
         )
         return
+    if kind == "speech":
+        # 对话气泡：圆角框 + 小尾巴（官方表态 / 观点）
+        draw.rounded_rectangle(
+            [cx - half, cy - half * 0.75, cx + half, cy + half * 0.25],
+            radius=max(3, int(size * 0.22)),
+            outline=color,
+            width=width,
+        )
+        draw.polygon(
+            [
+                (cx - half * 0.35, cy + half * 0.25),
+                (cx - half * 0.05, cy + half * 0.85),
+                (cx + half * 0.12, cy + half * 0.25),
+            ],
+            fill=color,
+        )
+        return
     # other：圆圈 + i
     draw.ellipse([cx - half, cy - half, cx + half, cy + half], outline=color, width=width)
     draw.line([(cx, cy - half * 0.35), (cx, cy + half * 0.5)], fill=color, width=width)
@@ -349,13 +366,14 @@ def card_color(theme: Theme, index: int) -> RGB:
 # facet 标签 -> 图标类型。截屏里每张卡的图标跟着语义走
 # （日历=回应、图层=研究、齿轮人头=模型/手法、警示=争议、列表=披露…）。
 _CARD_ICON_RULES: tuple[tuple[tuple[str, ...], str], ...] = (
-    (("官方", "回应", "声明", "表态", "official", "response"), "sources"),
+    # 语义 facet（简报里模型产出的 6 个角度）：六个角度两两不同，对照截屏
+    (("官方", "回应", "声明", "表态", "official", "response"), "speech"),
     (("研究", "论文", "报告", "research", "study"), "science"),
     (("技术", "手法", "模型", "算法", "method", "technique"), "labor"),
-    (("警示", "争议", "风险", "质疑", "risk", "dispute"), "conflict"),
-    (("披露", "报道", "媒体", "传阅", "media", "report"), "sources"),
+    (("媒体", "披露", "报道", "传阅", "media", "report"), "sources"),
     (("监管", "合作", "政策", "法规", "regulat", "policy"), "trends"),
-    (("第三方", "他方", "评论", "观点", "third", "opinion"), "other"),
+    (("第三方", "他方", "观点", "评论", "third", "opinion"), "person"),
+    (("警示", "争议", "风险", "质疑", "risk", "dispute"), "conflict"),
     # 占位信息槽（P0a）：让 6 张确定性卡片也有各自不同的图标
     (("事件", "标题", "event", "title"), "calendar"),
     (("来源", "source"), "sources"),

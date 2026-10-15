@@ -182,12 +182,12 @@ def test_card_color_falls_back_to_accent_without_palette() -> None:
 
 
 def test_card_icon_kind_maps_by_keyword() -> None:
-    assert card_icon_kind("官方回应") == "sources"
+    assert card_icon_kind("官方回应") == "speech"
     assert card_icon_kind("研究判断") == "science"
     assert card_icon_kind("技术手法") == "labor"
     assert card_icon_kind("媒体披露") == "sources"
     assert card_icon_kind("监管合作") == "trends"
-    assert card_icon_kind("第三方观点") == "other"
+    assert card_icon_kind("第三方观点") == "person"
     # 占位信息槽也要各有图标，不能全落到 other
     assert card_icon_kind("事件") == "calendar"
     assert card_icon_kind("来源") == "sources"
@@ -197,6 +197,13 @@ def test_card_icon_kind_maps_by_keyword() -> None:
     assert card_icon_kind("地区") == "pin"
     # 认不出来不能抛异常，落到 other
     assert card_icon_kind("") == "other"
+
+
+def test_semantic_facets_have_distinct_icons() -> None:
+    """简报产出的 6 个语义角度，图标必须两两不同（截图里每张卡都不一样）。"""
+    facets = ["官方回应", "研究判断", "技术手法", "媒体披露", "监管合作", "第三方观点"]
+    kinds = [card_icon_kind(facet) for facet in facets]
+    assert len(set(kinds)) == len(facets)
 
 
 def test_card_icon_kinds_are_visually_distinct_for_slots() -> None:
