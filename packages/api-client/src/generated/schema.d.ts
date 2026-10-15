@@ -360,6 +360,12 @@ export interface paths {
          * @description 校准汇总：Brier、基率、可靠性曲线、各状态计数。
          *
          *     注意这里只统计**已判定**的预测；未判定的单独计数，不混进 Brier 里充数。
+         *
+         *     Laya 与 Jev 是两代判官，**要分开看**：不带 `?provider=` 时统计全部，
+         *     但会返回 `by_provider` 分布，并在真的混了多个模型时给出 `mixed_providers`
+         *     与提示——合并口径的 Brier/ECE 不对应任何一个模型。
+         *
+         *     `?provider=laya` / `?provider=jev` 只统计该判官登记的样本。
          */
         get: operations["get_calibration_api_v1_predictions_calibration_get"];
         put?: never;
@@ -1827,7 +1833,9 @@ export interface operations {
     };
     get_calibration_api_v1_predictions_calibration_get: {
         parameters: {
-            query?: never;
+            query?: {
+                provider?: string | null;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -1843,6 +1851,15 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

@@ -3089,8 +3089,26 @@
     },
     "/api/v1/predictions/calibration": {
       "get": {
-        "description": "校准汇总：Brier、基率、可靠性曲线、各状态计数。\n\n注意这里只统计**已判定**的预测；未判定的单独计数，不混进 Brier 里充数。",
+        "description": "校准汇总：Brier、基率、可靠性曲线、各状态计数。\n\n注意这里只统计**已判定**的预测；未判定的单独计数，不混进 Brier 里充数。\n\nLaya 与 Jev 是两代判官，**要分开看**：不带 `?provider=` 时统计全部，\n但会返回 `by_provider` 分布，并在真的混了多个模型时给出 `mixed_providers`\n与提示——合并口径的 Brier/ECE 不对应任何一个模型。\n\n`?provider=laya` / `?provider=jev` 只统计该判官登记的样本。",
         "operationId": "get_calibration_api_v1_predictions_calibration_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "provider",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Provider"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -3103,6 +3121,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
           }
         },
         "summary": "预测校准汇总",

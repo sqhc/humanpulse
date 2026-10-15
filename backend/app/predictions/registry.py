@@ -293,7 +293,9 @@ async def resolve_due(
 
         probability = float(answer.noul)
         prediction.resolved_probability = Decimal(str(round(probability, 4)))
-        prediction.model = response.model or prediction.model
+        # model 列记录的是**登记时**的判官模型，不能被核对时的模型覆写，
+        # 否则「按模型分组统计」会失真（Laya 期登记的样本会显示成 Jev）。
+        # 核对方另存一份 evidence.resolved_by。
         prediction.evidence = {
             **(prediction.evidence or {}),
             "documents": len(evidence),
@@ -342,26 +344,58 @@ def _defer(prediction: Prediction, moment: datetime, report: ResolveReport, *, r
         report.unresolved += 1
 
 
-async def calibration_summary(session: AsyncSession) -> dict[str, object]:
+async def calibration_summary(
+    session: AsyncSession, *, provider: str | None = None
+) -> dict[str, object]:
     """校准汇总：只统计已判定（hit/missed）的预测，未判定的单独计数。
 
     与离线评估（app/eval）用同一套评分函数，所以页面上的数字和 make eval-judgement
     的报告可比；两处口径不一致会让人不知道该信哪个。
+
+    **必须能按 provider 分开算**：Laya 与 Jev 是两代判官，混算出来的 Brier/ECE
+    不对应任何一个模型，还会让「换模型有没有改善」无法回答（违反诚实性约束）。
+    不传 provider 时统计全部，但会同时报出 by_provider 分布；一旦合并口径里
+    真的混了多个 provider，就显式标出来，不让人误以为那是一份模型的成绩。
     """
+    condition = "where status in ('hit', 'missed')"
+    params: dict[str, object] = {}
+    if provider:
+        condition += " and provider = :provider"
+        params["provider"] = provider
+
     rows = (
         await session.execute(
             text(
-                """
+                f"""
                 select id, predicted_probability, (status = 'hit') as outcome
                 from predictions
-                where status in ('hit', 'missed')
+                {condition}
                 order by id
                 """
-            )
+            ),
+            params,
         )
     ).all()
+    count_condition = "where provider = :provider" if provider else ""
     counts = (
-        await session.execute(text("select status, count(*) from predictions group by status"))
+        await session.execute(
+            text(f"select status, count(*) from predictions {count_condition} group by status"),
+            params,
+        )
+    ).all()
+    provider_rows = (
+        await session.execute(
+            text(
+                f"""
+                select provider, count(*), sum(case when status = 'hit' then 1 else 0 end)
+                from predictions
+                {condition}
+                group by provider
+                order by provider
+                """
+            ),
+            params,
+        )
     ).all()
 
     observations = [
@@ -371,13 +405,26 @@ async def calibration_summary(session: AsyncSession) -> dict[str, object]:
         for row in rows
     ]
     by_status = {str(status): int(count) for status, count in counts}
+    by_provider = {
+        str(name or ""): {"resolved": int(total), "hits": int(hits or 0)}
+        for name, total, hits in provider_rows
+    }
 
     payload: dict[str, object] = {
         "by_status": by_status,
+        "by_provider": by_provider,
+        "provider": provider,
         "resolved": len(observations),
         "hits": sum(1 for item in observations if item.outcome),
         "misses": sum(1 for item in observations if not item.outcome),
     }
+    if provider is None and len(by_provider) > 1:
+        payload["mixed_providers"] = sorted(by_provider)
+        payload["note"] = (
+            "当前是合并口径，样本来自多个判官模型（"
+            + "、".join(sorted(by_provider))
+            + "）：这些 Brier/ECE 不对应任何一个模型，做结论请用 ?provider= 分开看。"
+        )
     if observations:
         payload.update(
             {
@@ -397,7 +444,7 @@ async def calibration_summary(session: AsyncSession) -> dict[str, object]:
             }
         )
     else:
-        payload["note"] = "还没有已判定的预测；到期核对任务每天跑一次"
+        payload["empty_note"] = "还没有已判定的预测；到期核对任务每天跑一次"
     return payload
 
 

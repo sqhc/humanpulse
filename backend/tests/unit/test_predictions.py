@@ -244,3 +244,133 @@ def test_brier_formula_matches_definition() -> None:
     for outcome in (True, False):
         expected = (predicted - (1.0 if outcome else 0.0)) ** 2
         assert expected == pytest.approx(0.04 if outcome else 0.64)
+
+
+class _Result:
+    """模拟 SQLAlchemy Result：calibration_summary 只用到 .all()。"""
+
+    def __init__(self, rows: list[tuple[object, ...]]) -> None:
+        self._rows = rows
+
+    def all(self) -> list[tuple[object, ...]]:
+        return self._rows
+
+
+class FakeCalibrationSession:
+    """按 provider 过滤的假 session（rows: id, provider, status, probability）。"""
+
+    def __init__(self, rows: list[tuple[int, str, str, float]]) -> None:
+        self.rows = rows
+
+    async def execute(self, statement: object, params: dict[str, object] | None = None) -> _Result:
+        sql = str(statement)
+        provider = (params or {}).get("provider")
+        scoped = [row for row in self.rows if not provider or row[1] == provider]
+        if "group by provider" in sql:
+            agg: dict[str, list[int]] = {}
+            for _, name, status, _ in scoped:
+                if status not in ("hit", "missed"):
+                    continue
+                entry = agg.setdefault(name, [0, 0])
+                entry[0] += 1
+                entry[1] += 1 if status == "hit" else 0
+            return _Result([(name, value[0], value[1]) for name, value in agg.items()])
+        if "group by status" in sql:
+            counts: dict[str, int] = {}
+            for _, _, status, _ in scoped:
+                counts[status] = counts.get(status, 0) + 1
+            return _Result(list(counts.items()))
+        return _Result(
+            [
+                (pid, probability, status == "hit")
+                for pid, _, status, probability in scoped
+                if status in ("hit", "missed")
+            ]
+        )
+
+
+def _calibration_rows() -> list[tuple[int, str, str, float]]:
+    return [
+        (1, "laya", "hit", 0.9),
+        (2, "laya", "missed", 0.2),
+        (3, "jev", "hit", 0.8),
+        (4, "jev", "open", 0.5),
+    ]
+
+
+def test_calibration_summary_separates_providers() -> None:
+    """Laya 与 Jev 是两代判官，校准汇总必须能分开算，合并口径要被标出来。"""
+    import asyncio
+
+    from app.predictions.registry import calibration_summary
+
+    session = FakeCalibrationSession(_calibration_rows())
+
+    jev = asyncio.run(calibration_summary(session, provider="jev"))
+    assert jev["provider"] == "jev"
+    assert jev["resolved"] == 1
+    assert jev["hits"] == 1
+    assert "mixed_providers" not in jev
+
+    laya = asyncio.run(calibration_summary(session, provider="laya"))
+    assert laya["resolved"] == 2
+    assert laya["hits"] == 1
+    assert laya["misses"] == 1
+
+    combined = asyncio.run(calibration_summary(session))
+    assert combined["resolved"] == 3
+    assert combined["by_provider"]["laya"]["resolved"] == 2
+    assert combined["by_provider"]["jev"]["resolved"] == 1
+    # 合并口径不能被当成某一个模型的成绩
+    assert combined["mixed_providers"] == ["jev", "laya"]
+    assert "合并口径" in str(combined["note"])
+
+
+def test_calibration_summary_single_provider_is_not_flagged() -> None:
+    """只有一个判官的样本时不要瞎报警。"""
+    import asyncio
+
+    from app.predictions.registry import calibration_summary
+
+    rows = [(1, "jev", "hit", 0.9), (2, "jev", "missed", 0.1)]
+    payload = asyncio.run(calibration_summary(FakeCalibrationSession(rows)))
+    assert "mixed_providers" not in payload
+    assert payload["resolved"] == 2
+
+
+def test_resolve_due_keeps_registration_model(monkeypatch: pytest.MonkeyPatch) -> None:
+    """核对时的判官模型不能覆写登记时的 model 列，否则按模型分组统计会失真。"""
+    import asyncio
+
+    from app.judgement import JudgementAnswer, JudgementResponse
+    from app.predictions import registry as reg
+
+    prediction = _prediction()
+    prediction.provider = "laya"
+    prediction.model = "laya-multilingual"
+
+    class FakeJudge:
+        provider = "jev"
+
+        async def ask(
+            self, state: str, questions: object, *, model: str | None = None
+        ) -> JudgementResponse:
+            return JudgementResponse(
+                answers={"realized": JudgementAnswer(key="realized", kind="noul", noul=0.9)},
+                model="jev-1.13.0",
+            )
+
+    async def fake_due(session: object, *, now: object, limit: int) -> list[Prediction]:
+        return [prediction]
+
+    async def fake_window(session: object, item: Prediction) -> list[dict[str, str]]:
+        return [{"title": "t", "summary": "s"}]
+
+    monkeypatch.setattr(reg, "due_predictions", fake_due)
+    monkeypatch.setattr(reg, "_window_evidence", fake_window)
+
+    asyncio.run(reg.resolve_due(FakeSession(), client=FakeJudge()))
+
+    assert prediction.status == "hit"
+    assert prediction.model == "laya-multilingual"  # 登记时的模型保留
+    assert prediction.evidence["resolved_by"] == "jev-1.13.0"  # 核对方另存一份
