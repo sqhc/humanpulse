@@ -12,6 +12,10 @@ const ADMIN_KEY_STORAGE = "humanpulse.adminApiKey";
 const secondaryButtonClass =
   "rounded-lg border border-line px-3 py-1.5 text-xs text-ink transition hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-40";
 
+/** 主按钮：一键采纳这类「模型已给出明确建议」的动作。 */
+const primaryButtonClass =
+  "rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40";
+
 function readStoredKey(): string {
   if (typeof window === "undefined") {
     return "";
@@ -352,6 +356,30 @@ export function AdminView({ t, lang }: AdminViewProps) {
                   </p>
                 ) : null}
                 <div className="flex flex-wrap gap-2">
+                  {candidate.verdict === "merge" ? (
+                    <button
+                      type="button"
+                      data-testid={`adopt-${candidate.left.id}-${candidate.right.id}`}
+                      disabled={!apiKey || applyCandidate.isPending}
+                      onClick={() => {
+                        // 采纳 = 直接合并；canonical 取提及更多的一方（更established），
+                        // 平手取左边，保持确定性。
+                        const leftWins = candidate.left.mentions >= candidate.right.mentions;
+                        applyCandidate.mutate({
+                          canonicalId: leftWins ? candidate.left.id : candidate.right.id,
+                          aliasId: leftWins ? candidate.right.id : candidate.left.id,
+                          remember,
+                        });
+                      }}
+                      className={primaryButtonClass}
+                    >
+                      {t.adminCandidatesAdopt}（
+                      {candidate.left.mentions >= candidate.right.mentions
+                        ? candidate.left.name
+                        : candidate.right.name}
+                      ）
+                    </button>
+                  ) : null}
                   <button
                     type="button"
                     data-testid={`keep-left-${candidate.left.id}-${candidate.right.id}`}

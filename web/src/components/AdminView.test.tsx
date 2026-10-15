@@ -292,4 +292,73 @@ describe("AdminView", () => {
     expect(await screen.findByText(new RegExp("已合并: 2 / 5"))).toBeInTheDocument();
     expect(applyCallBody(fetchMock)).toBeDefined();
   });
+
+  it("模型判 merge 时出现一键采纳，并保留提及更多的一方", async () => {
+    window.localStorage.setItem(ADMIN_KEY_STORAGE, "k");
+    const fetchMock = stubFetch(
+      adminRoutes(
+        {
+          ...ENTITY_CANDIDATES,
+          candidates: [
+            {
+              kind: "org",
+              left: { id: 1, name: "中国", mentions: 30 },
+              right: { id: 2, name: "China", mentions: 40 },
+              shared_documents: 12,
+              jaccard: 0.5,
+              score: 0.62,
+              verdict: "merge",
+              confidence: 0.7,
+            },
+          ],
+        },
+        ENTITY_APPLY,
+      ),
+    );
+    renderView(messages.zh);
+
+    const adopt = await screen.findByTestId("adopt-1-2");
+    fireEvent.click(adopt);
+
+    await waitFor(() => {
+      expect(applyCallBody(fetchMock)).toBeDefined();
+    });
+    const body = applyCallBody(fetchMock) as {
+      merges: { canonical_id: number; alias_ids: number[] }[];
+    };
+    // China(40) 提及多于 中国(30)，保留 China
+    expect(body.merges[0]?.canonical_id).toBe(2);
+    expect(body.merges[0]?.alias_ids).toEqual([1]);
+  });
+
+  it("模型判 review 时不显示一键采纳，只留人工按钮", async () => {
+    window.localStorage.setItem(ADMIN_KEY_STORAGE, "k");
+    stubFetch(
+      adminRoutes(
+        {
+          ...ENTITY_CANDIDATES,
+          candidates: [
+            {
+              kind: "org",
+              left: { id: 1, name: "中国", mentions: 30 },
+              right: { id: 2, name: "China", mentions: 40 },
+              shared_documents: 12,
+              jaccard: 0.5,
+              score: 0.3,
+              verdict: "review",
+              confidence: 0.4,
+            },
+          ],
+        },
+        ENTITY_APPLY,
+      ),
+    );
+    renderView(messages.zh);
+
+    await screen.findByText(/中国/);
+    // 需要人工判断的候选不该出现「一键采纳」——不能替人做决定
+    expect(screen.queryByTestId("adopt-1-2")).toBeNull();
+    expect(screen.getByTestId("keep-left-1-2")).toBeInTheDocument();
+    expect(screen.getByTestId("keep-right-1-2")).toBeInTheDocument();
+  });
 });

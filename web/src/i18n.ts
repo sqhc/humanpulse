@@ -63,6 +63,7 @@ export interface Messages {
   adminCandidatesVerdictMerge: string;
   adminCandidatesVerdictReview: string;
   adminCandidatesVerdictReject: string;
+  adminCandidatesAdopt: string;
   briefScript: string;
   briefSubtitles: string;
   briefVideoHint: string;
@@ -204,6 +205,7 @@ export const messages: Record<Lang, Messages> = {
     adminCandidatesVerdictMerge: "建议合并",
     adminCandidatesVerdictReview: "需人工复核",
     adminCandidatesVerdictReject: "建议否决",
+    adminCandidatesAdopt: "采纳模型建议",
     briefScript: "导出视频脚本",
     briefSubtitles: "导出字幕（SRT）",
     briefVideoHint: "脚本与字幕由已入库的简报生成，不额外调用模型。渲染 MP4 需要 ffmpeg 与 Pillow（见 make video）。",
@@ -355,6 +357,7 @@ export const messages: Record<Lang, Messages> = {
     adminCandidatesVerdictMerge: "merge",
     adminCandidatesVerdictReview: "review",
     adminCandidatesVerdictReject: "reject",
+    adminCandidatesAdopt: "Adopt suggestion",
     briefScript: "Export video script",
     briefSubtitles: "Export subtitles (SRT)",
     briefVideoHint: "Script and subtitles come from the stored brief; no extra model calls. Rendering MP4 needs ffmpeg + Pillow (see make video).",
