@@ -1,0 +1,110 @@
+{
+  "provider": "jev",
+  "model": "jev-1.13.0",
+  "horizon_days": 7,
+  "sample_size": 200,
+  "base_rate": 0.8,
+  "brier": 0.218,
+  "brier_baseline": 0.16,
+  "brier_skill_score": -0.3622,
+  "auc": 0.5276,
+  "accuracy": 0.675,
+  "majority_accuracy": 0.8,
+  "log_loss": 0.6263,
+  "ece": 0.1931,
+  "failures": 0,
+  "latency_seconds": 28.1,
+  "input_tokens": 97298,
+  "passed": false,
+  "verdict": "未通过评估门（门槛：Brier 技能分 > 0.05 且 ECE < 0.15）：实际 skill=-0.3622, ECE=0.1931。原始 AUC=0.5276（0.5=随机）：判官没有区分能力，属于本质不可用，换更强的判官或换问题口径才有可能改善；推演输出必须继续标注「未经校准」，不得当作预测发布",
+  "limitations": [
+    "标签是客观的（T 之后是否出现新报道），但只覆盖「事件是否还在发展」这一子问题；",
+    "escalation / downstream / second_order 这些语义判断在当前语料上没有客观标签，仍未验证；",
+    "语料跨度约 33 天，horizon 上限约 10 天，长周期推演无法用现有数据检验；",
+    "标签来源是自有采集语料，只反映「被我们采到的媒体是否继续报道」，存在采集偏差。"
+  ],
+  "reliability": [
+    {
+      "range": "0.00-0.20",
+      "count": 2,
+      "mean_probability": 0.18,
+      "empirical_rate": 1.0
+    },
+    {
+      "range": "0.20-0.40",
+      "count": 21,
+      "mean_probability": 0.3152,
+      "empirical_rate": 0.9048
+    },
+    {
+      "range": "0.40-0.60",
+      "count": 64,
+      "mean_probability": 0.5275,
+      "empirical_rate": 0.75
+    },
+    {
+      "range": "0.60-0.80",
+      "count": 93,
+      "mean_probability": 0.7031,
+      "empirical_rate": 0.8065
+    },
+    {
+      "range": "0.80-1.00",
+      "count": 20,
+      "mean_probability": 0.838,
+      "empirical_rate": 0.8
+    }
+  ],
+  "risk_coverage": [
+    {
+      "coverage": 0.1,
+      "accuracy": 0.8,
+      "mean_decisiveness": 0.339
+    },
+    {
+      "coverage": 0.2,
+      "accuracy": 0.75,
+      "mean_decisiveness": 0.3138
+    },
+    {
+      "coverage": 0.3,
+      "accuracy": 0.7667,
+      "mean_decisiveness": 0.2948
+    },
+    {
+      "coverage": 0.4,
+      "accuracy": 0.7125,
+      "mean_decisiveness": 0.2737
+    },
+    {
+      "coverage": 0.5,
+      "accuracy": 0.71,
+      "mean_decisiveness": 0.2557
+    },
+    {
+      "coverage": 0.6,
+      "accuracy": 0.6917,
+      "mean_decisiveness": 0.2366
+    },
+    {
+      "coverage": 0.7,
+      "accuracy": 0.6929,
+      "mean_decisiveness": 0.2184
+    },
+    {
+      "coverage": 0.8,
+      "accuracy": 0.7125,
+      "mean_decisiveness": 0.201
+    },
+    {
+      "coverage": 0.9,
+      "accuracy": 0.6889,
+      "mean_decisiveness": 0.1845
+    },
+    {
+      "coverage": 1.0,
+      "accuracy": 0.675,
+      "mean_decisiveness": 0.1684
+    }
+  ]
+}

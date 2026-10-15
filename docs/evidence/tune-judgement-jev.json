@@ -1,0 +1,174 @@
+{
+  "horizon_days": 7,
+  "requested": 300,
+  "labelled": 300,
+  "calibration_size": 155,
+  "test_size": 145,
+  "provider": "jev",
+  "model": "jev-1.13.0",
+  "variants": [
+    {
+      "variant": "coverage",
+      "question": "未来 7 天内，关于该事件是否还会有新的相关报道出现？",
+      "test_raw": {
+        "sample_size": 145,
+        "base_rate": 0.7793,
+        "brier": 0.1855,
+        "brier_baseline": 0.172,
+        "skill": -0.0785,
+        "accuracy": 0.7379,
+        "majority_accuracy": 0.7793,
+        "log_loss": 0.5518,
+        "ece": 0.0929,
+        "auc": 0.5908
+      },
+      "test_calibrated": {
+        "sample_size": 145,
+        "base_rate": 0.7793,
+        "brier": 0.1744,
+        "brier_baseline": 0.172,
+        "skill": -0.0141,
+        "accuracy": 0.7793,
+        "majority_accuracy": 0.7793,
+        "log_loss": 0.5355,
+        "ece": 0.0912,
+        "auc": 0.4092
+      },
+      "platt": {
+        "slope": -0.1352,
+        "intercept": 1.5634,
+        "fitted_on": 155,
+        "log_loss_before": 0.5575,
+        "log_loss_after": 0.4908
+      },
+      "reliability_raw": [
+        {
+          "range": "0.20-0.40",
+          "count": 5,
+          "mean_probability": 0.324,
+          "empirical_rate": 0.6
+        },
+        {
+          "range": "0.40-0.60",
+          "count": 34,
+          "mean_probability": 0.5412,
+          "empirical_rate": 0.7941
+        },
+        {
+          "range": "0.60-0.80",
+          "count": 69,
+          "mean_probability": 0.7172,
+          "empirical_rate": 0.7101
+        },
+        {
+          "range": "0.80-1.00",
+          "count": 37,
+          "mean_probability": 0.8378,
+          "empirical_rate": 0.9189
+        }
+      ],
+      "reliability_calibrated": [
+        {
+          "range": "0.60-0.80",
+          "count": 41,
+          "mean_probability": 0.7931,
+          "empirical_rate": 0.9024
+        },
+        {
+          "range": "0.80-1.00",
+          "count": 104,
+          "mean_probability": 0.8148,
+          "empirical_rate": 0.7308
+        }
+      ]
+    },
+    {
+      "variant": "progress",
+      "question": "未来 7 天内，关于该事件是否会再出现可观察的新进展（新的官方表态、新的报道、事态变化）？",
+      "test_raw": {
+        "sample_size": 145,
+        "base_rate": 0.7793,
+        "brier": 0.2156,
+        "brier_baseline": 0.172,
+        "skill": -0.2535,
+        "accuracy": 0.6483,
+        "majority_accuracy": 0.7793,
+        "log_loss": 0.6212,
+        "ece": 0.1754,
+        "auc": 0.5819
+      },
+      "test_calibrated": {
+        "sample_size": 145,
+        "base_rate": 0.7793,
+        "brier": 0.1742,
+        "brier_baseline": 0.172,
+        "skill": -0.0126,
+        "accuracy": 0.7793,
+        "majority_accuracy": 0.7793,
+        "log_loss": 0.5347,
+        "ece": 0.0523,
+        "auc": 0.4181
+      },
+      "platt": {
+        "slope": -0.1099,
+        "intercept": 1.4978,
+        "fitted_on": 155,
+        "log_loss_before": 0.6233,
+        "log_loss_after": 0.4908
+      },
+      "reliability_raw": [
+        {
+          "range": "0.00-0.20",
+          "count": 3,
+          "mean_probability": 0.18,
+          "empirical_rate": 1.0
+        },
+        {
+          "range": "0.20-0.40",
+          "count": 12,
+          "mean_probability": 0.3092,
+          "empirical_rate": 0.75
+        },
+        {
+          "range": "0.40-0.60",
+          "count": 54,
+          "mean_probability": 0.513,
+          "empirical_rate": 0.7037
+        },
+        {
+          "range": "0.60-0.80",
+          "count": 61,
+          "mean_probability": 0.7087,
+          "empirical_rate": 0.8197
+        },
+        {
+          "range": "0.80-1.00",
+          "count": 15,
+          "mean_probability": 0.8253,
+          "empirical_rate": 0.8667
+        }
+      ],
+      "reliability_calibrated": [
+        {
+          "range": "0.60-0.80",
+          "count": 37,
+          "mean_probability": 0.7939,
+          "empirical_rate": 0.8378
+        },
+        {
+          "range": "0.80-1.00",
+          "count": 108,
+          "mean_probability": 0.8144,
+          "empirical_rate": 0.7593
+        }
+      ]
+    }
+  ],
+  "verdict": "未通过：所有措辞（含 Platt 校准后）都没能在锁定测试集上超过基线。最好的一项是 progress，skill=-0.0126, ECE=0.0523。原始 AUC=0.5819 说明有一定排序能力，但 Brier skill -0.2535 未超过基线；属于「有信号但概率不可用」。结论：当前判官在这些问题上不可用，推演保持标注「未经校准」",
+  "limitations": [
+    "标签仍是客观覆盖口径（T 之后是否出现新报道），只覆盖「事件是否还在发展」；",
+    "escalation / downstream 等语义判断依旧没有客观标签，本实验无法验证它们；",
+    "语料约 33 天，horizon 上限约 10 天；",
+    "Platt 参数只在校准集上拟合，测试集数字才是结论；样本量仍偏小，置信区间较宽。"
+  ]
+}

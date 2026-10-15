@@ -1,0 +1,23 @@
+{
+  "auc_all": 0.7988317757009346,
+  "auc_test": 0.7955665024630542,
+  "threshold": 0.406,
+  "test_metrics": {
+    "sample_size": 141,
+    "positives": 112,
+    "negatives": 29,
+    "base_rate": 0.7943,
+    "accuracy": 0.7943,
+    "majority_accuracy": 0.7943,
+    "precision": 0.812,
+    "recall": 0.9643,
+    "f1": 0.8816,
+    "true_positive": 108,
+    "false_positive": 25,
+    "true_negative": 4,
+    "false_negative": 4,
+    "failures": 0
+  },
+  "calibration_size": 133,
+  "test_size": 141
+}
