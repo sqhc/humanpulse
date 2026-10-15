@@ -10,10 +10,17 @@
 任务设计（直接复用 cookbook 第 4 章「实体对齐」的配方）：
 - Score 三档：不同实体 / 相关但未必同一 / 完全同一
 - 代码根据 Score 路由（>= 1.5 判同一），**不由模型决定动作**
+
+**报告里为什么必须有 auc 与 calibrated**：1.5 是量表中点，但判官会把三档压到
+很窄的区间（最高档常常不出现），于是同一个模型可能排序良好、在名义阈值下却
+几乎全判「不同」。只看名义阈值下的准确率会把「量纲偏了」误读成「模型不可用」，
+所以 `make eval-alignment` 同时给出阈值无关的 `auc`，以及「在校准集上选阈值、
+在锁定测试集上报指标」的 `calibrated` 段。
 """
 
 from __future__ import annotations
 
+import hashlib
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from itertools import combinations
@@ -156,6 +163,23 @@ def score_pairs(pairs: Sequence[tuple[Pair, bool]]) -> AlignmentMetrics:
 
 
 @dataclass(slots=True)
+class CalibrationReport:
+    """锁定测试集上的指标：阈值只在**校准集**上选，不许看测试集。"""
+
+    threshold: float = ALIGNMENT_THRESHOLD
+    calibration_size: int = 0
+    test_metrics: AlignmentMetrics = field(default_factory=AlignmentMetrics)
+
+    def as_dict(self) -> dict[str, object]:
+        return {
+            "threshold": round(self.threshold, 4),
+            "calibration_size": self.calibration_size,
+            "test_size": self.test_metrics.sample_size,
+            "test_metrics": self.test_metrics.as_dict(),
+        }
+
+
+@dataclass(slots=True)
 class AlignmentReport:
     provider: str = ""
     model: str = ""
@@ -164,17 +188,26 @@ class AlignmentReport:
     passed: bool = False
     verdict: str = ""
     limitations: list[str] = field(default_factory=list)
+    # 上面 metrics 是**名义阈值**（ALIGNMENT_THRESHOLD）下的结果，会被量表压缩惩罚；
+    # 判断「模型能不能用」要看 auc（阈值无关）与 calibrated（校准阈值 + 锁定测试集）。
+    decision_threshold: float = ALIGNMENT_THRESHOLD
+    auc: float = 0.0
+    calibrated: CalibrationReport = field(default_factory=CalibrationReport)
 
     def as_dict(self) -> dict[str, object]:
-        return {
+        base: dict[str, object] = {
             "provider": self.provider,
             "model": self.model,
             "metrics": self.metrics.as_dict(),
+            "decision_threshold": self.decision_threshold,
+            "auc": round(self.auc, 4),
+            "calibrated": self.calibrated.as_dict(),
             "errors": self.errors,
             "passed": self.passed,
             "verdict": self.verdict,
             "limitations": self.limitations,
         }
+        return base
 
 
 def pairs_from_alias_groups(
@@ -264,7 +297,8 @@ async def run_alignment_eval(
 
     report = AlignmentReport()
     report.provider = judge.provider
-    scored: list[tuple[Pair, bool]] = []
+    # 只存原始分数：名义阈值、AUC、校准段都从这一份推出来，避免三处各判一次
+    scored_raw: list[tuple[Pair, float]] = []
     for pair in pairs:
         enriched = Pair(
             left=pair.left,
@@ -284,27 +318,38 @@ async def run_alignment_eval(
         if answer is None:
             report.metrics.failures += 1
             continue
-        scored.append((enriched, decide(answer.score)))
+        scored_raw.append((enriched, float(answer.score or 0.0)))
 
-    report.metrics = score_pairs(scored)
+    report.metrics = score_pairs([(pair, decide(score)) for pair, score in scored_raw])
+    report.auc = round(roc_auc(scored_raw), 4)
+    report.calibrated = calibrate_scored(scored_raw)
     report.limitations = [
         "金标准只有 31 组人工别名，正样本几十对、负样本采样 60 对，样本量小；",
         "负样本是不同国家的常见实体（容易），没有覆盖「同名不同实体」这类真正困难的情况；",
         "只评估「判断是否同一实体」这一步，不含召回（候选发现）的质量。",
+        f"metrics 是名义阈值 {report.decision_threshold} 下的结果，会被量表压缩惩罚"
+        "（判官几乎不使用最高档位）；判断能力请看 auc 与 calibrated（校准阈值 + 锁定测试集）。",
     ]
     metrics = report.metrics
+    calibrated = report.calibrated
+    # 阈值无关的证据必须进 verdict：只看名义阈值下的准确率会把「量纲偏了」误读成「不可用」
+    evidence = (
+        f"AUC {report.auc:.3f}（阈值无关）；校准阈值 {calibrated.threshold:.3f} 下"
+        f"锁定测试集 F1 {calibrated.test_metrics.f1:.3f}"
+    )
     if metrics.sample_size and metrics.accuracy > metrics.majority_accuracy + 0.1:
         report.passed = True
         report.verdict = (
             f"通过：准确率 {metrics.accuracy:.3f} 明显高于多数类基线 "
-            f"{metrics.majority_accuracy:.3f}（F1 {metrics.f1:.3f}）"
+            f"{metrics.majority_accuracy:.3f}（F1 {metrics.f1:.3f}）；{evidence}"
         )
     else:
         report.passed = False
         report.verdict = (
             f"未通过：准确率 {metrics.accuracy:.3f} 未明显高于多数类基线 "
-            f"{metrics.majority_accuracy:.3f}"
+            f"{metrics.majority_accuracy:.3f}；{evidence}"
         )
+
     return report
 
 
@@ -349,18 +394,52 @@ def choose_threshold(pairs: Sequence[tuple[Pair, float]], *, metric: str = "f1")
     return best_threshold
 
 
+def pair_key(pair: Pair) -> str:
+    """切分键：只用实体名对，不受 context 影响。"""
+    return pair.left + "|" + pair.right
+
+
+def in_calibration(pair: Pair, *, ratio: float = 0.5) -> bool:
+    """稳定地把一对分到校准集（True）或锁定测试集（False）。
+
+    用哈希而不是随机：同一对每次都在同一侧，报告可复现。
+    键只用 `left|right`，所以带不带 context 的同一个 Pair 一定落在同一侧。
+    """
+    digest = hashlib.blake2b(pair_key(pair).encode("utf-8"), digest_size=4).digest()
+    return int.from_bytes(digest, "big") % 10_000 < int(ratio * 10_000)
+
+
 def split_pairs(pairs: Sequence[Pair], *, ratio: float = 0.5) -> tuple[list[Pair], list[Pair]]:
     """按实体名稳定切分，保证同一对不会同时出现在两边。"""
-    import hashlib
-
-    left: list[Pair] = []
-    right: list[Pair] = []
-    threshold = int(ratio * 10_000)
-    for pair in pairs:
-        key = pair.left + "|" + pair.right
-        digest = hashlib.blake2b(key.encode("utf-8"), digest_size=4).digest()
-        if int.from_bytes(digest, "big") % 10_000 < threshold:
-            left.append(pair)
-        else:
-            right.append(pair)
+    left = [pair for pair in pairs if in_calibration(pair, ratio=ratio)]
+    right = [pair for pair in pairs if not in_calibration(pair, ratio=ratio)]
     return left, right
+
+
+def split_scored(
+    pairs: Sequence[tuple[Pair, float]], *, ratio: float = 0.5
+) -> tuple[list[tuple[Pair, float]], list[tuple[Pair, float]]]:
+    """与 `split_pairs` 同一套切分，但保留分数（评估回写时用这个）。"""
+    calibration: list[tuple[Pair, float]] = []
+    test: list[tuple[Pair, float]] = []
+    for pair, score in pairs:
+        (calibration if in_calibration(pair, ratio=ratio) else test).append((pair, score))
+    return calibration, test
+
+
+def calibrate_scored(
+    pairs: Sequence[tuple[Pair, float]], *, ratio: float = 0.5, metric: str = "f1"
+) -> CalibrationReport:
+    """在校准集上选阈值，只在锁定测试集上报指标（阈值不许看测试集）。
+
+    为什么必须有这一段：名义阈值 1.5 是量表中点，判官却常把分数压在低档，
+    于是同一个模型在名义阈值下召回≈0（被误读成「不可用」），排序其实可用。
+    """
+    calibration, test = split_scored(pairs, ratio=ratio)
+    threshold = choose_threshold(calibration, metric=metric)
+    predicted = [(pair, decide(score, threshold=threshold)) for pair, score in test]
+    return CalibrationReport(
+        threshold=threshold,
+        calibration_size=len(calibration),
+        test_metrics=score_pairs(predicted),
+    )

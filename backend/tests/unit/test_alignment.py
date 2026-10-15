@@ -10,15 +10,19 @@ import pytest
 from app.eval.alignment import (
     ALIGNMENT_SCALE,
     ALIGNMENT_THRESHOLD,
+    AlignmentReport,
     Pair,
     alignment_question,
     build_prompt,
+    calibrate_scored,
     choose_threshold,
     decide,
+    in_calibration,
     pairs_from_alias_groups,
     roc_auc,
     score_pairs,
     split_pairs,
+    split_scored,
 )
 from app.pipeline.aliases import AliasGroup
 
@@ -166,3 +170,76 @@ def test_split_pairs_is_disjoint_and_deterministic() -> None:
     right_keys = {p.left + p.right for p in first_right}
     assert not (left_keys & right_keys)
     assert len(left_keys) + len(right_keys) == 200
+
+
+def _compressed_sample(count: int = 200) -> list[tuple[Pair, float]]:
+    """判官把量表压到低档时的典型样本：正样本 0.9、负样本 0.2，且正样本占多数（同真实金标准）。"""
+    scored: list[tuple[Pair, float]] = []
+    for index in range(count):
+        label = index % 4 != 0
+        scored.append((Pair(f"L{index}", f"R{index}", label), 0.9 if label else 0.2))
+    return scored
+
+
+def test_in_calibration_ignores_context() -> None:
+    """切分键只用 left|right：带不带 context 必须落在同一侧。
+
+    曾经用 `pair in calibration_set` 做成员判断，而 enriched 的 Pair 带 context、
+    按值比较永远不相等，校准集因此整个落空（阈值静默回落到名义值）。
+    """
+    plain = Pair("China", "中国", True)
+    enriched = Pair("China", "中国", True, left_context="标题 A", right_context="标题 B")
+    assert in_calibration(plain) == in_calibration(enriched)
+
+
+def test_split_scored_matches_split_pairs_and_keeps_everything() -> None:
+    scored = _compressed_sample(120)
+    calibration, test = split_scored(scored)
+    left, right = split_pairs([pair for pair, _ in scored])
+    assert [pair.left for pair, _ in calibration] == [pair.left for pair in left]
+    assert [pair.left for pair, _ in test] == [pair.left for pair in right]
+    assert len(calibration) + len(test) == len(scored)
+
+
+def test_calibrate_scored_recovers_compressed_scale() -> None:
+    """名义阈值下召回为 0，校准段却仍然可用——这个假象正是要防的误读。"""
+    scored = _compressed_sample()
+    nominal = score_pairs([(pair, decide(score)) for pair, score in scored])
+    assert nominal.recall == pytest.approx(0.0)
+    assert nominal.accuracy < nominal.majority_accuracy
+
+    report = calibrate_scored(scored)
+    assert report.calibration_size + report.test_metrics.sample_size == len(scored)
+    assert report.test_metrics.positives > 0
+    assert report.test_metrics.negatives > 0
+    assert report.test_metrics.f1 == pytest.approx(1.0)
+    assert 0.2 <= report.threshold <= 0.9
+
+
+def test_calibrate_scored_threshold_depends_only_on_calibration_set() -> None:
+    """把测试集的分数整体破坏，阈值必须不变、只有测试集报告变差。"""
+    scored = _compressed_sample()
+    first = calibrate_scored(scored)
+    broken = [
+        (pair, score) if in_calibration(pair) else (pair, 0.2 if pair.label else 0.9)
+        for pair, score in scored
+    ]
+    second = calibrate_scored(broken)
+    assert second.threshold == pytest.approx(first.threshold)
+    assert second.test_metrics.f1 == pytest.approx(0.0)
+
+
+def test_calibrate_scored_handles_empty() -> None:
+    report = calibrate_scored([])
+    assert report.threshold == ALIGNMENT_THRESHOLD
+    assert report.calibration_size == 0
+    assert report.test_metrics.sample_size == 0
+
+
+def test_report_exposes_threshold_free_fields() -> None:
+    report = AlignmentReport(provider="fake", auc=0.8)
+    payload = report.as_dict()
+    assert payload["auc"] == 0.8
+    assert payload["decision_threshold"] == ALIGNMENT_THRESHOLD
+    assert payload["calibrated"]["threshold"] == ALIGNMENT_THRESHOLD
+    assert payload["calibrated"]["test_size"] == 0
