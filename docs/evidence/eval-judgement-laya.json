@@ -1,0 +1,109 @@
+{
+  "provider": "laya",
+  "model": "laya-multilingual",
+  "horizon_days": 7,
+  "sample_size": 60,
+  "base_rate": 0.85,
+  "brier": 0.3429,
+  "brier_baseline": 0.1275,
+  "brier_skill_score": -1.6891,
+  "accuracy": 0.5167,
+  "majority_accuracy": 0.85,
+  "log_loss": 1.0969,
+  "ece": 0.3563,
+  "failures": 0,
+  "latency_seconds": 3.3,
+  "input_tokens": 11686,
+  "passed": false,
+  "verdict": "未通过评估门（门槛：Brier 技能分 > 0.05 且 ECE < 0.15）：实际 skill=-1.6891, ECE=0.3563。推演输出必须继续标注「未经校准」，不得当作预测发布",
+  "limitations": [
+    "标签是客观的（T 之后是否出现新报道），但只覆盖「事件是否还在发展」这一子问题；",
+    "escalation / downstream / second_order 这些语义判断在当前语料上没有客观标签，仍未验证；",
+    "语料跨度约 33 天，horizon 上限约 10 天，长周期推演无法用现有数据检验；",
+    "标签来源是自有采集语料，只反映「被我们采到的媒体是否继续报道」，存在采集偏差。"
+  ],
+  "reliability": [
+    {
+      "range": "0.00-0.20",
+      "count": 16,
+      "mean_probability": 0.0763,
+      "empirical_rate": 0.9375
+    },
+    {
+      "range": "0.20-0.40",
+      "count": 11,
+      "mean_probability": 0.3014,
+      "empirical_rate": 0.6364
+    },
+    {
+      "range": "0.40-0.60",
+      "count": 6,
+      "mean_probability": 0.4543,
+      "empirical_rate": 0.8333
+    },
+    {
+      "range": "0.60-0.80",
+      "count": 5,
+      "mean_probability": 0.7091,
+      "empirical_rate": 0.6
+    },
+    {
+      "range": "0.80-1.00",
+      "count": 22,
+      "mean_probability": 0.9049,
+      "empirical_rate": 0.9545
+    }
+  ],
+  "risk_coverage": [
+    {
+      "coverage": 0.1,
+      "accuracy": 0.3333,
+      "mean_decisiveness": 0.4828
+    },
+    {
+      "coverage": 0.2,
+      "accuracy": 0.5,
+      "mean_decisiveness": 0.4747
+    },
+    {
+      "coverage": 0.3,
+      "accuracy": 0.4444,
+      "mean_decisiveness": 0.4648
+    },
+    {
+      "coverage": 0.4,
+      "accuracy": 0.5833,
+      "mean_decisiveness": 0.4484
+    },
+    {
+      "coverage": 0.5,
+      "accuracy": 0.6333,
+      "mean_decisiveness": 0.4342
+    },
+    {
+      "coverage": 0.6,
+      "accuracy": 0.5833,
+      "mean_decisiveness": 0.4187
+    },
+    {
+      "coverage": 0.7,
+      "accuracy": 0.5476,
+      "mean_decisiveness": 0.3984
+    },
+    {
+      "coverage": 0.8,
+      "accuracy": 0.5417,
+      "mean_decisiveness": 0.3775
+    },
+    {
+      "coverage": 0.9,
+      "accuracy": 0.537,
+      "mean_decisiveness": 0.3503
+    },
+    {
+      "coverage": 1.0,
+      "accuracy": 0.5167,
+      "mean_decisiveness": 0.3227
+    }
+  ]
+}

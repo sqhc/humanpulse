@@ -104,18 +104,19 @@ N 天内被至少 M 个新来源报道」这类更机械的目标）。
 用户提供了有效的 `TYPESAFE_API_KEY`（10-22 到期），上一节唯一未排除的路径
 「换云端 Jev」得以实测（`.env`：`JUDGEMENT_PROVIDER=jev`、
 `JUDGEMENT_BASE_URL=https://api.typesafe.ai`、`JUDGEMENT_MODEL=jev-latest`；
-产物：`docs/evidence/` 下的存档副本（`eval-judgement-jev.json`、`tune-judgement-jev.json`、
-`eval-alignment-jev.json`、`eval-alignment-laya.json`、`alignment-split.json`；原始运行
-输出在 gitignore 的 `.cache/`）。复现：`make eval-judgement`、
-`make tune-judgement`、`make eval-alignment`（默认不带 context），均 2026-10-15、
-`JUDGEMENT_PROVIDER=jev` 或 `laya`。数据库快照随时间变化，样本抽取用 md5(id)
-稳定排序，同一库快照可复现）。
+产物：`docs/evidence/` 下的存档副本（`eval-judgement-jev.json`、`eval-judgement-laya.json`、
+`tune-judgement-jev.json`、`eval-alignment-jev.json`、`eval-alignment-laya.json`、
+`eval-alignment-{jev,laya}-ctx.json`、`alignment-split.json`、`diag-context-60pairs.py`；
+原始运行输出在 gitignore 的 `.cache/`）。复现：`make eval-judgement`、
+`make tune-judgement`、`make eval-alignment`（默认不带 context；`--use-context` 复现 ctx 两份），
+均 2026-10-15、`JUDGEMENT_PROVIDER=jev` 或 `laya`。数据库快照随时间变化，样本抽取用
+md5(id) 稳定排序，同一库快照可复现）。
 
 ### 结果一：概率门仍未通过，AUC≈随机
 
 7 天 coverage 口径，与 Laya 基线同一评估器。**样本量不同**：Laya 零样本基线
-n=60（`.cache/eval-random-7d.json`，基率 0.85），Jev n=200
-（`.cache/eval-judgement-jev.json`，基率 0.80）——样本量差 3 倍多，两列数字
+n=60（`docs/evidence/eval-judgement-laya.json`，基率 0.85），Jev n=200
+（`docs/evidence/eval-judgement-jev.json`，基率 0.80）——样本量差 3 倍多，两列数字
 不可直接当同精度对比读；结论（双双未过门、Jev AUC≈0.5）不受影响。
 
 | | Laya 零样本（n=60） | Jev（jev-1.13.0，n=200） |
