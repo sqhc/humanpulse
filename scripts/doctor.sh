@@ -30,7 +30,7 @@ if command -v node >/dev/null 2>&1; then
   if [ "$node_major" -gt 22 ] || { [ "$node_major" -eq 22 ] && [ "$node_minor" -ge 12 ]; }; then
     ok "Node 版本满足 Vite 8 要求"
   else
-    bad "Node $node_major.$node_minor 过低（Vite 8 需要 >= 22.12 或 >= 20.19）"
+    bad "Node $node_major.$node_minor 过低：前端测试/构建需要 >= 22.12（本项目实测用 nvm 的 v24）—— export PATH=\"/Users/shenqing/.nvm/versions/node/v24.21.0/bin:\$PATH\""
   fi
 fi
 
@@ -47,6 +47,64 @@ fi
 
 echo "== 环境文件 =="
 if [ -f .env ]; then ok ".env 已存在"; else note ".env 不存在，make bootstrap 会从 .env.example 生成"; fi
+
+echo "== 判官（JUDGEMENT_PROVIDER）=="
+env_val() { grep -E "^$1=" .env 2>/dev/null | tail -1 | cut -d= -f2- | tr -d '"' | xargs; }
+if [ ! -f .env ]; then
+  note "跳过判官检查（缺 .env）"
+else
+  judge_provider=$(env_val JUDGEMENT_PROVIDER)
+  judge_provider=${judge_provider:-none}
+  case "$judge_provider" in
+    none)
+      note "判官关闭（none）—— 不产生推演，也不攒校准样本"
+      ;;
+    fake)
+      ok "判官 = fake（确定性假实现，仅 CI 用）"
+      ;;
+    jev|laya)
+      judge_base=$(env_val JUDGEMENT_BASE_URL)
+      judge_model=$(env_val JUDGEMENT_MODEL)
+      judge_key=$(env_val JUDGEMENT_API_KEY)
+      if [ "$judge_provider" = "jev" ]; then
+        judge_base=${judge_base:-https://api.typesafe.ai}
+        if [ -z "$judge_key" ]; then
+          bad "判官 = jev，但 .env 里 JUDGEMENT_API_KEY 为空"
+        elif ! command -v curl >/dev/null 2>&1; then
+          note "缺 curl，跳过云端判官连通性检查"
+        else
+          probe="$PWD/.cache/doctor-jev-models.json"
+          mkdir -p "$PWD/.cache"
+          curl_out=$(curl -s -o "$probe" -w '%{http_code} %{time_total}' --max-time 15 \
+            -H "Authorization: Bearer $judge_key" -H 'Accept: application/json' \
+            "$judge_base/v1/models" 2>/dev/null)
+          code=${curl_out%% *}
+          secs=${curl_out##* }
+          if [ "$code" = "200" ]; then
+            models=$(grep -o '"name":"[^"]*"' "$probe" | cut -d'"' -f4 | paste -sd, -)
+            ok "云端判官可达（$judge_base，${secs}s，模型：${models:-未知}）"
+          elif [ "$code" = "401" ] || [ "$code" = "403" ]; then
+            bad "云端判官拒绝鉴权（HTTP $code）—— JUDGEMENT_API_KEY 可能已过期（本 key 2026-10-22 到期）"
+          else
+            note "云端判官不可达（HTTP ${code:-无响应}）—— 简报会静默降级为「不产生推演」"
+          fi
+        fi
+      else
+        judge_base=${judge_base:-http://127.0.0.1:8077}
+        if ! command -v curl >/dev/null 2>&1; then
+          note "缺 curl，跳过 Laya 连通性检查"
+        elif curl -s --max-time 5 -o /dev/null "$judge_base/healthz" 2>/dev/null; then
+          ok "本地 Laya 判官可达（$judge_base，模型：${judge_model:-未知}）"
+        else
+          note "本地 Laya 判官未启动（$judge_base）—— make laya-serve 起服务"
+        fi
+      fi
+      ;;
+    *)
+      note "未知 JUDGEMENT_PROVIDER=$judge_provider（可选：none / fake / laya / jev）"
+      ;;
+  esac
+fi
 
 echo "== compose 配置 =="
 if [ -f .env ] && command -v docker >/dev/null 2>&1; then
