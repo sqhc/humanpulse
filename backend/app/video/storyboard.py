@@ -393,6 +393,20 @@ def build_storyboard(
             "full text and sources are on humanpulse."
         )
     )
+    # 推演（projection）未通过校准评估门时，必须在画面与旁白里显式标注：
+    # 概率来自模型输出、未经可靠性验证，不得当作已校准的预测发布。
+    # 只在简报确实带推演内容时才加这句，避免无推演的期数也出现「本推演」字样。
+    projection = content.projection
+    if projection is not None and projection.chains:
+        uncalibrated = (
+            "本推演尚未通过校准评估：概率来自模型输出，未经可靠性验证。"
+            if zh
+            else (
+                "This projection has not passed calibration assessment: "
+                "the probabilities come from model output and have not been reliability-validated."
+            )
+        )
+        notice = f"{notice}{uncalibrated}"
     add("outro", "", notice)
 
     storyboard.scenes = scenes
