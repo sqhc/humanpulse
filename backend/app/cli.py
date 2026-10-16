@@ -533,10 +533,19 @@ async def _video(
 
 def cmd_video(args: argparse.Namespace) -> int:
     langs = ("zh", "en") if args.lang == "both" else (args.lang,)
-    results = [
-        asyncio.run(_video(args.brief, lang, args.out, args.render, args.font, args.voice))
-        for lang in langs
-    ]
+    results = []
+    for lang in langs:
+        results.append(
+            asyncio.run(_video(args.brief, lang, args.out, args.render, args.font, args.voice))
+        )
+        # asyncio.run 每次创建新事件循环，但 engine 是模块级缓存（db.py:21-22）。
+        # 不清掉的话第二次调用会拿到旧 loop 上的连接，asyncpg 报
+        # "got Future ... attached to a different loop"（pool_pre_ping 触发）。
+        # 每次跑完 dispose 引擎，下一次重新创建即可。
+        from app.db import _engines, _sessionmakers
+
+        _engines.clear()
+        _sessionmakers.clear()
     print(json.dumps(results if len(results) > 1 else results[0], ensure_ascii=False))
     return 0
 

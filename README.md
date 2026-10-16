@@ -1,6 +1,6 @@
 <img src="web/public/icon-512.png" alt="humanpulse" width="112" align="right" />
 
-简体中文 | [English](README_EN.md)
+简体中文 | [English](README.en.md)
 
 # humanpulse
 
