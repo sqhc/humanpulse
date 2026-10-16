@@ -29,9 +29,10 @@
 ### 2. 读取的现有接口（无需新增）
 | 数据 | 接口 | 说明 |
 |---|---|---|
+| 采集批次 | `GET /admin/runs` | 最近采集批次（源数/条数，P1「33 源·430 条」的真相来源） |
 | 文档状态 | `GET /documents`（带 `status` 过滤） | pending→enriched/rejected/deduped/failed |
-| 判官边界 | `GET /documents/{id}` | 结构化内容含 `structured.projection` 判断 |
-| 简报列表 | `GET /briefs/latest?kind=weekly` | 最新一期 |
+| 判官边界 | 前端常量（`projection_enabled=false`） | config 常量，**不是文档字段**；简报的 `structured.projection` 在 `GET /briefs/{brief_id}` |
+| 简报列表 | `GET /briefs/latest?kind=weekly` | 最新一期（`kind` 默认 daily） |
 
 **不需要新增后端接口** - 全部复用现有 REST 契约。
 
@@ -84,9 +85,9 @@ const STAGE_COLORS = {
 | 数据 | 接口 | 说明 |
 |---|---|---|
 | 实体列表 | `GET /entities` | 按提及/最近排序，可搜索 |
-| 实体详情 | `GET /entities/{id}` | 包含 per-day 时间线 |
-| 提及计数 | `GET /entities/{id}/mentions` | 每日提及数（可选） |
-| 别名表 | `GET /admin/entity-aliases` | 中/China 合并情况 |
+| 实体详情与时间线 | `GET /entities/{entity_id}` | `EntityDetailOut` 已含「详情与时间线」，**无**单独的 `/mentions` 端点 |
+| 别名候选 | `GET /admin/entity-candidates` | 疑似同一实体候选（含判官分数） |
+| 别名采纳 | `POST /admin/entity-aliases/apply` | 一键合并（P2 点击跳转用） |
 
 **不需要新增后端接口** - 复用现有 `/entities` 契约。
 
