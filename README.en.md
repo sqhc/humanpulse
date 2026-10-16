@@ -21,7 +21,7 @@ The full pipeline has run end to end on real data; remaining: TTS voiceover, aut
 
 ![Data Flow](architectures/dataflow-showcase.png)
 
-![Sequence](architectures/sequence-showcase.png)
+![Sequence](architectures/sequence-en-showcase.png)
 
 - The backend is the single source of truth; every client shares one REST contract and the types generated into `packages/api-client`.
 - Storage: PostgreSQL + pgvector (documents, vectors and clusters in one database).
