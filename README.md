@@ -1,5 +1,7 @@
 <img src="web/public/icon-512.png" alt="humanpulse" width="112" align="right" />
 
+简体中文 | [English](README_EN.md)
+
 # humanpulse
 
 > 一个观察人类冲突、科学技术发展与全球社会运动的追踪平台：多源采集 → 去重 → AI 双语摘要与评分 → 聚类 → 日报/周报 → Web 阅读。
