@@ -78,6 +78,9 @@ laya-serve: ## 起本地 Laya 判官服务（Jev 兼容路由，默认 127.0.0.1
 		--chapter-dir "$(LAYA_CHAPTER_DIR)" \
 		--model-dir "$(LAYA_MODEL_DIR)" --port $(LAYA_PORT)
 
+judge-offline: ## 移除云端 Jev key 并回退本地 Laya（10-22 key 到期用；幂等，自动备份 .env）
+	@bash scripts/rotate-judge-key.sh
+
 bootstrap: install ## 安装依赖并准备 .env
 	@test -f .env || (cp .env.example .env && echo "已生成 .env，请填入 DEEPSEEK_API_KEY / ADMIN_API_KEY")
 
