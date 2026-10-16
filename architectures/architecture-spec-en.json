@@ -1,0 +1,200 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "humanpulse System Architecture",
+    "quality_profile": "showcase"
+  },
+  "components": [
+    {
+      "id": "sources",
+      "type": "external",
+      "label": "RSS / GDELT / ReliefWeb",
+      "sublabel": "public sources + manual upload",
+      "pos": [
+        40,
+        300
+      ],
+      "size": [
+        180,
+        70
+      ]
+    },
+    {
+      "id": "api",
+      "type": "backend",
+      "label": "FastAPI /api/v1",
+      "sublabel": "collect · pipeline · read",
+      "pos": [
+        340,
+        300
+      ],
+      "size": [
+        180,
+        70
+      ]
+    },
+    {
+      "id": "llm",
+      "type": "external",
+      "label": "DeepSeek",
+      "sublabel": "bilingual summary · score · tags",
+      "pos": [
+        760,
+        300
+      ],
+      "size": [
+        180,
+        70
+      ]
+    },
+    {
+      "id": "db",
+      "type": "database",
+      "label": "PostgreSQL + pgvector",
+      "sublabel": "documents · vectors · clusters",
+      "pos": [
+        1180,
+        300
+      ],
+      "size": [
+        190,
+        70
+      ]
+    },
+    {
+      "id": "web",
+      "type": "frontend",
+      "label": "React Web PWA",
+      "sublabel": "Feed · Brief · Admin",
+      "pos": [
+        820,
+        100
+      ],
+      "size": [
+        190,
+        70
+      ]
+    },
+    {
+      "id": "video",
+      "type": "backend",
+      "label": "Video Renderer",
+      "sublabel": "storyboard · SRT · ffmpeg",
+      "pos": [
+        1620,
+        300
+      ],
+      "size": [
+        180,
+        70
+      ]
+    },
+    {
+      "id": "judge",
+      "type": "security",
+      "label": "Judge: Jev / Laya",
+      "sublabel": "classification OK · probabilities gated",
+      "pos": [
+        560,
+        520
+      ],
+      "size": [
+        180,
+        70
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "humanpulse monolith · docker compose",
+      "wraps": [
+        "api",
+        "db",
+        "web",
+        "video"
+      ]
+    },
+    {
+      "kind": "security-group",
+      "label": "judge gate · probabilities not published",
+      "wraps": [
+        "judge"
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "fetch",
+      "from": "sources",
+      "to": "api",
+      "label": "fetch",
+      "variant": "emphasis"
+    },
+    {
+      "id": "enrich",
+      "from": "api",
+      "to": "llm",
+      "label": "enrichment calls"
+    },
+    {
+      "id": "writeback",
+      "from": "llm",
+      "to": "db",
+      "label": "summaries + scores"
+    },
+    {
+      "id": "serve",
+      "from": "db",
+      "to": "web",
+      "label": "REST + SSE",
+      "variant": "emphasis",
+      "fromSide": "top",
+      "toSide": "bottom"
+    },
+    {
+      "id": "footage",
+      "from": "db",
+      "to": "video",
+      "label": "stored briefs"
+    },
+    {
+      "id": "ask",
+      "from": "llm",
+      "to": "judge",
+      "label": "typed questions",
+      "variant": "dashed",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "classify",
+      "from": "judge",
+      "to": "db",
+      "label": "classification back",
+      "variant": "dashed"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Pipeline today",
+      "items": [
+        "33 sources · ~430 items ingested per run",
+        "SimHash dedup → semantic vector clustering",
+        "daily/weekly briefs take Top N · structured JSON in DB",
+        "video: storyboard → SRT → programmatic visuals → MP4"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Judge gate",
+      "items": [
+        "probabilities failed the gate: Brier skill −1.69 · ECE 0.36 → not published",
+        "classification works: Jev AUC 1.000 / Laya AUC 0.799 (274-pair gold set)",
+        "projection_enabled=false · projections force-labeled \"uncalibrated\""
+      ]
+    }
+  ]
+}

@@ -17,7 +17,7 @@ The full pipeline has run end to end on real data; remaining: TTS voiceover, aut
 
 ## Architecture
 
-![System Architecture](architectures/architecture-showcase.png)
+![System Architecture](architectures/architecture-en-showcase.png)
 
 ![Data Flow](architectures/dataflow-showcase.png)
 

@@ -1,0 +1,201 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "humanpulse 系统架构",
+    "quality_profile": "showcase"
+  },
+  "components": [
+    {
+      "id": "sources",
+      "type": "external",
+      "label": "RSS / GDELT / ReliefWeb",
+      "sublabel": "公开源 + 手动上传",
+      "pos": [
+        40,
+        300
+      ],
+      "size": [
+        180,
+        70
+      ]
+    },
+    {
+      "id": "api",
+      "type": "backend",
+      "label": "FastAPI /api/v1",
+      "sublabel": "采集 · 流水线 · 读取",
+      "pos": [
+        300,
+        300
+      ],
+      "size": [
+        170,
+        70
+      ]
+    },
+    {
+      "id": "llm",
+      "type": "external",
+      "label": "DeepSeek",
+      "sublabel": "双语摘要 · 评分 · 标签",
+      "pos": [
+        550,
+        300
+      ],
+      "size": [
+        170,
+        70
+      ]
+    },
+    {
+      "id": "db",
+      "type": "database",
+      "label": "PostgreSQL + pgvector",
+      "sublabel": "文档 · 向量 · 聚类",
+      "pos": [
+        800,
+        300
+      ],
+      "size": [
+        190,
+        70
+      ]
+    },
+    {
+      "id": "web",
+      "type": "frontend",
+      "label": "React Web PWA",
+      "sublabel": "Feed · 简报 · 管理台",
+      "pos": [
+        800,
+        100
+      ],
+      "size": [
+        190,
+        70
+      ]
+    },
+    {
+      "id": "video",
+      "type": "backend",
+      "label": "视频渲染",
+      "sublabel": "分镜 · SRT · ffmpeg",
+      "pos": [
+        1060,
+        300
+      ],
+      "size": [
+        170,
+        70
+      ]
+    },
+    {
+      "id": "judge",
+      "type": "security",
+      "label": "判官 Jev / Laya",
+      "sublabel": "分类可用 · 概率未过门",
+      "pos": [
+        550,
+        520
+      ],
+      "size": [
+        170,
+        70
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "humanpulse 单体栈 · docker compose",
+      "wraps": [
+        "api",
+        "db",
+        "web",
+        "video"
+      ]
+    },
+    {
+      "kind": "security-group",
+      "label": "判官门禁 · 概率不发布",
+      "wraps": [
+        "judge"
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "fetch",
+      "from": "sources",
+      "to": "api",
+      "label": "抓取",
+      "variant": "emphasis"
+    },
+    {
+      "id": "enrich",
+      "from": "api",
+      "to": "llm",
+      "label": "富化调用"
+    },
+    {
+      "id": "writeback",
+      "from": "llm",
+      "to": "db",
+      "label": "摘要 + 评分写回"
+    },
+    {
+      "id": "serve",
+      "from": "db",
+      "to": "web",
+      "label": "REST + SSE",
+      "variant": "emphasis",
+      "fromSide": "top",
+      "toSide": "bottom"
+    },
+    {
+      "id": "footage",
+      "from": "db",
+      "to": "video",
+      "label": "已入库简报"
+    },
+    {
+      "id": "ask",
+      "from": "llm",
+      "to": "judge",
+      "label": "类型化问题",
+      "variant": "dashed",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelDy": 24
+    },
+    {
+      "id": "classify",
+      "from": "judge",
+      "to": "db",
+      "label": "分类落库",
+      "variant": "dashed"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "流水线现状",
+      "items": [
+        "33 个源 · 单轮约 430 条入库",
+        "SimHash 去重 → 语义向量聚类",
+        "日报/周报取 Top N · 结构化 JSON 入库",
+        "视频：分镜 → SRT → 程序化视觉 → MP4"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "判官门禁",
+      "items": [
+        "概率未过门：Brier skill −1.69 · ECE 0.36 → 不发布",
+        "分类可用：Jev AUC 1.000 / Laya AUC 0.799（274 对金标准）",
+        "projection_enabled=false · 推演强制标注「未经校准」"
+      ]
+    }
+  ]
+}

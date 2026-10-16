@@ -1,0 +1,164 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "humanpulse Sequence / Timing Diagram",
+    "subtitle": "Brief Generation → Video Rendering Pipeline",
+    "output": "architectures/sequence-showcase-en.html",
+    "animation": "none",
+    "visual_preset": "classic",
+    "quality_profile": "showcase",
+    "column_fit": "fixed",
+    "views": [
+      {
+        "id": "timeline-overview",
+        "label": "Execution Timeline",
+        "focus": [
+          "brief",
+          "storyboard",
+          "srt",
+          "render"
+        ],
+        "note": "Full sequence from brief generation to video encoding; probability gate failed → \"uncalibrated\" label"
+      }
+    ]
+  },
+  "participants": [
+    {
+      "id": "brief",
+      "type": "backend",
+      "label": "Brief"
+    },
+    {
+      "id": "storyboard",
+      "type": "backend",
+      "label": "Storyboard",
+      "sublabel": "stb.py"
+    },
+    {
+      "id": "srt",
+      "type": "backend",
+      "label": "SRT",
+      "sublabel": "srt.py"
+    },
+    {
+      "id": "render",
+      "type": "backend",
+      "label": "Video Rdr",
+      "sublabel": "render.py"
+    },
+    {
+      "id": "ffmpeg",
+      "type": "external",
+      "label": "ffmpeg",
+      "sublabel": "encode"
+    },
+    {
+      "id": "artwork",
+      "type": "backend",
+      "label": "Artwork",
+      "sublabel": "art.py"
+    }
+  ],
+  "messages": [
+    {
+      "from": "brief",
+      "to": "storyboard",
+      "label": "brief JSON + notes",
+      "y": 180,
+      "variant": "default"
+    },
+    {
+      "from": "storyboard",
+      "to": "srt",
+      "label": "storyboard script → subtitle timeline",
+      "y": 400,
+      "variant": "default"
+    },
+    {
+      "from": "srt",
+      "to": "artwork",
+      "label": "subtitles + color scheme",
+      "y": 650,
+      "variant": "default"
+    },
+    {
+      "from": "artwork",
+      "to": "render",
+      "label": "canvas + storyboard + subtitles",
+      "y": 350,
+      "variant": "emphasis"
+    },
+    {
+      "from": "render",
+      "to": "ffmpeg",
+      "label": "rendered frames → MP4",
+      "y": 550,
+      "variant": "emphasis"
+    },
+    {
+      "from": "render",
+      "to": "brief",
+      "label": "completion marker",
+      "y": 220,
+      "variant": "default"
+    }
+  ],
+  "activations": [
+    {
+      "participant": "brief",
+      "from": 0,
+      "to": 100
+    },
+    {
+      "participant": "storyboard",
+      "from": 0,
+      "to": 500
+    },
+    {
+      "participant": "srt",
+      "from": 100,
+      "to": 700
+    },
+    {
+      "participant": "artwork",
+      "from": 300,
+      "to": 900
+    },
+    {
+      "participant": "render",
+      "from": 500,
+      "to": 1100
+    },
+    {
+      "participant": "ffmpeg",
+      "from": 900,
+      "to": 1300
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Execution Flow",
+      "items": [
+        "Brief → Storyboard → SRT → Artwork → Render → ffmpeg → MP4"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Judgment Boundary",
+      "items": [
+        "projection_enabled=false",
+        "notes carry \"uncalibrated\" but stay out of the frame"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Dual-Language",
+      "items": [
+        "full sequence in both languages",
+        "optional TTS via macos-say"
+      ]
+    }
+  ]
+}
