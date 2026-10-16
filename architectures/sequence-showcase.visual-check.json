@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "ok": false,
+  "command": "visual-check",
+  "status": "fail",
+  "visualReview": "pending",
+  "artifact": {
+    "path": "/Users/shenqing/Desktop/Deepseek Harness/humanpulse/architectures/sequence-showcase.html",
+    "sha256": "32ad303c13155c70ebab8474058592ef24c0070046eb9fff346dbe5060c6c149",
+    "bytes": 630689
+  },
+  "state": {
+    "detail": "read",
+    "motion": "still"
+  },
+  "chrome": {
+    "status": "available",
+    "executable": "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+  },
+  "containment": {
+    "status": "fail",
+    "viewports": []
+  },
+  "captures": {
+    "status": "fail",
+    "screenshots": [],
+    "contactSheet": null
+  },
+  "sidecars": {
+    "receipt": "sequence-showcase.visual-check.json",
+    "contactSheet": "sequence-showcase.visual-check.html"
+  },
+  "error": "Chrome exited before visual-check completed (null)"
+}

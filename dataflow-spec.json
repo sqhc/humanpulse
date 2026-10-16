@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "diagram_type": "dataflow",
+  "meta": {
+    "title": "humanpulse Data Flow",
+    "subtitle": "RSS/GDELT → Collection → Processing → Brief → Rendering",
+    "output": "architectures/dataflow-showcase.html",
+    "animation": "none",
+    "visual_preset": "classic",
+    "quality_profile": "showcase",
+    "viewBox": [1200, 800],
+    "views": [
+      {
+        "id": "flow-overview",
+        "label": "Data Flow Stages",
+        "focus": ["ingest", "collect", "brief", "render"],
+        "note": "From source ingestion through video rendering with dual-language output"
+      }
+    ]
+  },
+  "stages": [
+    { "label": "Source Ingestion" },
+    { "label": "Collection & Deduplication" },
+    { "label": "Material Selection" },
+    { "label": "Brief Generation" },
+    { "label": "Video Rendering" }
+  ],
+  "nodes": [
+    { "id": "ingest", "type": "external", "label": "RSS / GDELT", "stage": 0, "row": 0, "width": 120, "height": 48 },
+    { "id": "collect", "type": "backend", "label": "Collector Job", "stage": 1, "row": 0, "width": 120, "height": 48 },
+    { "id": "dedup", "type": "backend", "label": "Deduplication", "stage": 1, "row": 1, "width": 120, "height": 48 },
+    { "id": "select", "type": "backend", "label": "Material Selection", "stage": 1, "row": 2, "width": 120, "height": 48 },
+    { "id": "brief", "type": "backend", "label": "Brief Generator", "stage": 2, "row": 3, "width": 120, "height": 48 },
+    { "id": "render", "type": "external", "label": "Video Renderer", "stage": 3, "row": 4, "width": 120, "height": 48 }
+  ],
+  "flows": [
+    { "from": "ingest", "to": "collect", "label": "document stream", "variant": "default", "route": "auto", "labelAt": [315, 480] },
+    { "from": "collect", "to": "dedup", "label": "raw documents", "variant": "default", "route": "auto", "labelAt": [315, 420] },
+    { "from": "dedup", "to": "select", "label": "deduplicated items", "variant": "default", "route": "auto", "labelAt": [315, 300] },
+    { "from": "select", "to": "brief", "label": "brief + storyboard", "variant": "emphasis", "route": "auto", "labelAt": [638, 190] },
+    { "from": "brief", "to": "render", "label": "brief + storyboard", "variant": "emphasis", "route": "auto", "labelAt": [638, 236] }
+  ],
+  "cards": [
+    { "dot": "cyan", "title": "Flow Stages", "items": ["5 stages: Ingestion → Collection → Selection → Brief → Rendering"] },
+    { "dot": "emerald", "title": "Dual-Output", "items": ["中英双版视频输出", "SRT字幕双语支持"] }
+  ]
+}

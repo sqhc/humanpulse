@@ -17,12 +17,11 @@
 
 ## 架构
 
-```
-采集层           处理层                        服务/展示层
-RSS/GDELT/       normalize → SimHash 去重 →     FastAPI (/api/v1)
-ReliefWeb/       DeepSeek 双语摘要+评分+标签 →   ├─ Web (React + Vite)
-手动上传         向量去重/聚类 → 日报/周报        └─ 后续：Tauri 桌面 / Expo 移动
-```
+![System Architecture](architectures/architecture-showcase.png)
+
+![Data Flow](architectures/dataflow-showcase.png)
+
+![Sequence](architectures/sequence-showcase.png)
 
 - 后端是唯一数据源；所有客户端复用同一份 REST 契约与 `packages/api-client` 生成的类型。
 - 存储：PostgreSQL + pgvector（文章、向量、聚类同库）。

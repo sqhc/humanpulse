@@ -1,0 +1,221 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "humanpulse System Architecture",
+    "subtitle": "Collection → Processing → Brief → Entity Adjudication → Judgment → Video Rendering",
+    "output": "architectures/architecture-showcase.html",
+    "animation": "none",
+    "visual_preset": "classic",
+    "quality_profile": "showcase",
+    "views": [
+      {
+        "id": "pipeline-overview",
+        "label": "End-to-End Pipeline",
+        "focus": [
+          "rss-collector",
+          "api",
+          "cache",
+          "brief-gen",
+          "judge",
+          "video-renderer"
+        ],
+        "note": "Six sequential pipeline stages from data collection to video output"
+      },
+      {
+        "id": "judge-boundary",
+        "label": "Judgment / Database Boundary",
+        "focus": [
+          "judge",
+          "cache",
+          "predictions"
+        ],
+        "note": "projection_enabled=false; judgment provides classification only, not probabilities for publishing"
+      }
+    ]
+  },
+  "layout": {
+    "mode": "grid",
+    "cols": 4,
+    "cellW": 150,
+    "cellH": 70,
+    "gapX": 30,
+    "gapY": 40,
+    "origin": [
+      40,
+      80
+    ]
+  },
+  "components": [
+    {
+      "id": "rss-collector",
+      "type": "external",
+      "label": "RSS/GDELT Collector",
+      "sublabel": "Scheduled job",
+      "tag": "data-ingestion",
+      "row": 0,
+      "col": 0
+    },
+    {
+      "id": "api",
+      "type": "backend",
+      "label": "API Backend",
+      "sublabel": "FastAPI",
+      "tag": "service-layer",
+      "row": 0,
+      "col": 1
+    },
+    {
+      "id": "cache",
+      "type": "database",
+      "label": "Cache / .cache",
+      "sublabel": "PostgreSQL + pgvector",
+      "tag": "storage",
+      "row": 0,
+      "col": 2
+    },
+    {
+      "id": "brief-gen",
+      "type": "backend",
+      "label": "Brief Generator",
+      "sublabel": "Daily/Weekly",
+      "tag": "processing",
+      "row": 1,
+      "col": 0
+    },
+    {
+      "id": "entity-resolver",
+      "type": "backend",
+      "label": "Entity Resolver",
+      "sublabel": "Alias adjudication",
+      "tag": "processing",
+      "row": 1,
+      "col": 1
+    },
+    {
+      "id": "judge",
+      "type": "security",
+      "label": "Judge (Jev/Laya)",
+      "sublabel": "Classification only",
+      "tag": "judgment",
+      "row": 1,
+      "col": 2
+    },
+    {
+      "id": "video-renderer",
+      "type": "frontend",
+      "label": "Video Renderer",
+      "sublabel": "PIL + ffmpeg",
+      "tag": "presentation",
+      "row": 2,
+      "col": 0
+    },
+    {
+      "id": "predictions",
+      "type": "database",
+      "label": "Predictions DB",
+      "sublabel": "Brier tracking",
+      "tag": "storage",
+      "row": 2,
+      "col": 1
+    },
+    {
+      "id": "frontend",
+      "type": "frontend",
+      "label": "Frontend (Web App)",
+      "sublabel": "React + TypeScript",
+      "tag": "user-facing",
+      "row": 2,
+      "col": 2
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "humanpulse Pipeline",
+      "wraps": [
+        "frontend",
+        "api",
+        "rss-collector",
+        "cache",
+        "predictions",
+        "judge",
+        "brief-gen",
+        "entity-resolver",
+        "video-renderer"
+      ],
+      "pad": 8
+    },
+    {
+      "kind": "security-group",
+      "label": "Judgment Boundary",
+      "wraps": [
+        "judge"
+      ],
+      "pad": 4
+    }
+  ],
+  "connections": [
+    {
+      "from": "rss-collector",
+      "to": "api",
+      "variant": "emphasis"
+    },
+    {
+      "from": "api",
+      "to": "cache",
+      "variant": "default"
+    },
+    {
+      "from": "cache",
+      "to": "brief-gen",
+      "variant": "default"
+    },
+    {
+      "from": "brief-gen",
+      "to": "entity-resolver",
+      "variant": "dashed"
+    },
+    {
+      "from": "entity-resolver",
+      "to": "judge",
+      "variant": "default"
+    },
+    {
+      "from": "judge",
+      "to": "predictions",
+      "variant": "default"
+    },
+    {
+      "from": "predictions",
+      "to": "api",
+      "variant": "default"
+    },
+    {
+      "from": "api",
+      "to": "video-renderer",
+      "variant": "default"
+    },
+    {
+      "from": "video-renderer",
+      "to": "frontend",
+      "variant": "emphasis"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Pipeline Stages",
+      "items": [
+        "6 sequential stages: Collection → Processing → Brief → Adjudication → Judgment → Rendering"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Judgment Boundary",
+      "items": [
+        "projection_enabled=false; judgment provides classification only, not probabilities for publishing"
+      ]
+    }
+  ]
+}

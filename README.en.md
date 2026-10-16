@@ -17,13 +17,11 @@ The full pipeline has run end to end on real data; remaining: TTS voiceover, aut
 
 ## Architecture
 
-```
-Ingestion layer      Processing layer                        Serving / presentation
-RSS / GDELT /        normalize → SimHash dedup →             FastAPI (/api/v1)
-ReliefWeb /          DeepSeek bilingual summary + score      ├─ Web (React + Vite)
-manual upload        + tags → vector dedup / clustering      └─ later: Tauri desktop / Expo mobile
-                     → daily / weekly briefs
-```
+![System Architecture](architectures/architecture-showcase.png)
+
+![Data Flow](architectures/dataflow-showcase.png)
+
+![Sequence](architectures/sequence-showcase.png)
 
 - The backend is the single source of truth; every client shares one REST contract and the types generated into `packages/api-client`.
 - Storage: PostgreSQL + pgvector (documents, vectors and clusters in one database).
