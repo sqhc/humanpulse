@@ -197,6 +197,42 @@ query = urllib.parse.quote(documents["items"][0]["title"][:30])
 hits = get("/search?q=%s&limit=3" % query)
 assert len(hits) >= 1, "语义搜索没有命中（用第一条标题当查询）"
 assert hits[0]["similarity"] > 0, hits[0]
+
+# Signal：文档级 novelty。这条走真实 HTTP + 真实 DB（单测只覆盖纯函数），
+# 所以这里钉的是「响应契约」和「档位口径」不能在重构里漂走。
+novelty = get(f"/documents/{first['id']}/novelty")
+assert 0.0 <= novelty["novelty_score"] <= 1.0, novelty
+assert 0.0 <= novelty["percentile"] <= 100.0, novelty
+assert novelty["band"] in ("high", "mid", "covered"), novelty
+assert novelty["calibrated"] is False, "novelty 是相对切分，绝不能标成已校准"
+assert novelty["confidence"] in ("full", "partial"), novelty
+# basis 只在有因子缺席时才有内容：它是「哪些因子算不出来」的说明，
+# 不是固定的免责声明（那种固定角标在 note_zh 里）。两者别混。
+if novelty["confidence"] == "partial":
+    assert novelty["basis_zh"] and novelty["basis_en"], "partial 必须说明缺了哪些因子"
+else:
+    assert novelty["basis_zh"] == [] and novelty["basis_en"] == [], novelty["basis_zh"]
+assert novelty["note_zh"] and novelty["note_en"], "缺少「相对切分/未校准」的常驻说明"
+factors = {f["key"]: f for f in novelty["factor_breakdown"]}
+assert set(factors) == {"newness", "time_freshness", "source_diversity", "recency"}, factors
+# 权重必须真的归一到 1，否则分数不可比
+assert abs(sum(f["weight"] for f in factors.values()) - 1.0) < 1e-6, factors
+# 档位必须与 cohort 分位切点自洽——这是最容易在改动中失配的地方
+cohort = novelty["cohort"]
+assert cohort["size"] >= 1, cohort
+if not cohort["fallback"]:
+    expected_band = (
+        "high"
+        if novelty["novelty_score"] >= cohort["p75"]
+        else ("covered" if novelty["novelty_score"] < cohort["p25"] else "mid")
+    )
+    assert novelty["band"] == expected_band, (novelty["band"], expected_band, cohort)
+# 槽位数字必须结构化（前端「为什么新颖」直接取用，不 parse 中文散文）
+for factor in factors.values():
+    assert factor["metric_unit"] in ("percent", "hours", "days", "outlets", ""), factor
+    if factor["key"] in ("newness", "time_freshness", "recency") and factor["value"] is not None:
+        assert factor["metric_value"] is not None, factor
+
 print("接口校验通过：",
     {
         "documents": documents["total_returned"],
@@ -211,6 +247,8 @@ print("接口校验通过：",
         "search_hits": len(hits),
         "video_seconds": video["total_seconds"],
         "ingest": demo["ingest"],
+        "novelty_band": novelty["band"],
+        "novelty_percentile": novelty["percentile"],
     },
 )
 PY

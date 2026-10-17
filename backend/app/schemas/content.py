@@ -252,7 +252,12 @@ class DocumentNoveltyOut(BaseModel):
     document_id: int
     novelty_score: float
     percentile: float = Field(
-        default=0.0, description="在近期 cohort 中的百分位排名（0-100，越高越新）"
+        default=0.0,
+        description=(
+            "在近期 cohort 中的百分位排名（0-100，越高越新）。"
+            "注意：cohort.fallback=true 时样本不足，该排名不可当统计百分位展示——"
+            "小样本里最高分必然就是 100%，前端此时只应显示 band，不应显示具体百分位。"
+        ),
     )
     band: str = Field(default="mid", description="high = 相对新颖 / mid / covered = 近期已覆盖")
     factor_breakdown: list[NoveltyFactorOut] = Field(default_factory=list)

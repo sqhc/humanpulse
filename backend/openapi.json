@@ -756,7 +756,7 @@
           },
           "percentile": {
             "default": 0.0,
-            "description": "在近期 cohort 中的百分位排名（0-100，越高越新）",
+            "description": "在近期 cohort 中的百分位排名（0-100，越高越新）。注意：cohort.fallback=true 时样本不足，该排名不可当统计百分位展示——小样本里最高分必然就是 100%，前端此时只应显示 band，不应显示具体百分位。",
             "title": "Percentile",
             "type": "number"
           },

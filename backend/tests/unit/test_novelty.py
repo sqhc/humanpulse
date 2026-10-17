@@ -1,7 +1,8 @@
-"""Signal novelty 纯函数：权重归一化、缺席因子、阈值分档。
+"""Signal novelty 纯函数：权重归一化、缺席因子、分位档位。
 
-这里只测确定性核心（app/pipeline/novelty.py），DB 路径由冒烟脚本覆盖——
-和 test_predictions.py 同一口径：轻量、无数据库。
+这里只测确定性核心（app/pipeline/novelty.py）——快、无数据库。
+DB/HTTP 路径由 scripts/smoke.sh 的真实请求覆盖（含 novelty 响应契约与档位自洽性），
+不在单测里假装覆盖。
 """
 
 from __future__ import annotations
