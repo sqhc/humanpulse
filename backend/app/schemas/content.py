@@ -213,6 +213,13 @@ class NoveltyFactorOut(BaseModel):
     contribution: float = 0.0
     detail_zh: str = ""
     detail_en: str = ""
+    metric_value: float | None = Field(
+        default=None,
+        description="机器可读的槽位数字（percent = 百分数，hours/days/outlets = 原值）",
+    )
+    metric_unit: str = ""
+    metric_label_zh: str = ""
+    metric_label_en: str = ""
 
 
 class NoveltyNeighbourOut(BaseModel):

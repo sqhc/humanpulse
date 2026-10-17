@@ -82,6 +82,12 @@ class NoveltyFactor:
     weight: float
     detail_zh: str
     detail_en: str
+    # 机器可读的槽位数字：前端拼「为什么新颖」时直接取用，
+    # 不必去 parse detail_zh 的自然语言（改一个字就会把前端拼串弄坏）。
+    metric_value: float | None = None
+    metric_unit: str = ""
+    metric_label_zh: str = ""
+    metric_label_en: str = ""
 
     @property
     def contribution(self) -> float:
@@ -122,6 +128,10 @@ def newness_factor(max_similarity: float | None) -> NoveltyFactor:
         weight=W_NEWNESS,
         detail_zh=f"窗口内最相似报道的余弦相似度 {max_similarity:.3f}，新意 = 1 - 相似度。",
         detail_en=f"Top-1 neighbour similarity {max_similarity:.3f}; newness = 1 - similarity.",
+        metric_value=round(_clamp(max_similarity) * 100.0, 1),
+        metric_unit="percent",
+        metric_label_zh="与最相似报道的相似度",
+        metric_label_en="similarity to the most similar report",
     )
 
 
@@ -149,11 +159,21 @@ def time_freshness_factor(
         weight=W_TIME_FRESHNESS,
         detail_zh=f"与最相似近邻相隔 {hours:.1f} 小时，τ={tau_hours:.0f}h。",
         detail_en=f"Nearest similar report was {hours:.1f}h away; tau={tau_hours:.0f}h.",
+        metric_value=round(hours, 1),
+        metric_unit="hours",
+        metric_label_zh="距最相似近邻的时间间隔",
+        metric_label_en="time since the most similar report",
     )
 
 
-def source_diversity_factor(same_source: int | None, total: int | None) -> NoveltyFactor:
-    """1 - 窗内同源占比。total=0 时该因子缺席（不猜）。"""
+def source_diversity_factor(
+    same_source: int | None, total: int | None, other_sources: int | None = None
+) -> NoveltyFactor:
+    """1 - 窗内同源占比。total=0 时该因子缺席（不猜）。
+
+    other_sources 是**不同来源的个数**（不是条数）：文案里的「{M} 家不同来源」
+    必须用去重后的来源数，否则会把 124 篇稿子说成 124 家媒体。
+    """
     if not total or total <= 0 or same_source is None:
         return NoveltyFactor(
             key="source_diversity",
@@ -176,6 +196,10 @@ def source_diversity_factor(same_source: int | None, total: int | None) -> Novel
         weight=W_SOURCE_DIVERSITY,
         detail_zh=f"窗口内 {total} 篇中有 {same_source} 篇来自同一来源（占比 {share:.0%}）。",
         detail_en=f"{same_source} of {total} window items share this source ({share:.0%}).",
+        metric_value=None if other_sources is None else float(other_sources),
+        metric_unit="outlets",
+        metric_label_zh="窗口内其它来源家数（去重）",
+        metric_label_en="other distinct outlets in the window",
     )
 
 
@@ -201,6 +225,10 @@ def recency_factor(age_days: float | None, span_days: float = RECENCY_SPAN_DAYS)
         weight=W_RECENCY,
         detail_zh=f"距参考时刻 {days:.1f} 天，{span_days:.0f} 天线性衰减到 0。",
         detail_en=f"{days:.1f} days old; linear decay to 0 over {span_days:.0f} days.",
+        metric_value=round(days, 1),
+        metric_unit="days",
+        metric_label_zh="距发布天数",
+        metric_label_en="days since publication",
     )
 
 
@@ -213,8 +241,12 @@ def compute_novelty(
     age_days: float | None,
     has_embedding: bool,
     tau_hours: float = TAU_HOURS,
+    other_sources: int | None = None,
 ) -> NoveltyScore:
-    """四因子加权，返回**纯分数**。档位/百分位由 cohort 另行判定（见 classify）。"""
+    """四因子加权，返回**纯分数**。档位/百分位由 cohort 另行判定（见 classify）。
+
+    other_sources 只影响返回的槽位数字（「{M} 家不同来源」），不参与加权。
+    """
     factors: list[NoveltyFactor] = []
     basis_zh: list[str] = []
     basis_en: list[str] = []
@@ -225,7 +257,9 @@ def compute_novelty(
     else:
         basis_zh.append(MISSING_EMBEDDING_ZH)
         basis_en.append(MISSING_EMBEDDING_EN)
-    factors.append(source_diversity_factor(same_source, total_in_window))
+    factors.append(
+        source_diversity_factor(same_source, total_in_window, other_sources=other_sources)
+    )
     factors.append(recency_factor(age_days))
 
     # 向量缺失时“时间新鲜度”同样无从谈起（它依赖最相似近邻），一并标为缺席，

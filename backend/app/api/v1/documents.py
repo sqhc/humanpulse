@@ -280,6 +280,9 @@ async def get_document_novelty(
     same_source = next(
         (int(count) for source_id, count in window_rows if source_id == document.source_id), 0
     )
+    # 「{M} 家不同来源」必须用**去重后的来源数**：total - same_source 是条数，
+    # 会把 124 篇稿子说成「124 家媒体」。
+    other_sources = sum(1 for source_id, _count in window_rows if source_id != document.source_id)
 
     age_days = novelty_core.age_days_between(anchor, datetime.now(UTC)) if anchor else None
 
@@ -291,6 +294,7 @@ async def get_document_novelty(
         age_days=age_days,
         has_embedding=vector is not None,
         tau_hours=tau_hours,
+        other_sources=other_sources,
     )
     # 档位/百分位来自**缓存的全局分布**：这是全局统计而非单文档属性，重建要跑全库，
     # 不能每请求算一次（见 pipeline/novelty_cohort.py 的取舍说明）。
@@ -317,6 +321,10 @@ async def get_document_novelty(
                 contribution=round(factor.contribution, 4),
                 detail_zh=factor.detail_zh,
                 detail_en=factor.detail_en,
+                metric_value=factor.metric_value,
+                metric_unit=factor.metric_unit,
+                metric_label_zh=factor.metric_label_zh,
+                metric_label_en=factor.metric_label_en,
             )
             for factor in result.factors
         ],

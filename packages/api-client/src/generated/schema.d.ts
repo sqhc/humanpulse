@@ -1307,6 +1307,26 @@ export interface components {
             label_en: string;
             /** Label Zh */
             label_zh: string;
+            /**
+             * Metric Label En
+             * @default
+             */
+            metric_label_en: string;
+            /**
+             * Metric Label Zh
+             * @default
+             */
+            metric_label_zh: string;
+            /**
+             * Metric Unit
+             * @default
+             */
+            metric_unit: string;
+            /**
+             * Metric Value
+             * @description 机器可读的槽位数字（percent = 百分数，hours/days/outlets = 原值）
+             */
+            metric_value?: number | null;
             /** Value */
             value?: number | null;
             /** Weight */

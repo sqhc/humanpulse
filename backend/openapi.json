@@ -1749,6 +1749,33 @@
             "title": "Label Zh",
             "type": "string"
           },
+          "metric_label_en": {
+            "default": "",
+            "title": "Metric Label En",
+            "type": "string"
+          },
+          "metric_label_zh": {
+            "default": "",
+            "title": "Metric Label Zh",
+            "type": "string"
+          },
+          "metric_unit": {
+            "default": "",
+            "title": "Metric Unit",
+            "type": "string"
+          },
+          "metric_value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "机器可读的槽位数字（percent = 百分数，hours/days/outlets = 原值）",
+            "title": "Metric Value"
+          },
           "value": {
             "anyOf": [
               {

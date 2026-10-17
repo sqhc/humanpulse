@@ -60,6 +60,35 @@ def test_time_freshness_decays_with_gap() -> None:
     assert n.time_freshness_factor(48.0).value == pytest.approx(0.6321, abs=1e-4)
 
 
+def test_factor_metric_slots_are_machine_readable() -> None:
+    """前端「为什么新颖」槽位句要的数字必须由字段提供，不能靠 parse detail_zh。"""
+    newness = n.newness_factor(0.753)
+    assert newness.metric_unit == "percent"
+    assert newness.metric_value == pytest.approx(75.3)
+
+    freshness = n.time_freshness_factor(4.8)
+    assert freshness.metric_unit == "hours"
+    assert freshness.metric_value == pytest.approx(4.8)
+
+    diversity = n.source_diversity_factor(same_source=3, total=20, other_sources=7)
+    assert diversity.metric_unit == "outlets"
+    assert diversity.metric_value == pytest.approx(7.0)  # 去重后的来源家数，不是 17 条稿子
+
+    # 不给 other_sources 时不得瞎猜成条数差
+    assert n.source_diversity_factor(same_source=3, total=20).metric_value is None
+
+    recency = n.recency_factor(2.5)
+    assert recency.metric_unit == "days"
+    assert recency.metric_value == pytest.approx(2.5)
+
+
+def test_absent_factors_have_no_metric_slot() -> None:
+    """缺席因子不该给出槽位数字——否则前端会显示一个算不出来的值。"""
+    assert n.source_diversity_factor(None, 0).metric_value is None
+    assert n.recency_factor(None).metric_value is None
+    assert n.source_diversity_factor(None, 0).value is None
+
+
 def test_missing_embedding_drops_vector_factors_and_renormalises() -> None:
     """没有向量：向量因子缺席（value=None）、不参与、权重重新归一化，并标 partial。"""
     result = n.compute_novelty(
