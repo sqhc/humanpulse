@@ -686,6 +686,112 @@
         "title": "DocumentListOut",
         "type": "object"
       },
+      "DocumentNoveltyOut": {
+        "description": "文档级 novelty（Signal）——确定性工程指标，未经人工标注校准。",
+        "properties": {
+          "basis_en": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Basis En",
+            "type": "array"
+          },
+          "basis_zh": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Basis Zh",
+            "type": "array"
+          },
+          "calibrated": {
+            "default": false,
+            "title": "Calibrated",
+            "type": "boolean"
+          },
+          "confidence": {
+            "default": "full",
+            "title": "Confidence",
+            "type": "string"
+          },
+          "document_id": {
+            "title": "Document Id",
+            "type": "integer"
+          },
+          "factor_breakdown": {
+            "items": {
+              "$ref": "#/components/schemas/NoveltyFactorOut"
+            },
+            "title": "Factor Breakdown",
+            "type": "array"
+          },
+          "neighbours": {
+            "items": {
+              "$ref": "#/components/schemas/NoveltyNeighbourOut"
+            },
+            "title": "Neighbours",
+            "type": "array"
+          },
+          "note_en": {
+            "default": "",
+            "title": "Note En",
+            "type": "string"
+          },
+          "note_zh": {
+            "default": "",
+            "title": "Note Zh",
+            "type": "string"
+          },
+          "novelty_score": {
+            "title": "Novelty Score",
+            "type": "number"
+          },
+          "recommendation_en": {
+            "default": "",
+            "title": "Recommendation En",
+            "type": "string"
+          },
+          "recommendation_zh": {
+            "default": "",
+            "title": "Recommendation Zh",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "tau_hours": {
+            "title": "Tau Hours",
+            "type": "number"
+          },
+          "thresholds": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "title": "Thresholds",
+            "type": "object"
+          },
+          "weights": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "title": "Weights",
+            "type": "object"
+          },
+          "window_days": {
+            "title": "Window Days",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "document_id",
+          "novelty_score",
+          "status",
+          "window_days",
+          "tau_hours"
+        ],
+        "title": "DocumentNoveltyOut",
+        "type": "object"
+      },
       "DocumentOut": {
         "properties": {
           "ai_generated": {
@@ -1568,6 +1674,113 @@
           "rights_confirmed"
         ],
         "title": "ManualTextIn",
+        "type": "object"
+      },
+      "NoveltyFactorOut": {
+        "description": "novelty 单个因子的取值与溯源（value=None 表示该因子缺席、未参与加权）。",
+        "properties": {
+          "contribution": {
+            "default": 0.0,
+            "title": "Contribution",
+            "type": "number"
+          },
+          "detail_en": {
+            "default": "",
+            "title": "Detail En",
+            "type": "string"
+          },
+          "detail_zh": {
+            "default": "",
+            "title": "Detail Zh",
+            "type": "string"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "label_en": {
+            "title": "Label En",
+            "type": "string"
+          },
+          "label_zh": {
+            "title": "Label Zh",
+            "type": "string"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          },
+          "weight": {
+            "title": "Weight",
+            "type": "number"
+          }
+        },
+        "required": [
+          "key",
+          "label_zh",
+          "label_en",
+          "weight"
+        ],
+        "title": "NoveltyFactorOut",
+        "type": "object"
+      },
+      "NoveltyNeighbourOut": {
+        "description": "最相似的近邻报道——「为什么这条被判定为相似」的可核对依据。",
+        "properties": {
+          "document_id": {
+            "title": "Document Id",
+            "type": "integer"
+          },
+          "published_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Published At"
+          },
+          "similarity": {
+            "title": "Similarity",
+            "type": "number"
+          },
+          "source_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Name"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "document_id",
+          "title",
+          "url",
+          "similarity"
+        ],
+        "title": "NoveltyNeighbourOut",
         "type": "object"
       },
       "PredictionListOut": {
@@ -3223,6 +3436,77 @@
           }
         },
         "summary": "文档详情",
+        "tags": [
+          "documents"
+        ]
+      }
+    },
+    "/api/v1/documents/{document_id}/novelty": {
+      "get": {
+        "description": "判断「这篇是不是真正的新信息」。\n\n确定性指标：窗口内最相似报道（pgvector 余弦，走 HNSW）、与它的时间间隔、来源分布、时效。\n不依赖聚类质量——93% 的 cluster 只有一篇，所以这是文档级而非 cluster 级判断。\n阈值与权重是人工设定、未与人工标注对齐：响应固定 `calibrated=False`，前端按「未经校准」呈现。",
+        "operationId": "get_document_novelty_api_v1_documents__document_id__novelty_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "document_id",
+            "required": true,
+            "schema": {
+              "title": "Document Id",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "时间窗天数",
+            "in": "query",
+            "name": "window_days",
+            "required": false,
+            "schema": {
+              "default": 7,
+              "description": "时间窗天数",
+              "maximum": 90,
+              "minimum": 1,
+              "title": "Window Days",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "时间衰减常数（小时）",
+            "in": "query",
+            "name": "tau_hours",
+            "required": false,
+            "schema": {
+              "default": 48.0,
+              "description": "时间衰减常数（小时）",
+              "exclusiveMinimum": 0,
+              "maximum": 720,
+              "title": "Tau Hours",
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentNoveltyOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "文档级 novelty / 信噪比（Signal）",
         "tags": [
           "documents"
         ]

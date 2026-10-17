@@ -277,6 +277,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/documents/{document_id}/novelty": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 文档级 novelty / 信噪比（Signal）
+         * @description 判断「这篇是不是真正的新信息」。
+         *
+         *     确定性指标：窗口内最相似报道（pgvector 余弦，走 HNSW）、与它的时间间隔、来源分布、时效。
+         *     不依赖聚类质量——93% 的 cluster 只有一篇，所以这是文档级而非 cluster 级判断。
+         *     阈值与权重是人工设定、未与人工标注对齐：响应固定 `calibrated=False`，前端按「未经校准」呈现。
+         */
+        get: operations["get_document_novelty_api_v1_documents__document_id__novelty_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/entities": {
         parameters: {
             query?: never;
@@ -777,6 +801,68 @@ export interface components {
             /** Total Returned */
             total_returned: number;
         };
+        /**
+         * DocumentNoveltyOut
+         * @description 文档级 novelty（Signal）——确定性工程指标，未经人工标注校准。
+         */
+        DocumentNoveltyOut: {
+            /** Basis En */
+            basis_en?: string[];
+            /** Basis Zh */
+            basis_zh?: string[];
+            /**
+             * Calibrated
+             * @default false
+             */
+            calibrated: boolean;
+            /**
+             * Confidence
+             * @default full
+             */
+            confidence: string;
+            /** Document Id */
+            document_id: number;
+            /** Factor Breakdown */
+            factor_breakdown?: components["schemas"]["NoveltyFactorOut"][];
+            /** Neighbours */
+            neighbours?: components["schemas"]["NoveltyNeighbourOut"][];
+            /**
+             * Note En
+             * @default
+             */
+            note_en: string;
+            /**
+             * Note Zh
+             * @default
+             */
+            note_zh: string;
+            /** Novelty Score */
+            novelty_score: number;
+            /**
+             * Recommendation En
+             * @default
+             */
+            recommendation_en: string;
+            /**
+             * Recommendation Zh
+             * @default
+             */
+            recommendation_zh: string;
+            /** Status */
+            status: string;
+            /** Tau Hours */
+            tau_hours: number;
+            /** Thresholds */
+            thresholds?: {
+                [key: string]: number;
+            };
+            /** Weights */
+            weights?: {
+                [key: string]: number;
+            };
+            /** Window Days */
+            window_days: number;
+        };
         /** DocumentOut */
         DocumentOut: {
             /**
@@ -1147,6 +1233,55 @@ export interface components {
             title: string;
             /** Url */
             url?: string | null;
+        };
+        /**
+         * NoveltyFactorOut
+         * @description novelty 单个因子的取值与溯源（value=None 表示该因子缺席、未参与加权）。
+         */
+        NoveltyFactorOut: {
+            /**
+             * Contribution
+             * @default 0
+             */
+            contribution: number;
+            /**
+             * Detail En
+             * @default
+             */
+            detail_en: string;
+            /**
+             * Detail Zh
+             * @default
+             */
+            detail_zh: string;
+            /** Key */
+            key: string;
+            /** Label En */
+            label_en: string;
+            /** Label Zh */
+            label_zh: string;
+            /** Value */
+            value?: number | null;
+            /** Weight */
+            weight: number;
+        };
+        /**
+         * NoveltyNeighbourOut
+         * @description 最相似的近邻报道——「为什么这条被判定为相似」的可核对依据。
+         */
+        NoveltyNeighbourOut: {
+            /** Document Id */
+            document_id: number;
+            /** Published At */
+            published_at?: string | null;
+            /** Similarity */
+            similarity: number;
+            /** Source Name */
+            source_name?: string | null;
+            /** Title */
+            title: string;
+            /** Url */
+            url: string;
         };
         /** PredictionListOut */
         PredictionListOut: {
@@ -1850,6 +1985,42 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DocumentDetailOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_document_novelty_api_v1_documents__document_id__novelty_get: {
+        parameters: {
+            query?: {
+                /** @description 时间窗天数 */
+                window_days?: number;
+                /** @description 时间衰减常数（小时） */
+                tau_hours?: number;
+            };
+            header?: never;
+            path: {
+                document_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentNoveltyOut"];
                 };
             };
             /** @description Validation Error */

@@ -34,6 +34,7 @@ export type SearchHitOut = components["schemas"]["SearchHitOut"];
 export type PredictionOut = components["schemas"]["PredictionOut"];
 export type PredictionListOut = components["schemas"]["PredictionListOut"];
 export type CalibrationOut = components["schemas"]["CalibrationOut"];
+export type DocumentNoveltyOut = components["schemas"]["DocumentNoveltyOut"];
 
 /** 结构化简报内容（由服务端渲染 Markdown，前端按语言取字段）。 */
 export interface BriefSection {
@@ -128,6 +129,16 @@ export function createClient(options: ClientOptions = {}) {
       request<DocumentListOut>(`/api/v1/documents${toQueryString(params)}`, { signal }),
     getDocument: (documentId: number, { signal }: RequestOptions = {}) =>
       request<DocumentDetailOut>(`/api/v1/documents/${documentId}`, { signal }),
+    /** Signal：文档级 novelty（确定性工程指标，未经人工标注校准；响应里 calibrated=false）。 */
+    getDocumentNovelty: (
+      documentId: number,
+      params: { window_days?: number; tau_hours?: number } = {},
+      { signal }: RequestOptions = {},
+    ) =>
+      request<DocumentNoveltyOut>(
+        `/api/v1/documents/${documentId}/novelty${toQueryString(params)}`,
+        { signal },
+      ),
     listClusters: (
       params: { limit?: number; min_docs?: number } = {},
       { signal }: RequestOptions = {},

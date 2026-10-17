@@ -202,6 +202,52 @@ class SearchHitOut(BaseModel):
     similarity: float = 0.0
 
 
+class NoveltyFactorOut(BaseModel):
+    """novelty 单个因子的取值与溯源（value=None 表示该因子缺席、未参与加权）。"""
+
+    key: str
+    label_zh: str
+    label_en: str
+    value: float | None = None
+    weight: float
+    contribution: float = 0.0
+    detail_zh: str = ""
+    detail_en: str = ""
+
+
+class NoveltyNeighbourOut(BaseModel):
+    """最相似的近邻报道——「为什么这条被判定为相似」的可核对依据。"""
+
+    document_id: int
+    title: str
+    url: str
+    source_name: str | None = None
+    similarity: float
+    published_at: datetime | None = None
+
+
+class DocumentNoveltyOut(BaseModel):
+    """文档级 novelty（Signal）——确定性工程指标，未经人工标注校准。"""
+
+    document_id: int
+    novelty_score: float
+    status: str
+    factor_breakdown: list[NoveltyFactorOut] = Field(default_factory=list)
+    neighbours: list[NoveltyNeighbourOut] = Field(default_factory=list)
+    window_days: int
+    tau_hours: float
+    weights: dict[str, float] = Field(default_factory=dict)
+    thresholds: dict[str, float] = Field(default_factory=dict)
+    recommendation_zh: str = ""
+    recommendation_en: str = ""
+    basis_zh: list[str] = Field(default_factory=list)
+    basis_en: list[str] = Field(default_factory=list)
+    confidence: str = "full"
+    calibrated: bool = False
+    note_zh: str = ""
+    note_en: str = ""
+
+
 class PredictionOut(BaseModel):
     """登记过的推演（预测）——概率一律标注「未经校准」，不是可发布结论。"""
 
