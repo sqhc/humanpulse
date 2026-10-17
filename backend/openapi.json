@@ -336,6 +336,13 @@
             ],
             "title": "Cluster Id"
           },
+          "entities": {
+            "items": {
+              "$ref": "#/components/schemas/EntityRef"
+            },
+            "title": "Entities",
+            "type": "array"
+          },
           "excerpt": {
             "anyOf": [
               {
@@ -571,6 +578,13 @@
               }
             ],
             "title": "Cluster Id"
+          },
+          "entities": {
+            "items": {
+              "$ref": "#/components/schemas/EntityRef"
+            },
+            "title": "Entities",
+            "type": "array"
           },
           "excerpt": {
             "anyOf": [
@@ -1131,6 +1145,30 @@
           "last_seen_at"
         ],
         "title": "EntityOut",
+        "type": "object"
+      },
+      "EntityRef": {
+        "description": "文档里抽取的命名实体（供前端关键词高亮用）。",
+        "properties": {
+          "kind": {
+            "default": "org",
+            "title": "Kind",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "salience": {
+            "default": 0.0,
+            "title": "Salience",
+            "type": "number"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "EntityRef",
         "type": "object"
       },
       "EntityTimelinePoint": {

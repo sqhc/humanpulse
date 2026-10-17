@@ -14,7 +14,7 @@ from app.db import get_session
 from app.models.analysis import Analysis, ClusterMember, Embedding
 from app.models.document import Document
 from app.models.source import Source
-from app.schemas.content import DocumentDetailOut, DocumentListOut, DocumentOut
+from app.schemas.content import DocumentDetailOut, DocumentListOut, DocumentOut, EntityRef
 
 router = APIRouter()
 
@@ -47,6 +47,17 @@ def _to_out(
         summary_en=analysis.summary_en if analysis else None,
         tags=list(analysis.tags) if analysis else [],
         regions=list(analysis.regions) if analysis else [],
+        entities=[
+            EntityRef(
+                name=str(entry.get("name", "")).strip(),
+                kind=str(entry.get("kind", "org")),
+                salience=float(entry.get("salience", 0) or 0),
+            )
+            for entry in (analysis.entities or [])
+            if isinstance(entry, dict) and entry.get("name")
+        ]
+        if analysis
+        else [],
         rationale=analysis.rationale if analysis else None,
         cluster_id=cluster_id,
     )

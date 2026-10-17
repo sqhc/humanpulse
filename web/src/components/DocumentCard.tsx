@@ -17,23 +17,28 @@ function tagTheme(tag: string): string {
   return TAG_THEMES[tag] ?? "bg-line/40 text-ink-muted";
 }
 
-/** 把正文里的地区名浅底高亮（地区=青色主题，区别于话题标签配色）。 */
-function highlightRegions(text: string, regions: string[]): ReactNode {
-  const escaped = regions
-    .filter(Boolean)
-    .map((r) => r.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
-    .sort((a, b) => b.length - a.length);
-  if (escaped.length === 0) return text;
+/** 按主题浅底高亮正文里的关键词（实体=紫 / 地区=青，区别于话题标签配色）。 */
+function highlightKeywords(
+  text: string,
+  keywords: { word: string; className: string }[],
+): ReactNode {
+  const items = keywords
+    .filter((k) => k.word.trim().length > 0)
+    .map((k) => ({ word: k.word.trim(), className: k.className }))
+    .sort((a, b) => b.word.length - a.word.length);
+  if (items.length === 0) return text;
+  const escaped = items.map((k) => k.word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
   const pattern = new RegExp(`(${escaped.join("|")})`, "g");
-  return text.split(pattern).map((part, index) =>
-    index % 2 === 1 ? (
-      <mark key={index} className="rounded bg-teal-500/20 px-0.5 text-teal-200">
+  const themeByWord = new Map(items.map((k) => [k.word, k.className]));
+  return text.split(pattern).map((part, index) => {
+    if (index % 2 !== 1) return part;
+    const className = themeByWord.get(part) ?? "";
+    return (
+      <mark key={index} className={`rounded px-0.5 ${className}`}>
         {part}
       </mark>
-    ) : (
-      part
-    ),
-  );
+    );
+  });
 }
 
 interface DocumentCardProps {
@@ -48,8 +53,18 @@ export function DocumentCard({ doc, lang, t }: DocumentCardProps) {
   const body = summary || fallback;
   const tags = doc.tags ?? [];
   const regions = doc.regions ?? [];
+  const entityNames = (doc.entities ?? []).map((e) => e.name).filter(Boolean);
   const headlineOnly = tags.includes("headline-only");
   const visibleTags = tags.filter((tag) => tag !== "headline-only").slice(0, 6);
+  const highlight = body
+    ? highlightKeywords(body, [
+        ...entityNames.map((name) => ({
+          word: name,
+          className: "bg-violet-500/20 text-violet-200",
+        })),
+        ...regions.map((r) => ({ word: r, className: "bg-teal-500/20 text-teal-200" })),
+      ])
+    : null;
 
   return (
     <article className="rounded-xl border border-line bg-surface-muted/40 p-4 transition hover:border-accent/60">
@@ -76,7 +91,7 @@ export function DocumentCard({ doc, lang, t }: DocumentCardProps) {
         {headlineOnly ? ` · ${t.headlineOnly}` : ""}
       </p>
 
-      {body ? <p className="mt-2 line-clamp-3 text-sm text-ink/90">{highlightRegions(body, regions)}</p> : null}
+      {body ? <p className="mt-2 line-clamp-3 text-sm text-ink/90">{highlight}</p> : null}
 
       <div className="mt-3 flex flex-wrap items-center gap-1.5">
         <span className="rounded bg-accent/10 px-2 py-0.5 text-[11px] text-accent">{t.aiSummary}</span>

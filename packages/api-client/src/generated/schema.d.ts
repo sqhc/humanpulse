@@ -677,6 +677,8 @@ export interface components {
             canonical_url: string;
             /** Cluster Id */
             cluster_id?: number | null;
+            /** Entities */
+            entities?: components["schemas"]["EntityRef"][];
             /** Excerpt */
             excerpt?: string | null;
             /**
@@ -744,6 +746,8 @@ export interface components {
             canonical_url: string;
             /** Cluster Id */
             cluster_id?: number | null;
+            /** Entities */
+            entities?: components["schemas"]["EntityRef"][];
             /** Excerpt */
             excerpt?: string | null;
             /**
@@ -977,6 +981,24 @@ export interface components {
             mention_count: number;
             /** Name */
             name: string;
+        };
+        /**
+         * EntityRef
+         * @description 文档里抽取的命名实体（供前端关键词高亮用）。
+         */
+        EntityRef: {
+            /**
+             * Kind
+             * @default org
+             */
+            kind: string;
+            /** Name */
+            name: string;
+            /**
+             * Salience
+             * @default 0
+             */
+            salience: number;
         };
         /** EntityTimelinePoint */
         EntityTimelinePoint: {

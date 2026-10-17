@@ -7,6 +7,14 @@ from datetime import datetime
 from pydantic import BaseModel, Field
 
 
+class EntityRef(BaseModel):
+    """文档里抽取的命名实体（供前端关键词高亮用）。"""
+
+    name: str
+    kind: str = "org"
+    salience: float = 0.0
+
+
 class DocumentOut(BaseModel):
     id: int
     url: str
@@ -27,6 +35,7 @@ class DocumentOut(BaseModel):
     summary_en: str | None = None
     tags: list[str] = Field(default_factory=list)
     regions: list[str] = Field(default_factory=list)
+    entities: list[EntityRef] = Field(default_factory=list)
     rationale: str | None = None
     cluster_id: int | None = None
     ai_generated: bool = True
