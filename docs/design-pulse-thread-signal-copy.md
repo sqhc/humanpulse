@@ -103,13 +103,15 @@ Signal 的全部文案都回答一个问题：**为什么这条排在你面前**
 > en: relatively new only (top 25% recent)
 > 关闭时：显示全部 {total} 条 / showing all {total} items
 
-**「为什么新颖」下钻**（点击徽标展开，槽位拼接，对应 detail 端点因子分解）：
+**「为什么新颖」下钻**（点击徽标展开，槽位拼接，对应 detail 端点因子分解的 `metric_value`/`metric_unit`/`metric_label_*` 结构化字段——前端读字段拼句，不 parse 散文）：
+
+> 口径（与后端 `bcef0b4` 对齐）：以下槽位全部是**窗口口径**（近 {W} 天内），不是事件/cluster 全生命周期口径。来源多样性 {M} = 窗口内**其它不同来源的家数**（去重后），不是报道条数。
 
 | 因子 | zh 槽位句 | en 槽位句 |
 |---|---|---|
 | 相似度 | 与近 {W} 天最相似报道的重合度 {S}% | {S}% overlap with the most similar recent report ({W}d window) |
-| 时间衰减 | 距同事件上一条报道 {Δt} | last report on this event {Δt} ago |
-| 来源多样性 | 该事件已有 {M} 家不同来源报道 | already covered by {M} outlets |
+| 时间衰减 | 近 {W} 天内上一条报道距今 {Δt} | last report within the {W}d window was {Δt} ago |
+| 来源多样性 | 近 {W} 天内已有 {M} 家不同来源报道 | {M} other outlets covered this in the {W}d window |
 | 置信 | 部分因子缺席，按剩余因子归一（partial） | some factors missing; renormalized (partial) |
 
 **新在哪徽标**（每条前置，四选一，按优先级；触发条件全部是确定性事实，与 novelty band 无关）：
