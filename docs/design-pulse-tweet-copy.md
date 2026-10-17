@@ -76,11 +76,18 @@
 
 > ✅ 脉搏卡版 = 事实 + 判断 + 观察点（见样例 1）。
 
-## 落地接线（供 Chief 实现组件时参考）
+## 落地接线（已定稿口径，2026-10-17 Chief 拍板）
 
-- 数据源：`GET /briefs/latest?kind=daily|weekly` 的 `sections[].bullets_zh/en`（周报）或 Feed 的 `documents[].summary_zh/en`（单条）；**简报 bullets 是服务端渲染的定稿文案，可直接作为脉搏卡文本源**，钩子需要模型或编辑生成后入库（`pulse_hooks` 字段，建议 brief/document 结构化 JSON 内新增，服务端渲染，不让前端拼链接）。
-- 字数守卫：组件渲染前校验 `length ≤ 280`，超长截断到观察点前的句号并附 `…`（宁缺毋滥）。
+**数据源与钩子生成**：
+- 钩子落在 **`BriefContent` 结构化 JSON** 的新增 `pulse_hooks` 字段，与 `item_facets` 同模式：**简报生成的同一次 LLM 调用**里，让模型为每条素材输出「一句话事实 + 钩子（为什么重要 + 接下来看）」，只从素材原文提炼，**无则留空**。
+- **服务端渲染，前端零模型调用**；老简报没有该字段时回退为不显示钩子（不报错、不占位）。
+- 需改动：`brief_daily.md` / `brief_weekly.md` prompt + `BriefContent` schema + `briefs.py` 渲染。
+
+**定位**：tweet 短讯是「**简报级**」可消费形式（周报 bullets → 带钩子的脉搏卡），不是逐文档的 Feed 流——数据量 29 篇/天，简报级策展过的 top 故事才撑得起「短讯」。
+
+**组件参考**：
+- 字数守卫：渲染前校验 `length ≤ 280`，超长截断到观察点前的句号并附 `…`（宁缺毋滥）。
 - 主题前缀颜色直接复用 `tagTheme()`；实体/地区高亮复用 `highlightKeywords()`。
-- Cluster 线程视图：同一 `cluster_id` 的脉搏卡按时间排序，序号 `1/3 → 2/3 → 3/3` 展示事件发展。
+- 脉搏卡文本源：`GET /briefs/latest?kind=daily|weekly` 的 `sections[].bullets_zh/en` + `pulse_hooks`；来源链接由服务端拼，前端不生成。
 
 —— 写手 · 2026-10-17
