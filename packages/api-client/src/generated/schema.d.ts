@@ -742,6 +742,11 @@ export interface components {
             ai_generated: boolean;
             /** Author */
             author?: string | null;
+            /**
+             * Band
+             * @description high = 相对新颖 / mid / covered = 近期已覆盖（相对切分，未校准）
+             */
+            band?: string | null;
             /** Canonical Url */
             canonical_url: string;
             /** Cluster Id */
@@ -761,6 +766,8 @@ export interface components {
             kind: string;
             /** Language */
             language?: string | null;
+            /** Novelty */
+            novelty?: number | null;
             /** Published At */
             published_at?: string | null;
             /** Rationale */
@@ -880,6 +887,11 @@ export interface components {
             ai_generated: boolean;
             /** Author */
             author?: string | null;
+            /**
+             * Band
+             * @description high = 相对新颖 / mid / covered = 近期已覆盖（相对切分，未校准）
+             */
+            band?: string | null;
             /** Canonical Url */
             canonical_url: string;
             /** Cluster Id */
@@ -899,6 +911,8 @@ export interface components {
             kind: string;
             /** Language */
             language?: string | null;
+            /** Novelty */
+            novelty?: number | null;
             /** Published At */
             published_at?: string | null;
             /** Rationale */

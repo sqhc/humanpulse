@@ -39,6 +39,13 @@ class DocumentOut(BaseModel):
     rationale: str | None = None
     cluster_id: int | None = None
     ai_generated: bool = True
+    # Feed 卡片徽标用：随 `GET /documents` 批量返回，避免逐条请求造成 N+1。
+    # 完整四因子溯源仍走 `GET /documents/{id}/novelty`（详情页下钻用）。
+    novelty: float | None = None
+    band: str | None = Field(
+        default=None,
+        description="high = 相对新颖 / mid / covered = 近期已覆盖（相对切分，未校准）",
+    )
 
 
 class DocumentListOut(BaseModel):

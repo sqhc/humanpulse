@@ -39,6 +39,8 @@ def _to_out(
     analysis: Analysis | None,
     cluster_id: int | None,
     source_name: str | None,
+    novelty: float | None = None,
+    band: str | None = None,
 ) -> DocumentOut:
     return DocumentOut(
         id=document.id,
@@ -73,6 +75,8 @@ def _to_out(
         else [],
         rationale=analysis.rationale if analysis else None,
         cluster_id=cluster_id,
+        novelty=novelty,
+        band=band,
     )
 
 
@@ -134,8 +138,27 @@ async def list_documents(
     rows = (await session.execute(stmt)).all()
     has_more = len(rows) > limit
     rows = rows[:limit]
+
+    # Feed 卡片徽标：一次性从缓存的分布里取本页每条的分数与档位。
+    # 这是**批量**取（不是逐条调 novelty 端点）——一屏 20 条若各自请求就是 20 次往返，
+    # 正是要避免的 N+1。缓存未命中时只重建这一次，本页共用。
+    snapshot = await novelty_cohort.get_cohort(
+        session, window_days=novelty_core.HORIZON_DAYS, tau_hours=novelty_core.TAU_HOURS
+    )
     items = [
-        _to_out(doc, analysis, cluster, source_name) for doc, analysis, cluster, source_name in rows
+        _to_out(
+            doc,
+            analysis,
+            cluster,
+            source_name,
+            novelty=snapshot.scores.get(doc.id),
+            band=(
+                None
+                if snapshot.scores.get(doc.id) is None
+                else snapshot.cohort.band_of(snapshot.scores[doc.id])
+            ),
+        )
+        for doc, analysis, cluster, source_name in rows
     ]
     return DocumentListOut(
         items=items,
@@ -159,7 +182,19 @@ async def get_document(document_id: int, session: SessionDep) -> DocumentDetailO
     if row is None:
         raise HTTPException(status_code=404, detail="文档不存在")
     document, analysis, cluster_id, source_name = row
-    base = _to_out(document, analysis, cluster_id, source_name)
+    # 详情也带上 novelty/band，与列表卡片口径一致（同一份缓存，不是另算一套）
+    detail_snapshot = await novelty_cohort.get_cohort(
+        session, window_days=novelty_core.HORIZON_DAYS, tau_hours=novelty_core.TAU_HOURS
+    )
+    detail_score = detail_snapshot.scores.get(document_id)
+    base = _to_out(
+        document,
+        analysis,
+        cluster_id,
+        source_name,
+        novelty=detail_score,
+        band=None if detail_score is None else detail_snapshot.cohort.band_of(detail_score),
+    )
 
     siblings: list[DocumentOut] = []
     if cluster_id is not None:
@@ -175,7 +210,21 @@ async def get_document(document_id: int, session: SessionDep) -> DocumentDetailO
                 .limit(10)
             )
         ).all()
-        siblings = [_to_out(doc, ana, cl, sname) for doc, ana, cl, sname in sibling_rows]
+        siblings = [
+            _to_out(
+                doc,
+                ana,
+                cl,
+                sname,
+                novelty=detail_snapshot.scores.get(doc.id),
+                band=(
+                    None
+                    if detail_snapshot.scores.get(doc.id) is None
+                    else detail_snapshot.cohort.band_of(detail_snapshot.scores[doc.id])
+                ),
+            )
+            for doc, ana, cl, sname in sibling_rows
+        ]
 
     return DocumentDetailOut(**base.model_dump(), siblings=siblings)
 

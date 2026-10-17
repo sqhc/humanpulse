@@ -233,6 +233,19 @@ for factor in factors.values():
     if factor["key"] in ("newness", "time_freshness", "recency") and factor["value"] is not None:
         assert factor["metric_value"] is not None, factor
 
+# Feed 列表必须自带 novelty/band：徽标不能靠逐条请求（一屏 20 条 = 20 次往返的 N+1）。
+listed = get("/documents?limit=5")
+assert listed["items"], listed
+badged = [item for item in listed["items"] if item.get("novelty") is not None]
+assert badged, "列表条目没有 novelty：Feed 徽标会退化成逐条请求"
+for item in badged:
+    assert 0.0 <= item["novelty"] <= 1.0, item
+    assert item.get("band") in ("high", "mid", "covered"), item
+# 列表与详情站同一把尺子：同一条的分数和档位必须一致
+same = next((item for item in badged if item["id"] == first["id"]), None)
+if same is not None:
+    assert same["band"] == novelty["band"], (same, novelty["band"])
+
 print("接口校验通过：",
     {
         "documents": documents["total_returned"],

@@ -461,6 +461,18 @@
             ],
             "title": "Author"
           },
+          "band": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "high = 相对新颖 / mid / covered = 近期已覆盖（相对切分，未校准）",
+            "title": "Band"
+          },
           "canonical_url": {
             "title": "Canonical Url",
             "type": "string"
@@ -517,6 +529,17 @@
               }
             ],
             "title": "Language"
+          },
+          "novelty": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Novelty"
           },
           "published_at": {
             "anyOf": [
@@ -813,6 +836,18 @@
             ],
             "title": "Author"
           },
+          "band": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "high = 相对新颖 / mid / covered = 近期已覆盖（相对切分，未校准）",
+            "title": "Band"
+          },
           "canonical_url": {
             "title": "Canonical Url",
             "type": "string"
@@ -869,6 +904,17 @@
               }
             ],
             "title": "Language"
+          },
+          "novelty": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Novelty"
           },
           "published_at": {
             "anyOf": [

@@ -59,6 +59,8 @@ _COHORT_SQL = text(
 @dataclass
 class _Entry:
     cohort: core.Cohort
+    # 每篇的分数与 cohort 一起缓存：Feed 列表要按 id 取分，没有这张表就得每请求重算全库。
+    scores: dict[int, float]
     stored_at: float
 
 
@@ -67,6 +69,7 @@ class CohortSnapshot:
     """分布快照 + 它的新鲜度，供响应暴露「这个百分位是在什么分布上算的」。"""
 
     cohort: core.Cohort
+    scores: dict[int, float]
     age_seconds: float
     ttl_seconds: int
 
@@ -98,8 +101,14 @@ def _aware(moment: datetime | None) -> datetime | None:
     return moment.replace(tzinfo=UTC) if moment.tzinfo is None else moment
 
 
-async def build_cohort(session: AsyncSession, *, window_days: int, tau_hours: float) -> _Entry:
-    """全量重算每篇 enriched 文档的 novelty 分数，构成分布。"""
+async def score_documents(
+    session: AsyncSession, *, window_days: int, tau_hours: float
+) -> dict[int, float]:
+    """全库算一遍每篇 enriched 文档的 novelty 分数（两处共用的唯一实现）。
+
+    返回 {document_id: score}。这是**重活**（实测 ~1s / 956 篇），只应从
+    `build_cohort` 的 TTL 缓存路径调用，别在请求里直接调。
+    """
     raw = (await session.execute(_COHORT_SQL, {"window_days": window_days})).all()
 
     # 先整表读进内存（~千行），再逐篇算；避免每篇都发一次来源分布查询。
@@ -117,13 +126,16 @@ async def build_cohort(session: AsyncSession, *, window_days: int, tau_hours: fl
                 _aware(moment),
             )
         )
+    # 按发布时间排序，让下面 _source_mix 的扫描能提前剪枝（见该函数注释）
+    prepared.sort(key=lambda row: row[2])
+    anchors = [row[2].timestamp() for row in prepared]
 
     now = datetime.now(UTC)
-    scores: list[float] = []
-    for index, (_document_id, source_id, anchor, similarity, neighbour_moment) in enumerate(
+    scores: dict[int, float] = {}
+    for index, (document_id, source_id, anchor, similarity, neighbour_moment) in enumerate(
         prepared
     ):
-        same_source, total = _source_mix(prepared, index, source_id, anchor, window_days)
+        same_source, total = _source_mix(prepared, anchors, index, source_id, anchor, window_days)
         score = core.compute_novelty(
             max_similarity=similarity,
             nearest_hours=(
@@ -135,9 +147,17 @@ async def build_cohort(session: AsyncSession, *, window_days: int, tau_hours: fl
             has_embedding=True,
             tau_hours=tau_hours,
         )
-        scores.append(score.score)
+        scores[document_id] = score.score
+    return scores
 
-    cohort = core.cohort_from_scores(scores, window_days=window_days, tau_hours=tau_hours)
+
+async def build_cohort(session: AsyncSession, *, window_days: int, tau_hours: float) -> _Entry:
+    """全量重算并构成分布。"""
+    scores = await score_documents(session, window_days=window_days, tau_hours=tau_hours)
+
+    cohort = core.cohort_from_scores(
+        list(scores.values()), window_days=window_days, tau_hours=tau_hours
+    )
     log.info(
         "novelty_cohort_built",
         size=cohort.size,
@@ -147,26 +167,34 @@ async def build_cohort(session: AsyncSession, *, window_days: int, tau_hours: fl
         p75=round(cohort.high, 4),
         fallback=cohort.fallback,
     )
-    return _Entry(cohort=cohort, stored_at=time.monotonic())
+    return _Entry(cohort=cohort, scores=scores, stored_at=time.monotonic())
 
 
 def _source_mix(
     prepared: list[tuple[int, int | None, datetime, float | None, datetime | None]],
+    anchors: list[float],
     index: int,
     source_id: int | None,
     anchor: datetime,
     window_days: int,
 ) -> tuple[int, int]:
-    """(同源条数, 窗口内总数)，不含自己。n≈956 时这是纯内存扫描，开销可忽略。"""
+    """(同源条数, 窗口内总数)，不含自己。
+
+    prepared 已按发布时间升序：窗口是 [anchor-W, anchor]，所以只需从 anchor 往回扫，
+    遇到早于窗口下界的就可以停——纯内存操作，n≈956 时可忽略。
+    """
     since = anchor.timestamp() - window_days * 86400.0
     until = anchor.timestamp()
     same_source = 0
     total = 0
-    for other_index, (_other_id, other_source, other_anchor, _s, _m) in enumerate(prepared):
+    for other_index in range(index, -1, -1):
+        stamp = anchors[other_index]
+        if stamp < since:
+            break
         if other_index == index:
             continue
-        stamp = other_anchor.timestamp()
-        if since <= stamp <= until:
+        if stamp <= until:
+            other_source = prepared[other_index][1]
             total += 1
             if source_id is not None and other_source == source_id:
                 same_source += 1
@@ -183,6 +211,7 @@ async def get_cohort(
     def snapshot(entry: _Entry) -> CohortSnapshot:
         return CohortSnapshot(
             cohort=entry.cohort,
+            scores=entry.scores,
             age_seconds=round(max(0.0, time.monotonic() - entry.stored_at), 1),
             ttl_seconds=ttl,
         )
