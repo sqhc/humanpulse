@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import type { Lang, Messages } from "../i18n";
 import { createApiClient } from "../lib/api";
 import { formatDateTime } from "../lib/format";
+import { PulseList } from "./PulseList";
 
 interface BriefViewProps {
   lang: Lang;
@@ -87,6 +88,7 @@ export function BriefView({ lang, t }: BriefViewProps) {
   const overview = zh ? content.overview_zh : content.overview_en;
   const closing = zh ? content.closing_zh : content.closing_en;
   const sections = content.sections ?? [];
+  const pulses = content.pulses ?? [];
 
   const sceneCount = storyboard.data?.scene_count;
   const totalSeconds = storyboard.data?.total_seconds;
@@ -162,6 +164,8 @@ export function BriefView({ lang, t }: BriefViewProps) {
         </div>
         <p className="text-xs text-ink-muted">{t.briefVideoHint}</p>
       </div>
+
+      <PulseList pulses={pulses} lang={lang} t={t} />
 
       {sections.map((section) => {
         const bullets = zh ? section.bullets_zh : section.bullets_en;

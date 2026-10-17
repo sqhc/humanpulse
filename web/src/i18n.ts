@@ -12,6 +12,8 @@ export interface Messages {
   briefNotice: string;
   briefKindDaily: string;
   briefKindWeekly: string;
+  briefPulses: string;
+  briefPulsesHint: string;
   navAdmin: string;
   adminKeyTitle: string;
   adminKeyHint: string;
@@ -159,6 +161,8 @@ export const messages: Record<Lang, Messages> = {
     briefNotice: "日报由大模型依据已筛选记录生成，可能存在错误；请以引用的原文为准。",
     briefKindDaily: "日报",
     briefKindWeekly: "周报",
+    briefPulses: "脉搏短讯",
+    briefPulsesHint: "事实一句 + 为什么重要 · 来自本期简报，不额外调用模型",
     navAdmin: "管理台",
     adminKeyTitle: "管理员 API Key",
     adminKeyHint: "只保存在本机浏览器（localStorage），用于触发作业与修改数据源。",
@@ -316,6 +320,8 @@ export const messages: Record<Lang, Messages> = {
     ),
     briefKindDaily: "Daily",
     briefKindWeekly: "Weekly",
+    briefPulses: "Pulse briefs",
+    briefPulsesHint: "One fact + why it matters · from this brief, no extra model calls",
     navAdmin: "Admin",
     adminKeyTitle: "Admin API key",
     adminKeyHint: "Stored only in this browser (localStorage); used to trigger jobs and edit sources.",

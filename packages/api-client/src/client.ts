@@ -45,6 +45,16 @@ export interface BriefSection {
   bullets_en: string[];
 }
 
+/** 脉搏短讯：事实一句 + 钩子（简报生成时由同次 LLM 调用产出，前端只读）。 */
+export interface PulseCard {
+  section_key?: string;
+  fact_zh?: string;
+  fact_en?: string;
+  hook_zh?: string;
+  hook_en?: string;
+  source_name?: string;
+}
+
 export interface BriefContentShape {
   title_zh?: string;
   title_en?: string;
@@ -53,6 +63,7 @@ export interface BriefContentShape {
   sections?: BriefSection[];
   closing_zh?: string;
   closing_en?: string;
+  pulses?: PulseCard[];
 }
 
 /** Feed 查询参数（来自 OpenAPI 的 query 定义）。 */
