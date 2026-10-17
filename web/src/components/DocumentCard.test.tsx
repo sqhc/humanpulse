@@ -55,3 +55,61 @@ describe("DocumentCard", () => {
     expect(screen.getByText("中文摘要")).toBeInTheDocument();
   });
 });
+
+describe("DocumentCard novelty badge", () => {
+  it("band=high 显示「相对新颖」，band=covered 显示「近期已覆盖」", () => {
+    const { unmount } = render(
+      <DocumentCard doc={makeDocument({ band: "high", percentile: 88 })} lang="zh" t={messages.zh} />,
+    );
+    expect(screen.getByTestId("novelty-badge")).toHaveTextContent("相对新颖");
+    unmount();
+
+    render(
+      <DocumentCard
+        doc={makeDocument({ band: "covered", percentile: 12 })}
+        lang="zh"
+        t={messages.zh}
+      />,
+    );
+    expect(screen.getByTestId("novelty-badge")).toHaveTextContent("近期已覆盖");
+  });
+
+  it("band=mid 或缺失时不渲染徽标", () => {
+    const { unmount } = render(
+      <DocumentCard doc={makeDocument({ band: "mid" })} lang="zh" t={messages.zh} />,
+    );
+    expect(screen.queryByTestId("novelty-badge")).toBeNull();
+    unmount();
+
+    render(<DocumentCard doc={makeDocument()} lang="zh" t={messages.zh} />);
+    expect(screen.queryByTestId("novelty-badge")).toBeNull();
+  });
+
+  it("cohort fallback 或 percentile<1 时不显示「比 N% 更新」，只留 band 与相对口径说明", () => {
+    render(
+      <DocumentCard
+        doc={makeDocument({ band: "high", percentile: 100 })}
+        cohortFallback
+        lang="zh"
+        t={messages.zh}
+      />,
+    );
+    const badge = screen.getByTestId("novelty-badge");
+    expect(badge).not.toHaveAttribute("title", expect.stringContaining("比 100%"));
+    expect(badge).toHaveAttribute("title", expect.stringContaining("相对切分"));
+  });
+
+  it("percentile 有效时悬停带百分位", () => {
+    render(
+      <DocumentCard
+        doc={makeDocument({ band: "high", percentile: 88 })}
+        lang="zh"
+        t={messages.zh}
+      />,
+    );
+    expect(screen.getByTestId("novelty-badge")).toHaveAttribute(
+      "title",
+      expect.stringContaining("比 88%"),
+    );
+  });
+});

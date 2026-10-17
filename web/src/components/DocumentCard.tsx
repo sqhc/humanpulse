@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import type { Lang, Messages } from "../i18n";
 import { formatDateTime, scoreClassName } from "../lib/format";
 import { documentHref } from "../lib/router";
+import { NoveltyBadge } from "./NoveltyBadge";
 
 /** 话题标签主题配色：conflict=玫红 / science=青蓝 / labor=琥珀 / other=灰。 */
 const TAG_THEMES: Record<string, string> = {
@@ -45,9 +46,11 @@ interface DocumentCardProps {
   doc: DocumentOut;
   lang: Lang;
   t: Messages;
+  /** 列表的 novelty cohort 样本不足时为 true：只显示 band，不显示百分位 */
+  cohortFallback?: boolean;
 }
 
-export function DocumentCard({ doc, lang, t }: DocumentCardProps) {
+export function DocumentCard({ doc, lang, t, cohortFallback = false }: DocumentCardProps) {
   const summary = lang === "zh" ? doc.summary_zh : doc.summary_en;
   const fallback = lang === "zh" ? doc.summary_en : doc.summary_zh;
   const body = summary || fallback;
@@ -95,6 +98,13 @@ export function DocumentCard({ doc, lang, t }: DocumentCardProps) {
 
       <div className="mt-3 flex flex-wrap items-center gap-1.5">
         <span className="rounded bg-accent/10 px-2 py-0.5 text-[11px] text-accent">{t.aiSummary}</span>
+        <NoveltyBadge
+          band={doc.band}
+          percentile={doc.percentile}
+          cohortFallback={cohortFallback}
+          t={t}
+          lang={lang}
+        />
         {visibleTags.map((tag) => (
           <span key={tag} className={`rounded px-2 py-0.5 text-[11px] ring-1 ${tagTheme(tag)}`}>
             {tag}

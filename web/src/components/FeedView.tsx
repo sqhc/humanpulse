@@ -47,6 +47,7 @@ export function FeedView({ lang, t }: FeedViewProps) {
           kind: filters.kind || undefined,
           min_score: filters.minScore > 0 ? filters.minScore : undefined,
           q: filters.q.trim() || undefined,
+          band: filters.noveltyOnly ? "high" : undefined,
         },
         { signal },
       ),
@@ -54,6 +55,8 @@ export function FeedView({ lang, t }: FeedViewProps) {
   });
 
   const items: DocumentOut[] = feed.data?.pages.flatMap((page) => page.items) ?? [];
+  // 列表页的 cohort 快照（每页相同）：fallback=true 时不展示具体百分位
+  const cohortFallback = feed.data?.pages[0]?.novelty_cohort?.fallback ?? false;
 
   return (
     <section className="space-y-4">
@@ -110,7 +113,13 @@ export function FeedView({ lang, t }: FeedViewProps) {
 
       <div className="space-y-3">
         {items.map((doc) => (
-          <DocumentCard key={doc.id} doc={doc} lang={lang} t={t} />
+          <DocumentCard
+            key={doc.id}
+            doc={doc}
+            lang={lang}
+            t={t}
+            cohortFallback={cohortFallback}
+          />
         ))}
       </div>
 

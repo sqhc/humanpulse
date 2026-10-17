@@ -5,9 +5,17 @@ export interface FeedFilters {
   kind: string;
   minScore: number;
   q: string;
+  /** Signal：只看相对新颖（服务端按 band=high 过滤，不在前端筛当前页） */
+  noveltyOnly: boolean;
 }
 
-export const emptyFilters: FeedFilters = { lang: "", kind: "", minScore: 0, q: "" };
+export const emptyFilters: FeedFilters = {
+  lang: "",
+  kind: "",
+  minScore: 0,
+  q: "",
+  noveltyOnly: false,
+};
 
 interface FilterBarProps {
   t: Messages;
@@ -68,6 +76,16 @@ export function FilterBar({ t, filters, onChange }: FilterBarProps) {
         aria-label={t.filterSearch}
         onChange={(event) => onChange({ ...filters, q: event.target.value })}
       />
+
+      <label className="flex items-center gap-2 text-sm text-ink-muted">
+        <input
+          type="checkbox"
+          className="rounded border-line"
+          checked={filters.noveltyOnly}
+          onChange={(event) => onChange({ ...filters, noveltyOnly: event.target.checked })}
+        />
+        {t.noveltyFilterOnly}
+      </label>
 
       <button
         type="button"
