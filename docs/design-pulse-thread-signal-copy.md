@@ -75,11 +75,40 @@ en: {event} · {N} reports · {D}-day span · {M} sources
 
 ---
 
-## Signal（信噪比）· 「这是真正新的」提示语
+## Signal（信噪比）· 相对新颖提示语
 
-Signal 的全部文案都回答一个问题：**为什么这条出现在你面前**。答案只允许来自确定性槽位。
+> 2026-10-17 更新：按 Chief 拍板，档位一律按 `band`（high/mid/covered，分位数 p75/p25 切分）触发，
+> 措辞改为**相对口径**——「真正新的」是绝对主张，`calibrated=false` 下禁用。
+> 响应新增 `percentile`（0–100），前端可直接显示「比 {percentile}% 的近期报道更新」。
 
-**新在哪徽标**（每条前置，四选一，按优先级）：
+Signal 的全部文案都回答一个问题：**为什么这条排在你面前**。答案只允许来自确定性槽位，且只做相对比较，不做绝对主张。
+
+**novelty 档位徽标**（按 `band` 触发，相对口径）：
+
+| band | percentile | zh 徽标 | en 徽标 | 悬停提示 |
+|---|---|---|---|---|
+| high | ≥ p75 | 相对新颖 | relatively new | 近期前 25% · 比 {percentile}% 的近期报道更新 |
+| mid | p25–p75 | （无徽标） | — | — |
+| covered | ≤ p25 | 近期已覆盖 | recently covered | 近期后 25% · 比 {percentile}% 的近期报道更新 |
+
+> 全站角标（页面级，常驻小字）：「相对切分（非绝对校准）」/ "relative split (not calibrated)"——对应响应里的 `calibrated=false`，不能省。
+
+**「只看相对新颖」开关**（替代旧的「只看新信号」）：
+
+> zh：只看相对新颖（近期前 25%）
+> en: relatively new only (top 25% recent)
+> 关闭时：显示全部 {total} 条 / showing all {total} items
+
+**「为什么新颖」下钻**（点击徽标展开，槽位拼接，对应 detail 端点因子分解）：
+
+| 因子 | zh 槽位句 | en 槽位句 |
+|---|---|---|
+| 相似度 | 与近 {W} 天最相似报道的重合度 {S}% | {S}% overlap with the most similar recent report ({W}d window) |
+| 时间衰减 | 距同事件上一条报道 {Δt} | last report on this event {Δt} ago |
+| 来源多样性 | 该事件已有 {M} 家不同来源报道 | already covered by {M} outlets |
+| 置信 | 部分因子缺席，按剩余因子归一（partial） | some factors missing; renormalized (partial) |
+
+**新在哪徽标**（每条前置，四选一，按优先级；触发条件全部是确定性事实，与 novelty band 无关）：
 
 | 类型 | zh | en | 触发（确定性） |
 |---|---|---|---|
@@ -95,25 +124,27 @@ Signal 的全部文案都回答一个问题：**为什么这条出现在你面�
 > tooltip zh：同一事件的多来源报道已合并；点开看全部来源与各自原文链接。
 > tooltip en：Multiple outlets covering the same event are merged; open to see every source link.
 
-**Feed 头降噪行**（本页汇总，槽位拼接）：
+**Feed 头汇总行**（本页，槽位拼接；相对口径，不再用「新信息/重复」二分）：
 
 ```
-zh: 本页 {shown} 条 = {new} 条新信息 + {folded} 条已折叠重复
-en: This page: {shown} items = {new} novel + {folded} folded duplicates
+zh: 本页 {shown} 条 = {high} 条相对新颖 + {covered} 条近期已覆盖
+en: This page: {shown} items = {high} relatively new + {covered} recently covered
 ```
 
-**关闭降噪时**（尊重用户选择，不说教）：
+**关闭过滤时**（尊重用户选择，不说教）：
 
-> zh：降噪已关闭——显示全部 {total} 条，含重复报道。
-> en：Noise filter off — showing all {total} items, duplicates included.
+> zh：过滤已关闭——显示全部 {total} 条。
+> en：Filter off — showing all {total} items.
 
 ---
 
 ## 反例（文案层不许出现的写法）
 
+- ❌ 「这是真正新的」（绝对主张，`calibrated=false` 下禁用；只说「相对新颖 · 近期前 25%」）
 - ❌ 「这条比昨天更重要」（重要性是判断，且无数据支撑）
 - ❌ 「预计事态将升级」（预测，违反诚实边界）
 - ❌ 「多家权威媒体证实」（「权威」是立场；只写来源数：{M} 家）
 - ❌ 「AI 认为该事件值得关注」（把模型判断伪装成事实）
+- ❌ 「重复报道/垃圾信息」（对低 novelty 条目的贬损措辞；用「近期已覆盖」）
 
 —— 写手 · 2026-10-17
