@@ -1,13 +1,13 @@
 import { ApiError } from "@humanpulse/api-client";
 import { useQuery } from "@tanstack/react-query";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 
 import type { Lang, Messages } from "../i18n";
 import { createApiClient } from "../lib/api";
 import { formatDateTime, scoreClassName } from "../lib/format";
 import { documentHref } from "../lib/router";
 
-const TIMELINE_DAYS = 90;
+const TIMELINE_RANGES = [7, 30, 90] as const;
 const RECENT_LIMIT = 30;
 
 interface EntityDetailViewProps {
@@ -18,10 +18,11 @@ interface EntityDetailViewProps {
 
 export function EntityDetailView({ id, lang, t }: EntityDetailViewProps) {
   const api = useMemo(() => createApiClient(), []);
+  const [days, setDays] = useState<number>(90);
   const query = useQuery({
-    queryKey: ["entity", id],
+    queryKey: ["entity", id, days],
     queryFn: ({ signal }) =>
-      api.getEntity(id, { days: TIMELINE_DAYS, recent_limit: RECENT_LIMIT }, { signal }),
+      api.getEntity(id, { days, recent_limit: RECENT_LIMIT }, { signal }),
   });
 
   const notFound = query.error instanceof ApiError && query.error.status === 404;
@@ -73,7 +74,25 @@ export function EntityDetailView({ id, lang, t }: EntityDetailViewProps) {
       </header>
 
       <section className="space-y-2">
-        <h3 className="text-sm font-medium text-ink-muted">{t.entityTimeline}</h3>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h3 className="text-sm font-medium text-ink-muted">{t.entityTimeline}</h3>
+          <div className="flex items-center gap-1">
+            {TIMELINE_RANGES.map((range) => (
+              <button
+                key={range}
+                type="button"
+                onClick={() => setDays(range)}
+                className={`rounded-md px-2 py-0.5 text-[11px] font-medium transition ${
+                  days === range
+                    ? "bg-accent text-ink"
+                    : "bg-line/40 text-ink-muted hover:text-ink"
+                }`}
+              >
+                {range}d
+              </button>
+            ))}
+          </div>
+        </div>
         {timeline.length === 0 ? (
           <p className="text-sm text-ink-muted">{t.entityNoTimeline}</p>
         ) : (
