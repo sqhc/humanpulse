@@ -2030,6 +2030,8 @@ export interface operations {
                 region?: string | null;
                 min_score?: number | null;
                 cluster_id?: number | null;
+                /** @description 只看某个 novelty 档位 */
+                band?: string | null;
                 since?: string | null;
                 until?: string | null;
                 q?: string | null;

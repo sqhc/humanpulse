@@ -105,6 +105,50 @@ def _latest_analysis_id() -> ScalarSelect[Any]:
     )
 
 
+async def _scan_ids_by_band(
+    session: AsyncSession,
+    conditions: list[Any],
+    snapshot: novelty_cohort.CohortSnapshot,
+    band: str,
+    limit: int,
+    cursor: int | None,
+    chunk: int = 200,
+) -> tuple[list[int], bool]:
+    """按 novelty 档位筛出文档 id（保持 id 倒序），返回 (本页 id, 是否还有更多)。
+
+    分档只存在于内存里的 cohort 快照（不在 SQL 里），所以按 id 倒序分段扫，
+    每段用快照判档、命中够了就停——不是把整表读完再筛。
+    """
+    wanted: list[int] = []
+    last_id = cursor
+    while len(wanted) <= limit:
+        stmt = (
+            select(Document.id)
+            .select_from(Document)
+            .outerjoin(Analysis, Analysis.id == _latest_analysis_id())
+            .outerjoin(ClusterMember, ClusterMember.document_id == Document.id)
+            .where(*conditions)
+            .distinct()
+            .order_by(Document.id.desc())
+            .limit(chunk)
+        )
+        if last_id is not None:
+            stmt = stmt.where(Document.id < last_id)
+        ids = (await session.execute(stmt)).scalars().all()
+        if not ids:
+            break
+        for doc_id in ids:
+            score = snapshot.scores.get(doc_id)
+            if score is not None and snapshot.cohort.band_of(score) == band:
+                wanted.append(doc_id)
+                if len(wanted) > limit:
+                    break
+        last_id = ids[-1]
+        if len(ids) < chunk:
+            break
+    return wanted[:limit], len(wanted) > limit
+
+
 @router.get("/documents", response_model=DocumentListOut, summary="Feed（游标分页）")
 async def list_documents(
     session: SessionDep,
@@ -117,43 +161,47 @@ async def list_documents(
     region: Annotated[str | None, Query(max_length=40)] = None,
     min_score: Annotated[int | None, Query(ge=0, le=100)] = None,
     cluster_id: Annotated[int | None, Query(ge=1)] = None,
+    band_filter: Annotated[
+        str | None,
+        Query(alias="band", pattern="^(high|mid|covered)$", description="只看某个 novelty 档位"),
+    ] = None,
     since: datetime | None = None,
     until: datetime | None = None,
     q: Annotated[str | None, Query(max_length=120)] = None,
 ) -> DocumentListOut:
     latest_analysis = _latest_analysis_id()
-    stmt = (
-        select(Document, Analysis, ClusterMember.cluster_id, Source.name)
-        .outerjoin(Analysis, Analysis.id == latest_analysis)
-        .outerjoin(ClusterMember, ClusterMember.document_id == Document.id)
-        .outerjoin(Source, Source.id == Document.source_id)
-        .where(Document.status == doc_status)
-    )
-    if cursor is not None:
-        stmt = stmt.where(Document.id < cursor)
+    conditions: list[Any] = [Document.status == doc_status]
     if lang:
-        stmt = stmt.where(Document.language == lang)
+        conditions.append(Document.language == lang)
     if kind:
-        stmt = stmt.where(Document.kind == kind)
+        conditions.append(Document.kind == kind)
     if since:
-        stmt = stmt.where(func.coalesce(Document.published_at, Document.fetched_at) >= since)
+        conditions.append(func.coalesce(Document.published_at, Document.fetched_at) >= since)
     if until:
-        stmt = stmt.where(func.coalesce(Document.published_at, Document.fetched_at) <= until)
+        conditions.append(func.coalesce(Document.published_at, Document.fetched_at) <= until)
     if q:
-        stmt = stmt.where(Document.title.ilike(f"%{q}%"))
+        conditions.append(Document.title.ilike(f"%{q}%"))
     if tag:
-        stmt = stmt.where(Analysis.tags.contains([tag.lower()]))
+        conditions.append(Analysis.tags.contains([tag.lower()]))
     if region:
-        stmt = stmt.where(Analysis.regions.contains([region.lower()]))
+        conditions.append(Analysis.regions.contains([region.lower()]))
     if min_score is not None:
-        stmt = stmt.where(Analysis.score >= min_score)
+        conditions.append(Analysis.score >= min_score)
     if cluster_id is not None:
-        stmt = stmt.where(ClusterMember.cluster_id == cluster_id)
+        conditions.append(ClusterMember.cluster_id == cluster_id)
 
-    stmt = stmt.order_by(Document.id.desc()).limit(limit + 1)
-    rows = (await session.execute(stmt)).all()
-    has_more = len(rows) > limit
-    rows = rows[:limit]
+    def scoped(columns: list[Any]) -> Any:
+        stmt = (
+            select(*columns)
+            .select_from(Document)
+            .outerjoin(Analysis, Analysis.id == latest_analysis)
+            .outerjoin(ClusterMember, ClusterMember.document_id == Document.id)
+            .outerjoin(Source, Source.id == Document.source_id)
+            .where(*conditions)
+        )
+        return stmt
+
+    columns = [Document, Analysis, ClusterMember.cluster_id, Source.name]
 
     # Feed 卡片徽标：一次性从缓存的分布里取本页每条的分数与档位。
     # 这是**批量**取（不是逐条调 novelty 端点）——一屏 20 条若各自请求就是 20 次往返，
@@ -161,6 +209,28 @@ async def list_documents(
     snapshot = await novelty_cohort.get_cohort(
         session, window_days=novelty_core.HORIZON_DAYS, tau_hours=novelty_core.TAU_HOURS
     )
+
+    if band_filter is None:
+        stmt = scoped(columns).order_by(Document.id.desc()).limit(limit + 1)
+        if cursor is not None:
+            stmt = stmt.where(Document.id < cursor)
+        rows = (await session.execute(stmt)).all()
+        has_more = len(rows) > limit
+        rows = rows[:limit]
+    else:
+        # 档位过滤必须**在服务端**做：前端只拿到一页 20 条，在本地过滤会把
+        # 「本页有几条 high」伪装成「总共只有几条 high」，分页与总数一起失真。
+        page_ids, has_more = await _scan_ids_by_band(
+            session, conditions, snapshot, band_filter, limit, cursor
+        )
+        if page_ids:
+            page_stmt = (
+                scoped(columns).where(Document.id.in_(page_ids)).order_by(Document.id.desc())
+            )
+            rows = (await session.execute(page_stmt)).all()
+        else:
+            rows = []
+
     items = [
         _to_out(doc, analysis, cluster, source_name, *_badge(snapshot, doc.id))
         for doc, analysis, cluster, source_name in rows

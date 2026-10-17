@@ -76,6 +76,7 @@ echo "== 校验读取接口 =="
 API_BASE="$BASE" ADMIN_KEY="$ADMIN_KEY" DEMO_JSON="$DEMO_JSON" BRIEF_JSON="$BRIEF_JSON" WEEKLY_JSON="$WEEKLY_JSON" python3 - <<'PY'
 import json
 import os
+import urllib.error
 import urllib.parse
 import urllib.request
 
@@ -254,6 +255,20 @@ if same is not None:
         assert abs(same["percentile"] - novelty["percentile"]) <= 5.0, (same, novelty)
 # 列表也要带 cohort 快照，否则前端不知道 fallback 时该不该显示数字
 assert listed["novelty_cohort"]["size"] >= 1, listed["novelty_cohort"]
+
+# 「只看相对新颖」必须走服务端过滤：前端只拿到一页，本地筛会把「本页有几条」
+# 当成「总共有几条」，分页和总数一起失真。
+for band_name in ("high", "mid", "covered"):
+    filtered_band = get(f"/documents?limit=5&band={band_name}")
+    assert filtered_band["items"] is not None, filtered_band
+    for item in filtered_band["items"]:
+        assert item.get("band") == band_name, (band_name, item)
+# 非法档位必须被挡掉（不是静默返回全部）。FastAPI 的 Query 校验失败是 422。
+try:
+    get("/documents?limit=5&band=bogus")
+    raise AssertionError("非法 band 没有被拒绝")
+except urllib.error.HTTPError as exc:
+    assert exc.code == 422, exc.code
 
 print("接口校验通过：",
     {

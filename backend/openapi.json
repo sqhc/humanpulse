@@ -3471,6 +3471,25 @@
             }
           },
           {
+            "description": "只看某个 novelty 档位",
+            "in": "query",
+            "name": "band",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^(high|mid|covered)$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "只看某个 novelty 档位",
+              "title": "Band"
+            }
+          },
+          {
             "in": "query",
             "name": "since",
             "required": false,
