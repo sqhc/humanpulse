@@ -6,6 +6,7 @@ import type { Lang, Messages } from "../i18n";
 import { createApiClient } from "../lib/api";
 import { useDocumentStream } from "../lib/useDocumentStream";
 import { DocumentCard } from "./DocumentCard";
+import { PipelineOverview } from "./PipelineOverview";
 import { emptyFilters, FilterBar, type FeedFilters } from "./FilterBar";
 
 const PAGE_SIZE = 20;
@@ -56,6 +57,7 @@ export function FeedView({ lang, t }: FeedViewProps) {
 
   return (
     <section className="space-y-4">
+      <PipelineOverview lang={lang} t={t} />
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h2 className="text-lg font-semibold text-ink">{t.feedTitle}</h2>
         <div className="flex items-center gap-3 text-xs">
