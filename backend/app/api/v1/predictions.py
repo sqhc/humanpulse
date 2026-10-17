@@ -15,45 +15,46 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db import get_session
 from app.models.prediction import PREDICTION_STATUSES, Prediction
 from app.predictions import calibration_summary
+from app.schemas.content import CalibrationOut, PredictionListOut, PredictionOut
 
 router = APIRouter()
 
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
 
 
-def _to_out(prediction: Prediction) -> dict[str, object]:
-    return {
-        "id": prediction.id,
-        "brief_id": prediction.brief_id,
-        "document_id": prediction.document_id,
-        "cluster_id": prediction.cluster_id,
-        "hop": prediction.hop,
-        "question_key": prediction.question_key,
-        "statement_zh": prediction.statement_zh,
-        "statement_en": prediction.statement_en,
-        "predicted_probability": float(prediction.predicted_probability),
-        "confidence": (float(prediction.confidence) if prediction.confidence is not None else None),
-        "horizon_days": prediction.horizon_days,
-        "due_at": prediction.due_at.isoformat(),
-        "status": prediction.status,
-        "resolved_at": prediction.resolved_at.isoformat() if prediction.resolved_at else None,
-        "resolved_probability": (
+def _to_out(prediction: Prediction) -> PredictionOut:
+    return PredictionOut(
+        id=prediction.id,
+        brief_id=prediction.brief_id,
+        document_id=prediction.document_id,
+        cluster_id=prediction.cluster_id,
+        hop=prediction.hop,
+        question_key=prediction.question_key,
+        statement_zh=prediction.statement_zh,
+        statement_en=prediction.statement_en,
+        predicted_probability=float(prediction.predicted_probability),
+        confidence=float(prediction.confidence) if prediction.confidence is not None else None,
+        horizon_days=prediction.horizon_days,
+        due_at=prediction.due_at.isoformat(),
+        status=prediction.status,
+        resolved_at=prediction.resolved_at.isoformat() if prediction.resolved_at else None,
+        resolved_probability=(
             float(prediction.resolved_probability)
             if prediction.resolved_probability is not None
             else None
         ),
-        "brier": float(prediction.brier) if prediction.brier is not None else None,
-        "provider": prediction.provider,
-        "model": prediction.model,
-    }
+        brier=float(prediction.brier) if prediction.brier is not None else None,
+        provider=prediction.provider,
+        model=prediction.model,
+    )
 
 
-@router.get("/predictions", summary="预测登记列表")
+@router.get("/predictions", response_model=PredictionListOut, summary="预测登记列表")
 async def list_predictions(
     session: SessionDep,
     status: Annotated[str | None, Query()] = None,
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
-) -> dict[str, object]:
+) -> PredictionListOut:
     """列出预测；status 可选，用于只看待核对/已判定。"""
     statement = select(Prediction)
     if status:
@@ -64,14 +65,14 @@ async def list_predictions(
     rows = (await session.execute(statement)).scalars().all()
 
     total = (await session.execute(select(func.count()).select_from(Prediction))).scalar() or 0
-    return {"total": int(total), "items": [_to_out(row) for row in rows]}
+    return PredictionListOut(total=int(total), items=[_to_out(row) for row in rows])
 
 
-@router.get("/predictions/calibration", summary="预测校准汇总")
+@router.get("/predictions/calibration", response_model=CalibrationOut, summary="预测校准汇总")
 async def get_calibration(
     session: SessionDep,
     provider: Annotated[str | None, Query()] = None,
-) -> dict[str, object]:
+) -> CalibrationOut:
     """校准汇总：Brier、基率、可靠性曲线、各状态计数。
 
     注意这里只统计**已判定**的预测；未判定的单独计数，不混进 Brier 里充数。
@@ -82,4 +83,4 @@ async def get_calibration(
 
     `?provider=laya` / `?provider=jev` 只统计该判官登记的样本。
     """
-    return await calibration_summary(session, provider=provider)
+    return CalibrationOut(**await calibration_summary(session, provider=provider))

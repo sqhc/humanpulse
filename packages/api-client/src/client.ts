@@ -31,6 +31,9 @@ export type EntityCandidateListOut = components["schemas"]["EntityCandidateListO
 export type EntityAliasApplyIn = components["schemas"]["EntityAliasApplyIn"];
 export type EntityAliasApplyOut = components["schemas"]["EntityAliasApplyOut"];
 export type SearchHitOut = components["schemas"]["SearchHitOut"];
+export type PredictionOut = components["schemas"]["PredictionOut"];
+export type PredictionListOut = components["schemas"]["PredictionListOut"];
+export type CalibrationOut = components["schemas"]["CalibrationOut"];
 
 /** 结构化简报内容（由服务端渲染 Markdown，前端按语言取字段）。 */
 export interface BriefSection {
@@ -218,6 +221,17 @@ export function createClient(options: ClientOptions = {}) {
         throw error;
       }
     },
+
+    // ---- 预测登记（推演可被证伪；概率一律「未经校准」） ----
+    listPredictions: (
+      params: { status?: string; limit?: number } = {},
+      { signal }: RequestOptions = {},
+    ) => request<PredictionListOut>(`/api/v1/predictions${toQueryString(params)}`, { signal }),
+    getCalibration: (provider?: string, { signal }: RequestOptions = {}) =>
+      request<CalibrationOut>(
+        `/api/v1/predictions/calibration${provider ? `?provider=${encodeURIComponent(provider)}` : ""}`,
+        { signal },
+      ),
   };
 }
 

@@ -9,6 +9,7 @@ export type Route =
   | { name: "entity"; id: number }
   | { name: "search" }
   | { name: "admin" }
+  | { name: "judge" }
   | { name: "document"; id: number }
   | { name: "about" };
 
@@ -36,6 +37,9 @@ export function parseHash(hash: string): Route {
   }
   if (clean === "/admin") {
     return { name: "admin" };
+  }
+  if (clean === "/judge") {
+    return { name: "judge" };
   }
   return { name: "feed" };
 }

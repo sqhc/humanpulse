@@ -89,6 +89,7 @@ export interface Messages {
   streamOffline: string;
   streamReceived: string;
   navEntities: string;
+  navJudge: string;
   entitiesTitle: string;
   entitiesHint: string;
   entitiesSearchPlaceholder: string;
@@ -231,6 +232,7 @@ export const messages: Record<Lang, Messages> = {
     streamOffline: "未连接",
     streamReceived: "实时新增",
     navEntities: "实体",
+    navJudge: "判官",
     entitiesTitle: "实体时间线",
     entitiesHint: "按提及次数排序；同一实体的中英文写法目前是两条记录（合并需要别名表）。",
     entitiesSearchPlaceholder: "搜索人名 / 组织 / 地点…",
@@ -383,6 +385,7 @@ export const messages: Record<Lang, Messages> = {
     streamOffline: "Offline",
     streamReceived: "Live new",
     navEntities: "Entities",
+    navJudge: "Judge",
     entitiesTitle: "Entity timeline",
     entitiesHint: "Sorted by mentions; Chinese and English spellings of the same entity are separate rows (merging needs an alias table).",
     entitiesSearchPlaceholder: "Search person / org / place…",

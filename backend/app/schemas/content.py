@@ -200,3 +200,60 @@ class SearchHitOut(BaseModel):
     tags: list[str] = Field(default_factory=list)
     cluster_id: int | None = None
     similarity: float = 0.0
+
+
+class PredictionOut(BaseModel):
+    """登记过的推演（预测）——概率一律标注「未经校准」，不是可发布结论。"""
+
+    id: int
+    brief_id: int | None = None
+    document_id: int | None = None
+    cluster_id: int | None = None
+    hop: int = 0
+    question_key: str = ""
+    statement_zh: str = ""
+    statement_en: str = ""
+    predicted_probability: float
+    confidence: float | None = None
+    horizon_days: int = 14
+    due_at: str
+    status: str
+    resolved_at: str | None = None
+    resolved_probability: float | None = None
+    brier: float | None = None
+    provider: str = ""
+    model: str = ""
+
+
+class PredictionListOut(BaseModel):
+    total: int
+    items: list[PredictionOut]
+
+
+class ProviderBreakdown(BaseModel):
+    resolved: int
+    hits: int
+
+
+class ReliabilityBucket(BaseModel):
+    range: str
+    count: int
+    mean_probability: float
+    empirical_rate: float
+
+
+class CalibrationOut(BaseModel):
+    by_status: dict[str, int] = Field(default_factory=dict)
+    by_provider: dict[str, ProviderBreakdown] = Field(default_factory=dict)
+    provider: str | None = None
+    resolved: int = 0
+    hits: int = 0
+    misses: int = 0
+    mixed_providers: list[str] | None = None
+    note: str | None = None
+    empty_note: str | None = None
+    base_rate: float | None = None
+    brier: float | None = None
+    brier_baseline: float | None = None
+    ece: float | None = None
+    reliability: list[ReliabilityBucket] | None = None

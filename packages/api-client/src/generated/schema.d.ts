@@ -611,6 +611,50 @@ export interface components {
             /** Title */
             title: string;
         };
+        /** CalibrationOut */
+        CalibrationOut: {
+            /** Base Rate */
+            base_rate?: number | null;
+            /** Brier */
+            brier?: number | null;
+            /** Brier Baseline */
+            brier_baseline?: number | null;
+            /** By Provider */
+            by_provider?: {
+                [key: string]: components["schemas"]["ProviderBreakdown"];
+            };
+            /** By Status */
+            by_status?: {
+                [key: string]: number;
+            };
+            /** Ece */
+            ece?: number | null;
+            /** Empty Note */
+            empty_note?: string | null;
+            /**
+             * Hits
+             * @default 0
+             */
+            hits: number;
+            /**
+             * Misses
+             * @default 0
+             */
+            misses: number;
+            /** Mixed Providers */
+            mixed_providers?: string[] | null;
+            /** Note */
+            note?: string | null;
+            /** Provider */
+            provider?: string | null;
+            /** Reliability */
+            reliability?: components["schemas"]["ReliabilityBucket"][] | null;
+            /**
+             * Resolved
+             * @default 0
+             */
+            resolved: number;
+        };
         /** ClusterDetailOut */
         ClusterDetailOut: {
             /** Canonical Document Id */
@@ -1104,6 +1148,83 @@ export interface components {
             /** Url */
             url?: string | null;
         };
+        /** PredictionListOut */
+        PredictionListOut: {
+            /** Items */
+            items: components["schemas"]["PredictionOut"][];
+            /** Total */
+            total: number;
+        };
+        /**
+         * PredictionOut
+         * @description 登记过的推演（预测）——概率一律标注「未经校准」，不是可发布结论。
+         */
+        PredictionOut: {
+            /** Brief Id */
+            brief_id?: number | null;
+            /** Brier */
+            brier?: number | null;
+            /** Cluster Id */
+            cluster_id?: number | null;
+            /** Confidence */
+            confidence?: number | null;
+            /** Document Id */
+            document_id?: number | null;
+            /** Due At */
+            due_at: string;
+            /**
+             * Hop
+             * @default 0
+             */
+            hop: number;
+            /**
+             * Horizon Days
+             * @default 14
+             */
+            horizon_days: number;
+            /** Id */
+            id: number;
+            /**
+             * Model
+             * @default
+             */
+            model: string;
+            /** Predicted Probability */
+            predicted_probability: number;
+            /**
+             * Provider
+             * @default
+             */
+            provider: string;
+            /**
+             * Question Key
+             * @default
+             */
+            question_key: string;
+            /** Resolved At */
+            resolved_at?: string | null;
+            /** Resolved Probability */
+            resolved_probability?: number | null;
+            /**
+             * Statement En
+             * @default
+             */
+            statement_en: string;
+            /**
+             * Statement Zh
+             * @default
+             */
+            statement_zh: string;
+            /** Status */
+            status: string;
+        };
+        /** ProviderBreakdown */
+        ProviderBreakdown: {
+            /** Hits */
+            hits: number;
+            /** Resolved */
+            resolved: number;
+        };
         /** ReadyResponse */
         ReadyResponse: {
             /** Components */
@@ -1113,6 +1234,17 @@ export interface components {
              * @enum {string}
              */
             status: "ready" | "degraded";
+        };
+        /** ReliabilityBucket */
+        ReliabilityBucket: {
+            /** Count */
+            count: number;
+            /** Empirical Rate */
+            empirical_rate: number;
+            /** Mean Probability */
+            mean_probability: number;
+            /** Range */
+            range: string;
         };
         /** SearchHitOut */
         SearchHitOut: {
@@ -1837,9 +1969,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["PredictionListOut"];
                 };
             };
             /** @description Validation Error */
@@ -1870,9 +2000,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["CalibrationOut"];
                 };
             };
             /** @description Validation Error */

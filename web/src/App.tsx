@@ -10,6 +10,7 @@ import { EntitiesView } from "./components/EntitiesView";
 import { EntityDetailView } from "./components/EntityDetailView";
 import { FeedView } from "./components/FeedView";
 import { Header } from "./components/Header";
+import { JudgeGate } from "./components/JudgeGate";
 import { SearchView } from "./components/SearchView";
 import type { StatusState } from "./components/StatusCard";
 import { messages, type Lang } from "./i18n";
@@ -77,6 +78,9 @@ export function App() {
         <a className={navClass(route.name === "admin")} href="#/admin">
           {t.navAdmin}
         </a>
+        <a className={navClass(route.name === "judge")} href="#/judge">
+          {t.navJudge}
+        </a>
       </nav>
       <main className="mx-auto max-w-4xl px-6 py-6">
         {route.name === "document" ? (
@@ -91,6 +95,8 @@ export function App() {
           <SearchView lang={lang} t={t} />
         ) : route.name === "admin" ? (
           <AdminView t={t} lang={lang} />
+        ) : route.name === "judge" ? (
+          <JudgeGate lang={lang} t={t} />
         ) : route.name === "about" ? (
           <AboutView
             t={t}

@@ -171,6 +171,146 @@
         "title": "BriefOut",
         "type": "object"
       },
+      "CalibrationOut": {
+        "properties": {
+          "base_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base Rate"
+          },
+          "brier": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Brier"
+          },
+          "brier_baseline": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Brier Baseline"
+          },
+          "by_provider": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/ProviderBreakdown"
+            },
+            "title": "By Provider",
+            "type": "object"
+          },
+          "by_status": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "By Status",
+            "type": "object"
+          },
+          "ece": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ece"
+          },
+          "empty_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Empty Note"
+          },
+          "hits": {
+            "default": 0,
+            "title": "Hits",
+            "type": "integer"
+          },
+          "misses": {
+            "default": 0,
+            "title": "Misses",
+            "type": "integer"
+          },
+          "mixed_providers": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mixed Providers"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider"
+          },
+          "reliability": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/ReliabilityBucket"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reliability"
+          },
+          "resolved": {
+            "default": 0,
+            "title": "Resolved",
+            "type": "integer"
+          }
+        },
+        "title": "CalibrationOut",
+        "type": "object"
+      },
       "ClusterDetailOut": {
         "properties": {
           "canonical_document_id": {
@@ -1430,6 +1570,186 @@
         "title": "ManualTextIn",
         "type": "object"
       },
+      "PredictionListOut": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PredictionOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total",
+          "items"
+        ],
+        "title": "PredictionListOut",
+        "type": "object"
+      },
+      "PredictionOut": {
+        "description": "登记过的推演（预测）——概率一律标注「未经校准」，不是可发布结论。",
+        "properties": {
+          "brief_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Brief Id"
+          },
+          "brier": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Brier"
+          },
+          "cluster_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cluster Id"
+          },
+          "confidence": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confidence"
+          },
+          "document_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Document Id"
+          },
+          "due_at": {
+            "title": "Due At",
+            "type": "string"
+          },
+          "hop": {
+            "default": 0,
+            "title": "Hop",
+            "type": "integer"
+          },
+          "horizon_days": {
+            "default": 14,
+            "title": "Horizon Days",
+            "type": "integer"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "model": {
+            "default": "",
+            "title": "Model",
+            "type": "string"
+          },
+          "predicted_probability": {
+            "title": "Predicted Probability",
+            "type": "number"
+          },
+          "provider": {
+            "default": "",
+            "title": "Provider",
+            "type": "string"
+          },
+          "question_key": {
+            "default": "",
+            "title": "Question Key",
+            "type": "string"
+          },
+          "resolved_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolved At"
+          },
+          "resolved_probability": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolved Probability"
+          },
+          "statement_en": {
+            "default": "",
+            "title": "Statement En",
+            "type": "string"
+          },
+          "statement_zh": {
+            "default": "",
+            "title": "Statement Zh",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "predicted_probability",
+          "due_at",
+          "status"
+        ],
+        "title": "PredictionOut",
+        "type": "object"
+      },
+      "ProviderBreakdown": {
+        "properties": {
+          "hits": {
+            "title": "Hits",
+            "type": "integer"
+          },
+          "resolved": {
+            "title": "Resolved",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "resolved",
+          "hits"
+        ],
+        "title": "ProviderBreakdown",
+        "type": "object"
+      },
       "ReadyResponse": {
         "properties": {
           "components": {
@@ -1453,6 +1773,34 @@
           "components"
         ],
         "title": "ReadyResponse",
+        "type": "object"
+      },
+      "ReliabilityBucket": {
+        "properties": {
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "empirical_rate": {
+            "title": "Empirical Rate",
+            "type": "number"
+          },
+          "mean_probability": {
+            "title": "Mean Probability",
+            "type": "number"
+          },
+          "range": {
+            "title": "Range",
+            "type": "string"
+          }
+        },
+        "required": [
+          "range",
+          "count",
+          "mean_probability",
+          "empirical_rate"
+        ],
+        "title": "ReliabilityBucket",
         "type": "object"
       },
       "SearchHitOut": {
@@ -3100,9 +3448,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response List Predictions Api V1 Predictions Get",
-                  "type": "object"
+                  "$ref": "#/components/schemas/PredictionListOut"
                 }
               }
             },
@@ -3152,9 +3498,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Get Calibration Api V1 Predictions Calibration Get",
-                  "type": "object"
+                  "$ref": "#/components/schemas/CalibrationOut"
                 }
               }
             },
