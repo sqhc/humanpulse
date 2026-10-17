@@ -119,6 +119,10 @@ export interface Messages {
   aiSummary: string;
   headlineOnly: string;
   score: string;
+  noveltyHigh: string;
+  noveltyCovered: string;
+  noveltyFilterOnly: string;
+  noveltyRelativeNote: string;
   rationale: string;
   sameEvent: string;
   noSiblings: string;
@@ -262,6 +266,10 @@ export const messages: Record<Lang, Messages> = {
     aiSummary: "AI 摘要",
     headlineOnly: "仅标题",
     score: "评分",
+    noveltyHigh: "相对新颖",
+    noveltyCovered: "近期已覆盖",
+    noveltyFilterOnly: "只看相对新颖",
+    noveltyRelativeNote: "相对切分（非绝对校准）",
     rationale: "评分理由",
     sameEvent: "同一事件的其他报道",
     noSiblings: "暂无其它来源的报道。",
@@ -415,6 +423,10 @@ export const messages: Record<Lang, Messages> = {
     aiSummary: "AI summary",
     headlineOnly: "headline only",
     score: "score",
+    noveltyHigh: "relatively new",
+    noveltyCovered: "recently covered",
+    noveltyFilterOnly: "new only",
+    noveltyRelativeNote: "relative split (not calibrated)",
     rationale: "Why this score",
     sameEvent: "Other coverage of the same event",
     noSiblings: "No other sources yet.",
