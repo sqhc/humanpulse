@@ -91,6 +91,10 @@ Signal 的全部文案都回答一个问题：**为什么这条排在你面前**
 | mid | p25–p75 | （无徽标） | — | — |
 | covered | ≤ p25 | 近期已覆盖 | recently covered | 近期后 25% · 比 {percentile}% 的近期报道更新 |
 
+> **percentile 口径**（与后端 `bb21e7d` 一致）：0–100 的相对排名（`bisect_right` 实现），非分数。
+> 实测范围 0.2–100；最高分可到 100，但**不要渲染「比 0% 的报道更新」**——covered 档悬停若 percentile 过低，直接省略第二句，只留「近期后 25%」。
+> 悬停提示拼接规则：`比 {percentile}% 的近期报道更新` 仅在 percentile ≥ 1 时输出。
+
 > 全站角标（页面级，常驻小字）：「相对切分（非绝对校准）」/ "relative split (not calibrated)"——对应响应里的 `calibrated=false`，不能省。
 
 **「只看相对新颖」开关**（替代旧的「只看新信号」）：
