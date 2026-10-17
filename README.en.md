@@ -8,7 +8,8 @@
 
 Current status: **Phases 1–2 complete, Phase 3 mostly done**. 33 sources (12 in Chinese) → ~430 items ingested per run →
 bilingual summaries & scores → semantic vector clustering → daily/weekly briefs → entity timelines → video briefs → semantic search → PWA.
-The full pipeline has run end to end on real data; remaining: TTS voiceover, automated entity alias resolution, VPS deployment.
+The full pipeline has run end to end on real data; remaining: automated entity alias resolution, VPS deployment.
+The web Feed ships with a pipeline-overview component on top (5-stage progress + judge-gate card) — the full "ingest → project" picture at a glance.
 
 - Data source policy: [docs/adr/0002-data-source-policy.md](docs/adr/0002-data-source-policy.md)
 - Architecture decisions: [docs/adr/](docs/adr/)
