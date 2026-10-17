@@ -1,12 +1,14 @@
-"""Signal：文档级 novelty（这篇是不是真正的新信息）。
+"""Signal：文档级 novelty（这篇是不是相对新的信息）。
 
 设计原则（写进代码，便于审计）：
 - 只吃确定性信号：向量近邻相似度、时间间隔、来源分布、时间新近度。**不碰任何概率模型输出**，
   因此与「判官概率未过评估门」的约束无关，也不构成一条新的未校准能力。
 - 每个因子取值都在 [0,1]；数据缺失时该因子**不参与**加权（权重重新归一化），
   而不是静默填 0 或 1 —— 缺失会通过 `basis_zh` / `confidence=partial` 显式暴露。
-- 阈值 0.65 / 0.35 是人工设定、尚未与人工标注对齐：响应里 `calibrated=False`，
-  前端必须按「未经校准」呈现（见 docs/design-pulse-thread-signal-copy.md）。
+- 档位按**分位数**（p75 / p25）切，不手拍绝对值：手拍的 0.65/0.35 在真实分布上会让
+  85% 的条目挤进中间档，三色退化成一片黄。分位数天然保证三档各占 ~25/50/25。
+- 所以档位是**相对口径**：「相对新颖」= 比 75% 的近期报道更新，而不是「这是真正的新信息」。
+  我们没有任何人工标注证明后者，`calibrated=False` 固定保留。
 
 因子定义（默认权重 w1..w4 = 0.4/0.2/0.2/0.2，Σw = 1）：
 
@@ -21,7 +23,9 @@
 
 from __future__ import annotations
 
+import bisect
 import math
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime
 
@@ -36,17 +40,30 @@ TAU_HOURS = 48.0
 HORIZON_DAYS = 7
 RECENCY_SPAN_DAYS = 30.0
 
-STATUS_NEW = "new"
-STATUS_RELATED = "related"
-STATUS_COVERED = "covered"
+PERCENTILE_NEW = 75.0
+PERCENTILE_COVERED = 25.0
 
+# 分位切点算不准时的兜底阈值（cohort 样本 < MIN_COHORT）
 THRESHOLD_NEW = 0.65
 THRESHOLD_RELATED = 0.35
+MIN_COHORT = 30
 
-NOTE_ZH = "novelty 阈值（0.65/0.35）与权重为人工设定，未与人工标注对齐：未经校准，仅供排序参考。"
+COHORT_TTL_SECONDS = 15 * 60
+
+# 档位：high = 相对新颖（前 25%），mid = 中间档，covered = 近期已覆盖（末 25%）。
+BAND_HIGH = "high"
+BAND_MID = "mid"
+BAND_COVERED = "covered"
+
+NOTE_ZH = (
+    "档位按分位数（p75/p25）相对切分：相对新颖 = 比 75% 的近期报道更新，"
+    "近期已覆盖 = 排在末 25%。这是相对切分，不是绝对校准——未经人工标注对齐，"
+    "calibrated=false，仅供排序与提示参考。"
+)
 NOTE_EN = (
-    "Novelty thresholds (0.65/0.35) and weights are hand-set and not aligned with human labels: "
-    "uncalibrated, for ranking only."
+    "Tiers are relative quantile cuts (p75/p25): 'relatively new' means newer than 75% of recent "
+    "coverage, 'recently covered' means bottom 25%. This is a relative split, not a calibrated "
+    "claim: not aligned with human labels, calibrated=false, for ranking and hinting only."
 )
 
 MISSING_EMBEDDING_ZH = "库内没有该文档的向量，向量相关因子不参与计算，权重已重新归一化。"
@@ -74,7 +91,6 @@ class NoveltyFactor:
 @dataclass(frozen=True)
 class NoveltyScore:
     score: float
-    status: str
     factors: list[NoveltyFactor]
     basis_zh: list[str]
     basis_en: list[str]
@@ -188,16 +204,6 @@ def recency_factor(age_days: float | None, span_days: float = RECENCY_SPAN_DAYS)
     )
 
 
-def status_of(
-    score: float, new_at: float = THRESHOLD_NEW, related_at: float = THRESHOLD_RELATED
-) -> str:
-    if score >= new_at:
-        return STATUS_NEW
-    if score >= related_at:
-        return STATUS_RELATED
-    return STATUS_COVERED
-
-
 def compute_novelty(
     *,
     max_similarity: float | None,
@@ -208,7 +214,7 @@ def compute_novelty(
     has_embedding: bool,
     tau_hours: float = TAU_HOURS,
 ) -> NoveltyScore:
-    """四因子加权。缺席因子不参与，权重重新归一化（不会凭空造一个 0.5）。"""
+    """四因子加权，返回**纯分数**。档位/百分位由 cohort 另行判定（见 classify）。"""
     factors: list[NoveltyFactor] = []
     basis_zh: list[str] = []
     basis_en: list[str] = []
@@ -238,7 +244,6 @@ def compute_novelty(
 
     return NoveltyScore(
         score=score,
-        status=status_of(score),
         factors=factors,
         basis_zh=basis_zh,
         basis_en=basis_en,
@@ -246,20 +251,95 @@ def compute_novelty(
     )
 
 
-def recommendation(status: str, horizon_days: int) -> tuple[str, str]:
-    if status == STATUS_NEW:
-        return (
-            f"重点看：近 {horizon_days} 天内没有高相似报道，可能是新信号。",
-            f"Read first: no highly similar report in the last {horizon_days} days.",
+def _as_score(value: float) -> float:
+    try:
+        return _clamp(float(value))
+    except (TypeError, ValueError):
+        return 0.0
+
+
+class Cohort:
+    """全局分布快照：p25/p75 切点 + 排名用的已排序分数表。
+
+    这是「全局统计」而非单文档属性，所以缓存而不是每请求重算（全量重建实测 ~0.3–0.9s，
+    超 0.5s 预算）。窗口或 τ 变了就是另一个分布，缓存键随之改变。
+    """
+
+    def __init__(
+        self, raw: Sequence[float], cuts: tuple[float, float], window_days: int, tau_hours: float
+    ) -> None:
+        self.scores = sorted(_as_score(x) for x in raw)
+        self.low, self.high = cuts
+        self.window_days = window_days
+        self.tau_hours = tau_hours
+        self.fallback = len(self.scores) < MIN_COHORT
+
+    @property
+    def size(self) -> int:
+        return len(self.scores)
+
+    def percentile_of(self, score: float) -> float:
+        """比 cohort 里多少比例的条目更新（0-100，含并列）。"""
+        if not self.scores:
+            return 0.0
+        rank = bisect.bisect_right(self.scores, _as_score(score))
+        return round(rank / len(self.scores) * 100.0, 1)
+
+    def band_of(self, score: float) -> str:
+        score = _as_score(score)
+        if score >= self.high:
+            return BAND_HIGH
+        if score >= self.low:
+            return BAND_MID
+        return BAND_COVERED
+
+
+def cohort_from_scores(
+    raw: Sequence[float], *, window_days: int = HORIZON_DAYS, tau_hours: float = TAU_HOURS
+) -> Cohort:
+    """从已算出的分数列表建分布。样本不足时退回手拍阈值，并标 fallback=True。"""
+    ordered = sorted(_as_score(x) for x in raw)
+    if len(ordered) < MIN_COHORT:
+        return Cohort(
+            raw,
+            (THRESHOLD_RELATED, THRESHOLD_NEW),
+            window_days=window_days,
+            tau_hours=tau_hours,
         )
-    if status == STATUS_RELATED:
+    cuts = (_quantile(ordered, 25.0), _quantile(ordered, 75.0))
+    return Cohort(raw, cuts, window_days=window_days, tau_hours=tau_hours)
+
+
+def _quantile(ordered: Sequence[float], pct: float) -> float:
+    """线性插值分位点（ordered 已升序）。"""
+    if not ordered:
+        return 0.0
+    if len(ordered) == 1:
+        return float(ordered[0])
+    position = (len(ordered) - 1) * _clamp(pct / 100.0)
+    low = math.floor(position)
+    high = math.ceil(position)
+    if low == high:
+        return float(ordered[int(position)])
+    share = position - low
+    return float(ordered[low]) * (1 - share) + float(ordered[high]) * share
+
+
+def recommendation(band: str, percentile: float) -> tuple[str, str]:
+    """文案一律相对口径：我们没校准，不能说「这是真正新的信息」。"""
+    if band == BAND_HIGH:
         return (
-            "可略读：与既有报道高度相关，先看已有脉络。",
-            "Skim: closely related to existing coverage; start from the earlier thread.",
+            f"相对新颖：比 {percentile:.0f}% 的近期报道更新（前 25%）。",
+            f"Relatively new: newer than {percentile:.0f}% of recent coverage (top 25%).",
+        )
+    if band == BAND_MID:
+        return (
+            f"中间档：比 {percentile:.0f}% 的近期报道更新，与既有报道可比。",
+            f"Mid band: newer than {percentile:.0f}% of recent coverage.",
         )
     return (
-        "可跳过：这条在窗口内已被更早的报道覆盖。",
-        "Skip: already covered earlier inside the window.",
+        f"近期已覆盖：排在末 25%（比 {percentile:.0f}% 的近期报道更新）。",
+        f"Recently covered: bottom 25% (newer than {percentile:.0f}% of recent coverage).",
     )
 
 

@@ -226,18 +226,34 @@ class NoveltyNeighbourOut(BaseModel):
     published_at: datetime | None = None
 
 
+class NoveltyCohortOut(BaseModel):
+    """分位切点的来源与新鲜度——百分位是相对口径，必须让调用方看到用在什么分布上。"""
+
+    size: int = Field(default=0, description="参与分布计算的文档数")
+    p25: float = 0.0
+    p75: float = 0.0
+    fallback: bool = Field(
+        default=False, description="样本不足，退回手拍绝对值阈值（此时分位数不可靠）"
+    )
+    age_seconds: float = Field(default=0.0, description="该分布快照已缓存多久")
+    ttl_seconds: int = 0
+
+
 class DocumentNoveltyOut(BaseModel):
-    """文档级 novelty（Signal）——确定性工程指标，未经人工标注校准。"""
+    """文档级 novelty（Signal）——确定性工程指标，档位是相对切分，未经人工标注校准。"""
 
     document_id: int
     novelty_score: float
-    status: str
+    percentile: float = Field(
+        default=0.0, description="在近期 cohort 中的百分位排名（0-100，越高越新）"
+    )
+    band: str = Field(default="mid", description="high = 相对新颖 / mid / covered = 近期已覆盖")
     factor_breakdown: list[NoveltyFactorOut] = Field(default_factory=list)
     neighbours: list[NoveltyNeighbourOut] = Field(default_factory=list)
     window_days: int
     tau_hours: float
+    cohort: NoveltyCohortOut = Field(default_factory=NoveltyCohortOut)
     weights: dict[str, float] = Field(default_factory=dict)
-    thresholds: dict[str, float] = Field(default_factory=dict)
     recommendation_zh: str = ""
     recommendation_en: str = ""
     basis_zh: list[str] = Field(default_factory=list)

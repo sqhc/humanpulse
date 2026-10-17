@@ -23,7 +23,6 @@ def test_perfect_duplicate_is_covered() -> None:
         age_days=0.0,
         has_embedding=True,
     )
-    assert result.status == n.STATUS_COVERED
     assert result.score < n.THRESHOLD_RELATED
     assert result.confidence == "full"
     keys = [f.key for f in result.factors]
@@ -32,7 +31,7 @@ def test_perfect_duplicate_is_covered() -> None:
 
 
 def test_no_neighbours_is_new_signal() -> None:
-    """窗口内没有任何近邻 → new；缺失的近邻按最高新意处理，而不是 0。"""
+    """窗口内没有任何近邻 → 满分；缺失的近邻按最高新意处理，而不是 0。"""
     result = n.compute_novelty(
         max_similarity=None,
         nearest_hours=None,
@@ -41,7 +40,6 @@ def test_no_neighbours_is_new_signal() -> None:
         age_days=0.0,
         has_embedding=True,
     )
-    assert result.status == n.STATUS_NEW
     assert result.score == pytest.approx(1.0)
 
 
@@ -104,11 +102,46 @@ def test_absent_factor_weight_is_renormalised_not_zeroed() -> None:
     assert dropped.score > zeroed
 
 
-def test_status_thresholds() -> None:
-    assert n.status_of(0.65) == n.STATUS_NEW
-    assert n.status_of(0.6499) == n.STATUS_RELATED
-    assert n.status_of(0.35) == n.STATUS_RELATED
-    assert n.status_of(0.3499) == n.STATUS_COVERED
+def test_band_cuts_are_quantile_based() -> None:
+    """分位数切点：样本足够时 p25/p75 应真正落在 25%/75% 位置，而不是手拍阈值。"""
+    scores = [i / 100 for i in range(101)]  # 0.00 … 1.00
+    cohort = n.cohort_from_scores(scores)
+    assert cohort.fallback is False
+    assert cohort.low == pytest.approx(0.25, abs=0.01)
+    assert cohort.high == pytest.approx(0.75, abs=0.01)
+    # 三档各占约 25 / 50 / 25
+    bands = [cohort.band_of(s) for s in scores]
+    high = bands.count(n.BAND_HIGH)
+    covered = bands.count(n.BAND_COVERED)
+    assert 20 <= high <= 30
+    assert 20 <= covered <= 30
+
+
+def test_small_cohort_falls_back_to_absolute_thresholds() -> None:
+    """样本不足时分位数不可靠 → 退回手拍阈值，并显式标 fallback，不假装准。"""
+    cohort = n.cohort_from_scores([0.1, 0.2, 0.3])
+    assert cohort.fallback is True
+    assert cohort.low == n.THRESHOLD_RELATED
+    assert cohort.high == n.THRESHOLD_NEW
+
+
+def test_percentile_rank_is_a_rank_not_a_point() -> None:
+    """百分位是「比多少比例的条目更新」：最低分也有名次，最高分是 100。"""
+    cohort = n.cohort_from_scores([i / 100 for i in range(101)])
+    assert cohort.percentile_of(0.0) == pytest.approx(1.0)
+    assert cohort.percentile_of(0.5) == pytest.approx(50.5, abs=1.0)
+    assert cohort.percentile_of(1.0) == pytest.approx(100.0)
+    # 并列值给同一名次
+    assert cohort.percentile_of(0.5) == cohort.percentile_of(0.5)
+
+
+def test_empty_cohort_does_not_crash() -> None:
+    """空分布（库里没数据）也必须能返回，而不是除零。"""
+    cohort = n.cohort_from_scores([])
+    assert cohort.size == 0
+    assert cohort.percentile_of(0.9) == 0.0
+    assert cohort.band_of(0.9) == n.BAND_HIGH  # 退回绝对值阈值
+    assert cohort.fallback is True
 
 
 def test_score_stays_in_unit_interval() -> None:
@@ -127,11 +160,22 @@ def test_score_stays_in_unit_interval() -> None:
             assert 0.0 <= factor.value <= 1.0
 
 
-def test_recommendation_follows_status() -> None:
-    zh, en = n.recommendation(n.STATUS_NEW, 7)
-    assert "7" in zh and "7" in en
-    covered_zh, _ = n.recommendation(n.STATUS_COVERED, 7)
+def test_recommendation_uses_relative_wording() -> None:
+    """文案必须是相对口径，不能出现「真正的新」这类绝对主张。"""
+    zh, en = n.recommendation(n.BAND_HIGH, 82.4)
+    assert "相对新颖" in zh and "82" in zh
+    assert "relatively new" in en.lower()
+    assert "真正" not in zh and "truly" not in en.lower()
+    covered_zh, _ = n.recommendation(n.BAND_COVERED, 12.0)
+    assert "已覆盖" in covered_zh
     assert covered_zh != zh
+
+
+def test_note_says_relative_not_calibrated() -> None:
+    assert "相对" in n.NOTE_ZH and "未经" in n.NOTE_ZH
+    lowered = n.NOTE_EN.lower()
+    assert "relative" in lowered
+    assert "calibrated=false" in lowered or "not a calibrated" in lowered
 
 
 def test_helpers_are_timezone_safe() -> None:

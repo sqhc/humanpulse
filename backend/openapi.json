@@ -687,8 +687,14 @@
         "type": "object"
       },
       "DocumentNoveltyOut": {
-        "description": "文档级 novelty（Signal）——确定性工程指标，未经人工标注校准。",
+        "description": "文档级 novelty（Signal）——确定性工程指标，档位是相对切分，未经人工标注校准。",
         "properties": {
+          "band": {
+            "default": "mid",
+            "description": "high = 相对新颖 / mid / covered = 近期已覆盖",
+            "title": "Band",
+            "type": "string"
+          },
           "basis_en": {
             "items": {
               "type": "string"
@@ -707,6 +713,9 @@
             "default": false,
             "title": "Calibrated",
             "type": "boolean"
+          },
+          "cohort": {
+            "$ref": "#/components/schemas/NoveltyCohortOut"
           },
           "confidence": {
             "default": "full",
@@ -745,6 +754,12 @@
             "title": "Novelty Score",
             "type": "number"
           },
+          "percentile": {
+            "default": 0.0,
+            "description": "在近期 cohort 中的百分位排名（0-100，越高越新）",
+            "title": "Percentile",
+            "type": "number"
+          },
           "recommendation_en": {
             "default": "",
             "title": "Recommendation En",
@@ -755,20 +770,9 @@
             "title": "Recommendation Zh",
             "type": "string"
           },
-          "status": {
-            "title": "Status",
-            "type": "string"
-          },
           "tau_hours": {
             "title": "Tau Hours",
             "type": "number"
-          },
-          "thresholds": {
-            "additionalProperties": {
-              "type": "number"
-            },
-            "title": "Thresholds",
-            "type": "object"
           },
           "weights": {
             "additionalProperties": {
@@ -785,7 +789,6 @@
         "required": [
           "document_id",
           "novelty_score",
-          "status",
           "window_days",
           "tau_hours"
         ],
@@ -1674,6 +1677,46 @@
           "rights_confirmed"
         ],
         "title": "ManualTextIn",
+        "type": "object"
+      },
+      "NoveltyCohortOut": {
+        "description": "分位切点的来源与新鲜度——百分位是相对口径，必须让调用方看到用在什么分布上。",
+        "properties": {
+          "age_seconds": {
+            "default": 0.0,
+            "description": "该分布快照已缓存多久",
+            "title": "Age Seconds",
+            "type": "number"
+          },
+          "fallback": {
+            "default": false,
+            "description": "样本不足，退回手拍绝对值阈值（此时分位数不可靠）",
+            "title": "Fallback",
+            "type": "boolean"
+          },
+          "p25": {
+            "default": 0.0,
+            "title": "P25",
+            "type": "number"
+          },
+          "p75": {
+            "default": 0.0,
+            "title": "P75",
+            "type": "number"
+          },
+          "size": {
+            "default": 0,
+            "description": "参与分布计算的文档数",
+            "title": "Size",
+            "type": "integer"
+          },
+          "ttl_seconds": {
+            "default": 0,
+            "title": "Ttl Seconds",
+            "type": "integer"
+          }
+        },
+        "title": "NoveltyCohortOut",
         "type": "object"
       },
       "NoveltyFactorOut": {
@@ -3443,7 +3486,7 @@
     },
     "/api/v1/documents/{document_id}/novelty": {
       "get": {
-        "description": "判断「这篇是不是真正的新信息」。\n\n确定性指标：窗口内最相似报道（pgvector 余弦，走 HNSW）、与它的时间间隔、来源分布、时效。\n不依赖聚类质量——93% 的 cluster 只有一篇，所以这是文档级而非 cluster 级判断。\n阈值与权重是人工设定、未与人工标注对齐：响应固定 `calibrated=False`，前端按「未经校准」呈现。",
+        "description": "判断「这篇是不是**相对**新的信息」。\n\n确定性指标：窗口内最相似报道（pgvector 余弦，走 HNSW）、与它的时间间隔、来源分布、时效。\n不依赖聚类质量——93% 的 cluster 只有一篇，所以这是文档级而非 cluster 级判断。\n档位按分位数（p75/p25）相对切分，**不是绝对校准**：响应固定 `calibrated=False`，\n前端必须按「相对口径 + 未经校准」呈现。",
         "operationId": "get_document_novelty_api_v1_documents__document_id__novelty_get",
         "parameters": [
           {

@@ -286,11 +286,12 @@ export interface paths {
         };
         /**
          * 文档级 novelty / 信噪比（Signal）
-         * @description 判断「这篇是不是真正的新信息」。
+         * @description 判断「这篇是不是**相对**新的信息」。
          *
          *     确定性指标：窗口内最相似报道（pgvector 余弦，走 HNSW）、与它的时间间隔、来源分布、时效。
          *     不依赖聚类质量——93% 的 cluster 只有一篇，所以这是文档级而非 cluster 级判断。
-         *     阈值与权重是人工设定、未与人工标注对齐：响应固定 `calibrated=False`，前端按「未经校准」呈现。
+         *     档位按分位数（p75/p25）相对切分，**不是绝对校准**：响应固定 `calibrated=False`，
+         *     前端必须按「相对口径 + 未经校准」呈现。
          */
         get: operations["get_document_novelty_api_v1_documents__document_id__novelty_get"];
         put?: never;
@@ -803,9 +804,15 @@ export interface components {
         };
         /**
          * DocumentNoveltyOut
-         * @description 文档级 novelty（Signal）——确定性工程指标，未经人工标注校准。
+         * @description 文档级 novelty（Signal）——确定性工程指标，档位是相对切分，未经人工标注校准。
          */
         DocumentNoveltyOut: {
+            /**
+             * Band
+             * @description high = 相对新颖 / mid / covered = 近期已覆盖
+             * @default mid
+             */
+            band: string;
             /** Basis En */
             basis_en?: string[];
             /** Basis Zh */
@@ -815,6 +822,7 @@ export interface components {
              * @default false
              */
             calibrated: boolean;
+            cohort?: components["schemas"]["NoveltyCohortOut"];
             /**
              * Confidence
              * @default full
@@ -839,6 +847,12 @@ export interface components {
             /** Novelty Score */
             novelty_score: number;
             /**
+             * Percentile
+             * @description 在近期 cohort 中的百分位排名（0-100，越高越新）
+             * @default 0
+             */
+            percentile: number;
+            /**
              * Recommendation En
              * @default
              */
@@ -848,14 +862,8 @@ export interface components {
              * @default
              */
             recommendation_zh: string;
-            /** Status */
-            status: string;
             /** Tau Hours */
             tau_hours: number;
-            /** Thresholds */
-            thresholds?: {
-                [key: string]: number;
-            };
             /** Weights */
             weights?: {
                 [key: string]: number;
@@ -1233,6 +1241,45 @@ export interface components {
             title: string;
             /** Url */
             url?: string | null;
+        };
+        /**
+         * NoveltyCohortOut
+         * @description 分位切点的来源与新鲜度——百分位是相对口径，必须让调用方看到用在什么分布上。
+         */
+        NoveltyCohortOut: {
+            /**
+             * Age Seconds
+             * @description 该分布快照已缓存多久
+             * @default 0
+             */
+            age_seconds: number;
+            /**
+             * Fallback
+             * @description 样本不足，退回手拍绝对值阈值（此时分位数不可靠）
+             * @default false
+             */
+            fallback: boolean;
+            /**
+             * P25
+             * @default 0
+             */
+            p25: number;
+            /**
+             * P75
+             * @default 0
+             */
+            p75: number;
+            /**
+             * Size
+             * @description 参与分布计算的文档数
+             * @default 0
+             */
+            size: number;
+            /**
+             * Ttl Seconds
+             * @default 0
+             */
+            ttl_seconds: number;
         };
         /**
          * NoveltyFactorOut

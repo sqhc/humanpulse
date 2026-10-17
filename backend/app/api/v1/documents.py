@@ -15,12 +15,14 @@ from app.models.analysis import Analysis, ClusterMember, Embedding
 from app.models.document import Document
 from app.models.source import Source
 from app.pipeline import novelty as novelty_core
+from app.pipeline import novelty_cohort
 from app.schemas.content import (
     DocumentDetailOut,
     DocumentListOut,
     DocumentNoveltyOut,
     DocumentOut,
     EntityRef,
+    NoveltyCohortOut,
     NoveltyFactorOut,
     NoveltyNeighbourOut,
 )
@@ -200,11 +202,12 @@ async def get_document_novelty(
         novelty_core.TAU_HOURS
     ),
 ) -> DocumentNoveltyOut:
-    """判断「这篇是不是真正的新信息」。
+    """判断「这篇是不是**相对**新的信息」。
 
     确定性指标：窗口内最相似报道（pgvector 余弦，走 HNSW）、与它的时间间隔、来源分布、时效。
     不依赖聚类质量——93% 的 cluster 只有一篇，所以这是文档级而非 cluster 级判断。
-    阈值与权重是人工设定、未与人工标注对齐：响应固定 `calibrated=False`，前端按「未经校准」呈现。
+    档位按分位数（p75/p25）相对切分，**不是绝对校准**：响应固定 `calibrated=False`，
+    前端必须按「相对口径 + 未经校准」呈现。
     """
     document = (
         await session.execute(select(Document).where(Document.id == document_id))
@@ -289,12 +292,21 @@ async def get_document_novelty(
         has_embedding=vector is not None,
         tau_hours=tau_hours,
     )
-    rec_zh, rec_en = novelty_core.recommendation(result.status, window_days)
+    # 档位/百分位来自**缓存的全局分布**：这是全局统计而非单文档属性，重建要跑全库，
+    # 不能每请求算一次（见 pipeline/novelty_cohort.py 的取舍说明）。
+    cohort_snapshot = await novelty_cohort.get_cohort(
+        session, window_days=window_days, tau_hours=tau_hours
+    )
+    cohort = cohort_snapshot.cohort
+    percentile = cohort.percentile_of(result.score)
+    band = cohort.band_of(result.score)
+    rec_zh, rec_en = novelty_core.recommendation(band, percentile)
 
     return DocumentNoveltyOut(
         document_id=document_id,
         novelty_score=result.score,
-        status=result.status,
+        percentile=percentile,
+        band=band,
         factor_breakdown=[
             NoveltyFactorOut(
                 key=factor.key,
@@ -311,15 +323,19 @@ async def get_document_novelty(
         neighbours=neighbours,
         window_days=window_days,
         tau_hours=tau_hours,
+        cohort=NoveltyCohortOut(
+            size=cohort.size,
+            p25=round(cohort.low, 4),
+            p75=round(cohort.high, 4),
+            fallback=cohort.fallback,
+            age_seconds=cohort_snapshot.age_seconds,
+            ttl_seconds=cohort_snapshot.ttl_seconds,
+        ),
         weights={
             "newness": novelty_core.W_NEWNESS,
             "time_freshness": novelty_core.W_TIME_FRESHNESS,
             "source_diversity": novelty_core.W_SOURCE_DIVERSITY,
             "recency": novelty_core.W_RECENCY,
-        },
-        thresholds={
-            "new": novelty_core.THRESHOLD_NEW,
-            "related": novelty_core.THRESHOLD_RELATED,
         },
         recommendation_zh=rec_zh,
         recommendation_en=rec_en,
