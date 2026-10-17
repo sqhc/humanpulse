@@ -233,18 +233,27 @@ for factor in factors.values():
     if factor["key"] in ("newness", "time_freshness", "recency") and factor["value"] is not None:
         assert factor["metric_value"] is not None, factor
 
-# Feed 列表必须自带 novelty/band：徽标不能靠逐条请求（一屏 20 条 = 20 次往返的 N+1）。
+# Feed 列表必须自带 novelty/band/percentile：徽标不能靠逐条请求（一屏 20 条 = 20 次往返的 N+1）。
 listed = get("/documents?limit=5")
 assert listed["items"], listed
+assert listed.get("novelty_cohort") is not None, "列表缺少 cohort 快照，前端无法判断能否显示百分位"
 badged = [item for item in listed["items"] if item.get("novelty") is not None]
 assert badged, "列表条目没有 novelty：Feed 徽标会退化成逐条请求"
 for item in badged:
     assert 0.0 <= item["novelty"] <= 1.0, item
     assert item.get("band") in ("high", "mid", "covered"), item
-# 列表与详情站同一把尺子：同一条的分数和档位必须一致
+    assert item.get("percentile") is None or 0.0 <= item["percentile"] <= 100.0, item
+# 列表与详情：band 必须一致（同一份 cohort 判定，必须严格相等）。
+# percentile 允许极小偏差——详情端点的分数是**实时**算的（recency 随钟走），
+# 列表读的是缓存快照；两者分数可能差一点点，百分比名次随之微动。这不是口径分裂，
+# 所以这里给容差而不是死等——死等会在跨分钟调用时假失败。
 same = next((item for item in badged if item["id"] == first["id"]), None)
 if same is not None:
     assert same["band"] == novelty["band"], (same, novelty["band"])
+    if same.get("percentile") is not None and novelty["percentile"] is not None:
+        assert abs(same["percentile"] - novelty["percentile"]) <= 5.0, (same, novelty)
+# 列表也要带 cohort 快照，否则前端不知道 fallback 时该不该显示数字
+assert listed["novelty_cohort"]["size"] >= 1, listed["novelty_cohort"]
 
 print("接口校验通过：",
     {

@@ -15,6 +15,19 @@ class EntityRef(BaseModel):
     salience: float = 0.0
 
 
+class NoveltyCohortOut(BaseModel):
+    """分位切点的来源与新鲜度——百分位是相对口径，必须让调用方看到用在什么分布上。"""
+
+    size: int = Field(default=0, description="参与分布计算的文档数")
+    p25: float = 0.0
+    p75: float = 0.0
+    fallback: bool = Field(
+        default=False, description="样本不足，退回手拍绝对值阈值（此时分位数不可靠）"
+    )
+    age_seconds: float = Field(default=0.0, description="该分布快照已缓存多久")
+    ttl_seconds: int = 0
+
+
 class DocumentOut(BaseModel):
     id: int
     url: str
@@ -46,12 +59,23 @@ class DocumentOut(BaseModel):
         default=None,
         description="high = 相对新颖 / mid / covered = 近期已覆盖（相对切分，未校准）",
     )
+    percentile: float | None = Field(
+        default=None,
+        description=(
+            "相对百分位排名（0-100），供 Feed 悬停显示。"
+            "列表的 novelty_cohort.fallback=true 时不要展示具体数字（小样本里只会出现极值）。"
+        ),
+    )
 
 
 class DocumentListOut(BaseModel):
     items: list[DocumentOut]
     next_cursor: int | None = None
     total_returned: int
+    novelty_cohort: NoveltyCohortOut | None = Field(
+        default=None,
+        description="本页 novelty 分数所依据的分布快照；fallback=true 时前端只显 band，不显百分位",
+    )
 
 
 class DocumentDetailOut(DocumentOut):
@@ -238,19 +262,6 @@ class NoveltyNeighbourOut(BaseModel):
     source_name: str | None = None
     similarity: float
     published_at: datetime | None = None
-
-
-class NoveltyCohortOut(BaseModel):
-    """分位切点的来源与新鲜度——百分位是相对口径，必须让调用方看到用在什么分布上。"""
-
-    size: int = Field(default=0, description="参与分布计算的文档数")
-    p25: float = 0.0
-    p75: float = 0.0
-    fallback: bool = Field(
-        default=False, description="样本不足，退回手拍绝对值阈值（此时分位数不可靠）"
-    )
-    age_seconds: float = Field(default=0.0, description="该分布快照已缓存多久")
-    ttl_seconds: int = 0
 
 
 class DocumentNoveltyOut(BaseModel):

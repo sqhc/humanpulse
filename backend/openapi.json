@@ -541,6 +541,18 @@
             ],
             "title": "Novelty"
           },
+          "percentile": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "相对百分位排名（0-100），供 Feed 悬停显示。列表的 novelty_cohort.fallback=true 时不要展示具体数字（小样本里只会出现极值）。",
+            "title": "Percentile"
+          },
           "published_at": {
             "anyOf": [
               {
@@ -696,6 +708,17 @@
               }
             ],
             "title": "Next Cursor"
+          },
+          "novelty_cohort": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NoveltyCohortOut"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "本页 novelty 分数所依据的分布快照；fallback=true 时前端只显 band，不显百分位"
           },
           "total_returned": {
             "title": "Total Returned",
@@ -915,6 +938,18 @@
               }
             ],
             "title": "Novelty"
+          },
+          "percentile": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "相对百分位排名（0-100），供 Feed 悬停显示。列表的 novelty_cohort.fallback=true 时不要展示具体数字（小样本里只会出现极值）。",
+            "title": "Percentile"
           },
           "published_at": {
             "anyOf": [

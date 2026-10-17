@@ -768,6 +768,11 @@ export interface components {
             language?: string | null;
             /** Novelty */
             novelty?: number | null;
+            /**
+             * Percentile
+             * @description 相对百分位排名（0-100），供 Feed 悬停显示。列表的 novelty_cohort.fallback=true 时不要展示具体数字（小样本里只会出现极值）。
+             */
+            percentile?: number | null;
             /** Published At */
             published_at?: string | null;
             /** Rationale */
@@ -806,6 +811,8 @@ export interface components {
             items: components["schemas"]["DocumentOut"][];
             /** Next Cursor */
             next_cursor?: number | null;
+            /** @description 本页 novelty 分数所依据的分布快照；fallback=true 时前端只显 band，不显百分位 */
+            novelty_cohort?: components["schemas"]["NoveltyCohortOut"] | null;
             /** Total Returned */
             total_returned: number;
         };
@@ -913,6 +920,11 @@ export interface components {
             language?: string | null;
             /** Novelty */
             novelty?: number | null;
+            /**
+             * Percentile
+             * @description 相对百分位排名（0-100），供 Feed 悬停显示。列表的 novelty_cohort.fallback=true 时不要展示具体数字（小样本里只会出现极值）。
+             */
+            percentile?: number | null;
             /** Published At */
             published_at?: string | null;
             /** Rationale */

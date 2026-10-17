@@ -34,6 +34,20 @@ SessionDep = Annotated[AsyncSession, Depends(get_session)]
 NEIGHBOUR_LIMIT = 10
 
 
+def _badge(
+    snapshot: novelty_cohort.CohortSnapshot, document_id: int
+) -> tuple[float | None, str | None, float | None]:
+    """(novelty, band, percentile) —— 徽标三件套的唯一出口。
+
+    列表、详情、siblings 三处都用它，避免各自从分数推档位而慢慢算得不一样。
+    没有分数的文档（无向量/未进分布）返回三个 None，前端按「无徽标」处理。
+    """
+    score = snapshot.scores.get(document_id)
+    if score is None:
+        return None, None, None
+    return score, snapshot.cohort.band_of(score), snapshot.cohort.percentile_of(score)
+
+
 def _to_out(
     document: Document,
     analysis: Analysis | None,
@@ -41,6 +55,7 @@ def _to_out(
     source_name: str | None,
     novelty: float | None = None,
     band: str | None = None,
+    percentile: float | None = None,
 ) -> DocumentOut:
     return DocumentOut(
         id=document.id,
@@ -77,6 +92,7 @@ def _to_out(
         cluster_id=cluster_id,
         novelty=novelty,
         band=band,
+        percentile=percentile,
     )
 
 
@@ -146,24 +162,23 @@ async def list_documents(
         session, window_days=novelty_core.HORIZON_DAYS, tau_hours=novelty_core.TAU_HOURS
     )
     items = [
-        _to_out(
-            doc,
-            analysis,
-            cluster,
-            source_name,
-            novelty=snapshot.scores.get(doc.id),
-            band=(
-                None
-                if snapshot.scores.get(doc.id) is None
-                else snapshot.cohort.band_of(snapshot.scores[doc.id])
-            ),
-        )
+        _to_out(doc, analysis, cluster, source_name, *_badge(snapshot, doc.id))
         for doc, analysis, cluster, source_name in rows
     ]
     return DocumentListOut(
         items=items,
         next_cursor=items[-1].id if has_more and items else None,
         total_returned=len(items),
+        # 把这一页分数所依据的分布一起给前端：fallback 时前端才知道
+        # 「这个百分位不可展示」，否则它只能瞎猜。
+        novelty_cohort=NoveltyCohortOut(
+            size=snapshot.cohort.size,
+            p25=round(snapshot.cohort.low, 4),
+            p75=round(snapshot.cohort.high, 4),
+            fallback=snapshot.cohort.fallback,
+            age_seconds=snapshot.age_seconds,
+            ttl_seconds=snapshot.ttl_seconds,
+        ),
     )
 
 
@@ -182,18 +197,12 @@ async def get_document(document_id: int, session: SessionDep) -> DocumentDetailO
     if row is None:
         raise HTTPException(status_code=404, detail="文档不存在")
     document, analysis, cluster_id, source_name = row
-    # 详情也带上 novelty/band，与列表卡片口径一致（同一份缓存，不是另算一套）
+    # 详情也带上 novelty/band/percentile，与列表卡片口径一致（同一份缓存、同一个 _badge）
     detail_snapshot = await novelty_cohort.get_cohort(
         session, window_days=novelty_core.HORIZON_DAYS, tau_hours=novelty_core.TAU_HOURS
     )
-    detail_score = detail_snapshot.scores.get(document_id)
     base = _to_out(
-        document,
-        analysis,
-        cluster_id,
-        source_name,
-        novelty=detail_score,
-        band=None if detail_score is None else detail_snapshot.cohort.band_of(detail_score),
+        document, analysis, cluster_id, source_name, *_badge(detail_snapshot, document_id)
     )
 
     siblings: list[DocumentOut] = []
@@ -211,18 +220,7 @@ async def get_document(document_id: int, session: SessionDep) -> DocumentDetailO
             )
         ).all()
         siblings = [
-            _to_out(
-                doc,
-                ana,
-                cl,
-                sname,
-                novelty=detail_snapshot.scores.get(doc.id),
-                band=(
-                    None
-                    if detail_snapshot.scores.get(doc.id) is None
-                    else detail_snapshot.cohort.band_of(detail_snapshot.scores[doc.id])
-                ),
-            )
+            _to_out(doc, ana, cl, sname, *_badge(detail_snapshot, doc.id))
             for doc, ana, cl, sname in sibling_rows
         ]
 
