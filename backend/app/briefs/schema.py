@@ -125,6 +125,28 @@ class DeepDive(BaseModel):
         return [facet for facet in self.facets if facet.has_body()][:MAX_DEEP_DIVE_FACETS]
 
 
+class PulseCard(BaseModel):
+    """一条「脉搏短讯」：事实一句 + 钩子（为什么重要 / 接下来看什么）。双语。
+
+    在简报生成的那次 LLM 调用里产出并存进 `briefs.structured.pulses`，
+    前端只读库存字段渲染，不在前端调用模型。
+    诚实边界：钩子里只允许「从素材可推导的判断」与「接下来看什么」的观察点，
+    不得写概率或断言未发生的事（未过评估门的推演一律不进脉搏卡）。
+    """
+
+    section_key: SectionKey = "other"
+    fact_zh: str = Field(default="", max_length=280)
+    fact_en: str = Field(default="", max_length=280)
+    hook_zh: str = Field(default="", max_length=140)
+    hook_en: str = Field(default="", max_length=140)
+    source_name: str = Field(default="", max_length=120)
+
+    @field_validator("fact_zh", "fact_en", "hook_zh", "hook_en", "source_name", mode="before")
+    @classmethod
+    def _clean(cls, value: object) -> str:
+        return " ".join(str(value or "").split())
+
+
 class BriefContent(BaseModel):
     """日报的完整内容（双语）。Markdown 由我们自己渲染，保证可复现。"""
 
@@ -140,6 +162,8 @@ class BriefContent(BaseModel):
     trends_en: list[str] = Field(default_factory=list)
     # 深挖：本期最值得深挖的一条事件的分面卡片（未产出时为空）
     deep_dive: DeepDive | None = None
+    # 脉搏短讯：值得做成 tweet 式短讯的 3~8 条（事实 + 钩子；未产出时为空）
+    pulses: list[PulseCard] = Field(default_factory=list)
     # 推演：链路式后果分析（未启用推演时为空）
     projection: ProjectionContent | None = None
 
