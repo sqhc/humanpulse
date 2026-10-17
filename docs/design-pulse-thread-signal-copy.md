@@ -109,13 +109,16 @@ Signal 的全部文案都回答一个问题：**为什么这条排在你面前**
 **「为什么新颖」下钻**（点击徽标展开，槽位拼接，对应 detail 端点因子分解的 `metric_value`/`metric_unit`/`metric_label_*` 结构化字段——前端读字段拼句，不 parse 散文）：
 
 > 口径（与后端 `bcef0b4` 对齐）：以下槽位全部是**窗口口径**（近 {W} 天内），不是事件/cluster 全生命周期口径。来源多样性 {M} = 窗口内**其它不同来源的家数**（去重后），不是报道条数。
+> 时间衰减 Δt 指**窗口内最相似的另一篇报道**距今多久（语义即「最相似近邻的年龄」，不是「时间上最近的一条」——当前数据里两者恰好重合，但文案按语义写，防止数据形态变化后措辞失真）。
 
 | 因子 | zh 槽位句 | en 槽位句 |
 |---|---|---|
 | 相似度 | 与近 {W} 天最相似报道的重合度 {S}% | {S}% overlap with the most similar recent report ({W}d window) |
-| 时间衰减 | 近 {W} 天内上一条报道距今 {Δt} | last report within the {W}d window was {Δt} ago |
+| 时间衰减 | 最相似的近期报道发布于 {Δt} 前 | the most similar recent report was published {Δt} ago |
 | 来源多样性 | 近 {W} 天内已有 {M} 家不同来源报道 | {M} other outlets covered this in the {W}d window |
 | 置信 | 部分因子缺席，按剩余因子归一（partial） | some factors missing; renormalized (partial) |
+
+> novelty 分数是**随时钟缓变**的（recency 因子依赖当前时间）：同一时刻列表与详情完全一致，跨时刻调用会差千分位；**档位（band）经同一 cohort 判定，不会跳**。前端徽标用列表字段（`DocumentOut.novelty`/`band`，零额外请求），点开下钻才调 detail 端点拿四因子和 percentile；**不要把分数当恒定值缓存**。
 
 **新在哪徽标**（每条前置，四选一，按优先级；触发条件全部是确定性事实，与 novelty band 无关）：
 
