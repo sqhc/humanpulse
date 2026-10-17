@@ -321,7 +321,7 @@ async def get_document_novelty(
 ) -> DocumentNoveltyOut:
     """判断「这篇是不是**相对**新的信息」。
 
-    确定性指标：窗口内最相似报道（pgvector 余弦，走 HNSW）、与它的时间间隔、来源分布、时效。
+    确定性指标：窗口内最相似报道（pgvector 余弦）、与它的时间间隔、来源分布、时效。
     不依赖聚类质量——93% 的 cluster 只有一篇，所以这是文档级而非 cluster 级判断。
     档位按分位数（p75/p25）相对切分，**不是绝对校准**：响应固定 `calibrated=False`，
     前端必须按「相对口径 + 未经校准」呈现。
@@ -341,9 +341,10 @@ async def get_document_novelty(
         await session.execute(select(Embedding.vec).where(Embedding.document_id == document_id))
     ).scalar_one_or_none()
 
-    # 窗口内的近邻：先按余弦距离取前 N（HNSW 生效），再回落成可解释的邻居清单。
-    # 时间条件写在 WHERE 里，HNSW 会在过滤后返回结果——召回可能略降，但精度不受影响，
-    # 且本接口只做「有没有高度相似报道」的排序判断，不要求严格 top-k 完备。
+    # 窗口内的近邻：按余弦距离取前 N，再回落成可解释的邻居清单。
+    # 时间条件写在 WHERE 里。**不要**假定这里走了 HNSW：EXPLAIN 实测在当前 956 行
+    # 规模下规划器选的是顺序扫描 + top-N 排序（比强制走 HNSW 快得多），索引仍 valid，
+    # 数据量上去后会自己切换。所以这里的复杂度是 O(行数)，缓存策略按行数而非索引来定。
     neighbours: list[NoveltyNeighbourOut] = []
     nearest_hours: float | None = None
     max_similarity: float | None = None

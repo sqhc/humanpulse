@@ -1,7 +1,7 @@
 """Signal novelty 的**全局分布缓存**（p25/p75 + 排名用的分数表）。
 
-为什么需要它：单文档 novelty 走 HNSW，实测 3ms；但「这条排在近期报道的第几百分位」是
-**全局统计**，逐篇查库重建实测要秒级，超了 0.5s 预算。分布变化很慢（新文档按天进），
+为什么需要它：单文档 novelty 的分数本身只要毫秒级；但「这条排在近期报道的第几百分位」
+是**全局统计**，逐篇查库重建实测要秒级，超了 0.5s 预算。分布变化很慢（新文档按天进），
 所以 TTL 缓存 + 惰性刷新是正解：过期后第一个请求触发重建，其余请求继续用旧值。
 
 键 = (window_days, tau_hours)：换个窗口就是**另一个分布**，不能复用同一组切点。
@@ -26,7 +26,13 @@ from app.pipeline import novelty as core
 
 log = structlog.get_logger("pipeline.novelty_cohort")
 
-# 一次查完全库：每篇 enriched 文档的最近邻（HNSW 支持的 ORDER BY <=> LIMIT 1）。
+# 一次查完全库：每篇 enriched 文档的最近邻（ORDER BY <=> LIMIT 1）。
+#
+# 注意（EXPLAIN 实测，956 行的库）：**规划器不会走 ix_embeddings_vec_hnsw**，
+# 而是全表扫描 + top-N 排序——因为这个规模下顺序扫描更便宜（实测 0.3ms；
+# SET enable_seqscan=off 强制走 HNSW 反而要 18.6ms）。索引 valid/ready 都是 true，
+# 数据量上去后规划器会自己切过去，所以这里不需要也不应该硬指定索引。
+# 真实约束是**行数**而非索引：全库重建 ~956 次近邻查询，才是要缓存的原因。
 # 时间窗锚在**该文档自身时间**上，与单文档端点一致（实时与离线重放都能成立）。
 _COHORT_SQL = text(
     """

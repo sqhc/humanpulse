@@ -1,4 +1,9 @@
-"""语义搜索：用与入库同一套 embedder 把查询向量化，走 pgvector 的 HNSW 索引。"""
+"""语义搜索：用与入库同一套 embedder 把查询向量化，走 pgvector 的余弦近邻。
+
+索引说明（EXPLAIN 实测，956 行）：`ix_embeddings_vec_hnsw` 存在且 valid，但规划器
+在当前规模下选的是顺序扫描 + top-N 排序（强制走 HNSW 反而慢一个量级）。数据量上去后
+规划器会自行切换；这里不硬指定索引，也不应假定一定走了 ANN。
+"""
 
 from __future__ import annotations
 
