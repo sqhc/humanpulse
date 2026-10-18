@@ -35,6 +35,8 @@ export type PredictionOut = components["schemas"]["PredictionOut"];
 export type PredictionListOut = components["schemas"]["PredictionListOut"];
 export type CalibrationOut = components["schemas"]["CalibrationOut"];
 export type DocumentNoveltyOut = components["schemas"]["DocumentNoveltyOut"];
+export type CoverageCalendarOut = components["schemas"]["CoverageCalendarOut"];
+export type CoverageDayOut = components["schemas"]["CoverageDayOut"];
 
 /** 结构化简报内容（由服务端渲染 Markdown，前端按语言取字段）。 */
 export interface BriefSection {
@@ -154,6 +156,9 @@ export function createClient(options: ClientOptions = {}) {
       params: { limit?: number; min_docs?: number } = {},
       { signal }: RequestOptions = {},
     ) => request<ClusterOut[]>(`/api/v1/clusters${toQueryString(params)}`, { signal }),
+    /** 采集底账日历：按天返回采集/富化量，前端按三态（正常/空转/断档/无底账）渲染。 */
+    getCoverageCalendar: (days = 30, { signal }: RequestOptions = {}) =>
+      request<CoverageCalendarOut>(`/api/v1/coverage/calendar?days=${days}`, { signal }),
     listSources: ({ signal }: RequestOptions = {}) =>
       request<SourceOut[]>("/api/v1/sources", { signal }),
     /** 列表：简报历史（默认日报）。 */

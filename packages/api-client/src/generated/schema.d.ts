@@ -243,6 +243,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/coverage/calendar": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 采集底账日历（采集量 + 富化量，按天，区分断档/空转/无底账）
+         * @description 获取最近 N 天的采集/富化日历数据。
+         *
+         *     口径说明（诚实层约束）：
+         *     - collected 按当天 FetchRun.items_new 求和（采到的新条数，不是跑了几批）
+         *     - enriched 按当天 Analysis.created_at 聚合（当天实际富化完成的量，与发布日期无关）
+         *     - earliest_ledger_date 之前的日子是「无底账记录」，不是「断档」——前端要区分这两种状态
+         */
+        get: operations["coverage_calendar_api_v1_coverage_calendar_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/documents": {
         parameters: {
             query?: never;
@@ -288,7 +313,7 @@ export interface paths {
          * 文档级 novelty / 信噪比（Signal）
          * @description 判断「这篇是不是**相对**新的信息」。
          *
-         *     确定性指标：窗口内最相似报道（pgvector 余弦，走 HNSW）、与它的时间间隔、来源分布、时效。
+         *     确定性指标：窗口内最相似报道（pgvector 余弦）、与它的时间间隔、来源分布、时效。
          *     不依赖聚类质量——93% 的 cluster 只有一篇，所以这是文档级而非 cluster 级判断。
          *     档位按分位数（p75/p25）相对切分，**不是绝对校准**：响应固定 `calibrated=False`，
          *     前端必须按「相对口径 + 未经校准」呈现。
@@ -732,6 +757,54 @@ export interface components {
             name: string;
             /** Ok */
             ok: boolean;
+        };
+        /**
+         * CoverageCalendarOut
+         * @description 采集底账日历——纯事实层，把「断档/空转」显式画出来，不做任何推断。
+         */
+        CoverageCalendarOut: {
+            /**
+             * Coverage Rate
+             * @default 0
+             */
+            coverage_rate: number;
+            /** Days */
+            days?: components["schemas"]["CoverageDayOut"][];
+            /** Earliest Ledger Date */
+            earliest_ledger_date?: string | null;
+            /**
+             * Total Collected
+             * @default 0
+             */
+            total_collected: number;
+            /**
+             * Total Enriched
+             * @default 0
+             */
+            total_enriched: number;
+        };
+        /**
+         * CoverageDayOut
+         * @description 覆盖日历单日数据：采集量（fetch_runs.items_new）+ 富化量（Analysis.created_at）。
+         */
+        CoverageDayOut: {
+            /**
+             * Collected
+             * @default 0
+             */
+            collected: number;
+            /** Date */
+            date: string;
+            /**
+             * Enriched
+             * @default 0
+             */
+            enriched: number;
+            /**
+             * Has Data
+             * @default false
+             */
+            has_data: boolean;
         };
         /** DocumentDetailOut */
         DocumentDetailOut: {
@@ -2004,6 +2077,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ClusterDetailOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    coverage_calendar_api_v1_coverage_calendar_get: {
+        parameters: {
+            query?: {
+                days?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CoverageCalendarOut"];
                 };
             };
             /** @description Validation Error */

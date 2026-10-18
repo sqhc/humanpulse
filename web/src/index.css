@@ -21,3 +21,14 @@ body {
   font-family:
     ui-sans-serif, system-ui, -apple-system, "Segoe UI", "PingFang SC", "Noto Sans CJK SC", sans-serif;
 }
+
+/* 覆盖日历「断档」态：灰底 + 细斜纹，与纯「无数据」格子区分 */
+.coverage-gap {
+  background-image: repeating-linear-gradient(
+    135deg,
+    transparent,
+    transparent 2px,
+    rgb(148 163 184 / 0.25) 2px,
+    rgb(148 163 184 / 0.25) 4px
+  );
+}

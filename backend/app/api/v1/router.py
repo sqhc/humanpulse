@@ -4,6 +4,7 @@ from app.api.v1 import (
     admin,
     briefs,
     clusters,
+    coverage,
     documents,
     entities,
     health,
@@ -28,3 +29,4 @@ api_router.include_router(uploads.router, tags=["uploads"])
 api_router.include_router(admin.router, tags=["admin"])
 api_router.include_router(predictions.router, tags=["predictions"])
 api_router.include_router(takedown.router, tags=["compliance"])
+api_router.include_router(coverage.router, tags=["coverage"])

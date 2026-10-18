@@ -264,6 +264,25 @@ class NoveltyNeighbourOut(BaseModel):
     published_at: datetime | None = None
 
 
+class CoverageDayOut(BaseModel):
+    """覆盖日历单日数据：采集量（fetch_runs.items_new）+ 富化量（Analysis.created_at）。"""
+
+    date: str
+    collected: int = 0
+    enriched: int = 0
+    has_data: bool = False
+
+
+class CoverageCalendarOut(BaseModel):
+    """采集底账日历——纯事实层，把「断档/空转」显式画出来，不做任何推断。"""
+
+    days: list[CoverageDayOut] = Field(default_factory=list)
+    total_collected: int = 0
+    total_enriched: int = 0
+    earliest_ledger_date: str | None = None
+    coverage_rate: float = 0.0
+
+
 class DocumentNoveltyOut(BaseModel):
     """文档级 novelty（Signal）——确定性工程指标，档位是相对切分，未经人工标注校准。"""
 

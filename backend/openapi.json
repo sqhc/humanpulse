@@ -443,6 +443,75 @@
         "title": "ComponentStatus",
         "type": "object"
       },
+      "CoverageCalendarOut": {
+        "description": "采集底账日历——纯事实层，把「断档/空转」显式画出来，不做任何推断。",
+        "properties": {
+          "coverage_rate": {
+            "default": 0.0,
+            "title": "Coverage Rate",
+            "type": "number"
+          },
+          "days": {
+            "items": {
+              "$ref": "#/components/schemas/CoverageDayOut"
+            },
+            "title": "Days",
+            "type": "array"
+          },
+          "earliest_ledger_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Earliest Ledger Date"
+          },
+          "total_collected": {
+            "default": 0,
+            "title": "Total Collected",
+            "type": "integer"
+          },
+          "total_enriched": {
+            "default": 0,
+            "title": "Total Enriched",
+            "type": "integer"
+          }
+        },
+        "title": "CoverageCalendarOut",
+        "type": "object"
+      },
+      "CoverageDayOut": {
+        "description": "覆盖日历单日数据：采集量（fetch_runs.items_new）+ 富化量（Analysis.created_at）。",
+        "properties": {
+          "collected": {
+            "default": 0,
+            "title": "Collected",
+            "type": "integer"
+          },
+          "date": {
+            "title": "Date",
+            "type": "string"
+          },
+          "enriched": {
+            "default": 0,
+            "title": "Enriched",
+            "type": "integer"
+          },
+          "has_data": {
+            "default": false,
+            "title": "Has Data",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "date"
+        ],
+        "title": "CoverageDayOut",
+        "type": "object"
+      },
       "DocumentDetailOut": {
         "properties": {
           "ai_generated": {
@@ -3322,6 +3391,53 @@
         ]
       }
     },
+    "/api/v1/coverage/calendar": {
+      "get": {
+        "description": "获取最近 N 天的采集/富化日历数据。\n\n口径说明（诚实层约束）：\n- collected 按当天 FetchRun.items_new 求和（采到的新条数，不是跑了几批）\n- enriched 按当天 Analysis.created_at 聚合（当天实际富化完成的量，与发布日期无关）\n- earliest_ledger_date 之前的日子是「无底账记录」，不是「断档」——前端要区分这两种状态",
+        "operationId": "coverage_calendar_api_v1_coverage_calendar_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "days",
+            "required": false,
+            "schema": {
+              "default": 30,
+              "maximum": 90,
+              "minimum": 1,
+              "title": "Days",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoverageCalendarOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "采集底账日历（采集量 + 富化量，按天，区分断档/空转/无底账）",
+        "tags": [
+          "coverage",
+          "coverage"
+        ]
+      }
+    },
     "/api/v1/documents": {
       "get": {
         "operationId": "list_documents_api_v1_documents_get",
@@ -3613,7 +3729,7 @@
     },
     "/api/v1/documents/{document_id}/novelty": {
       "get": {
-        "description": "判断「这篇是不是**相对**新的信息」。\n\n确定性指标：窗口内最相似报道（pgvector 余弦，走 HNSW）、与它的时间间隔、来源分布、时效。\n不依赖聚类质量——93% 的 cluster 只有一篇，所以这是文档级而非 cluster 级判断。\n档位按分位数（p75/p25）相对切分，**不是绝对校准**：响应固定 `calibrated=False`，\n前端必须按「相对口径 + 未经校准」呈现。",
+        "description": "判断「这篇是不是**相对**新的信息」。\n\n确定性指标：窗口内最相似报道（pgvector 余弦）、与它的时间间隔、来源分布、时效。\n不依赖聚类质量——93% 的 cluster 只有一篇，所以这是文档级而非 cluster 级判断。\n档位按分位数（p75/p25）相对切分，**不是绝对校准**：响应固定 `calibrated=False`，\n前端必须按「相对口径 + 未经校准」呈现。",
         "operationId": "get_document_novelty_api_v1_documents__document_id__novelty_get",
         "parameters": [
           {

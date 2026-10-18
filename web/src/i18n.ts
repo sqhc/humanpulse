@@ -125,6 +125,15 @@ export interface Messages {
   noveltyCovered: string;
   noveltyFilterOnly: string;
   noveltyRelativeNote: string;
+  coverageTitle: string;
+  coverageRelativeNote: string;
+  coverageSummary: string;
+  coverageNormal: string;
+  coverageIdle: string;
+  coverageGapped: string;
+  coverageNoLedger: string;
+  coverageCollected: string;
+  coverageEnriched: string;
   rationale: string;
   sameEvent: string;
   noSiblings: string;
@@ -274,6 +283,15 @@ export const messages: Record<Lang, Messages> = {
     noveltyCovered: "近期已覆盖",
     noveltyFilterOnly: "只看相对新颖",
     noveltyRelativeNote: "相对切分（非绝对校准）",
+    coverageTitle: "采集底账",
+    coverageRelativeNote: "采集与富化的真实底账 —— 断档日一目了然",
+    coverageSummary: "近 30 天采集 {collected} 条 · 富化 {enriched} 条",
+    coverageNormal: "正常",
+    coverageIdle: "采集未富化",
+    coverageGapped: "未采集",
+    coverageNoLedger: "无底账记录",
+    coverageCollected: "采集",
+    coverageEnriched: "富化",
     rationale: "评分理由",
     sameEvent: "同一事件的其他报道",
     noSiblings: "暂无其它来源的报道。",
@@ -433,6 +451,15 @@ export const messages: Record<Lang, Messages> = {
     noveltyCovered: "recently covered",
     noveltyFilterOnly: "new only",
     noveltyRelativeNote: "relative split (not calibrated)",
+    coverageTitle: "Collection ledger",
+    coverageRelativeNote: "The real ledger of what was collected and enriched — gaps are visible",
+    coverageSummary: "Last 30 days: {collected} collected · {enriched} enriched",
+    coverageNormal: "normal",
+    coverageIdle: "collected, not enriched",
+    coverageGapped: "not collected",
+    coverageNoLedger: "no ledger record",
+    coverageCollected: "collected",
+    coverageEnriched: "enriched",
     rationale: "Why this score",
     sameEvent: "Other coverage of the same event",
     noSiblings: "No other sources yet.",

@@ -7,6 +7,8 @@ export type {
   CalibrationOut,
   ClientOptions,
   ClusterOut,
+  CoverageCalendarOut,
+  CoverageDayOut,
   DocumentDetailOut,
   DocumentListOut,
   DocumentNoveltyOut,
