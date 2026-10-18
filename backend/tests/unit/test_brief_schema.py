@@ -12,6 +12,7 @@ from __future__ import annotations
 from app.briefs.schema import (
     MAX_DEEP_DIVE_FACETS,
     PULSE_HOOK_FLOOR,
+    PULSE_RENDER_OVERHEAD,
     PULSE_TEXT_BUDGET,
     BriefContent,
     DeepDive,
@@ -152,12 +153,41 @@ def test_pulse_card_fits_total_length_budget() -> None:
         hook_en=long_hook_en,
     )
 
-    assert len(card.fact_zh) + len(card.hook_zh) <= PULSE_TEXT_BUDGET
-    assert len(card.fact_en) + len(card.hook_en) <= PULSE_TEXT_BUDGET
+    assert len(card.fact_zh) + len(card.hook_zh) <= PULSE_TEXT_BUDGET - PULSE_RENDER_OVERHEAD
+    assert len(card.fact_en) + len(card.hook_en) <= PULSE_TEXT_BUDGET - PULSE_RENDER_OVERHEAD
     # 钩子是差异化的核心，不能被裁成空
     assert card.hook_zh
     assert len(card.hook_en) >= PULSE_HOOK_FLOOR
     assert card.hook_en.endswith("…")
+
+
+def test_pulse_card_fits_rendered_text_budget() -> None:
+    """渲染全文本（标签徽标 + fact + 换行 + 「→ 」+ hook）也要在 280 内。
+
+    brief-21 教训：validator 只对 fact+hook 记账（275 ≤ 280 通过），
+    前端渲染加上标签与接续符后 284–290，六条 EN 全部超契约。
+    记账基数必须是「渲染全文本」，这里按 PulseList 的最坏标签（en "Labour "）复算。
+    """
+    card = PulseCard(
+        section_key="labor",
+        fact_zh="以色列无人机袭击加沙多地，致6名巴勒斯坦人死亡；UNICEF称停火以来加沙已有超340名儿童丧生。（半岛电视台）",
+        fact_en=(
+            "Israeli drone attacks killed six Palestinians across Gaza; UNICEF said more than "
+            "340 children have been killed in Gaza since the ceasefire began. (Al Jazeera)"
+        ),
+        hook_zh="停火期间持续出现平民伤亡，凸显局势脆弱；接下来需观察以色列方面是否回应，以及伤亡数字能否得到独立核实。",
+        hook_en=(
+            "Continued civilian deaths during the ceasefire highlight the fragility of the "
+            "situation; next, watch for any Israeli response and independent verification of "
+            "the casualty figures."
+        ),
+    )
+    rendered_en = "Labour " + card.fact_en + "\n→ " + card.hook_en
+    rendered_zh = "劳工 " + card.fact_zh + "\n→ " + card.hook_zh
+    assert len(rendered_en) <= PULSE_TEXT_BUDGET
+    assert len(rendered_zh) <= PULSE_TEXT_BUDGET
+    # 钩子下限仍然保住：预算收紧不能把钩子裁没
+    assert len(card.hook_en) >= PULSE_HOOK_FLOOR
 
 
 def test_pulse_card_keeps_short_text_untouched() -> None:

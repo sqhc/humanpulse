@@ -19,6 +19,10 @@ MAX_DEEP_DIVE_FACETS = 6
 PULSE_TEXT_BUDGET = 280
 # 超预算时钩子的最低保留长度：钩子是差异化所在，别被压成空字符串。
 PULSE_HOOK_FLOOR = 60
+# 渲染固定开销：标签徽标文案 + 空格 + 换行 + 「→ 」接续符（前端 PulseList 实际渲染结构）。
+# 按最坏情况（en 最长标签 "Labour " = 7 + "\n→ " = 3）统一预留 = 10；宁紧勿松。
+# brief-21 教训：只对 fact+hook 记账会漏掉这笔，渲染全文本 6/6 超契约。
+PULSE_RENDER_OVERHEAD = 10
 
 DEFAULT_HEADINGS: dict[str, tuple[str, str]] = {
     "conflict": ("冲突与安全", "Conflict & security"),
@@ -179,6 +183,13 @@ class PulseCard(BaseModel):
         为什么不能只按字段设限：两段各自合规、合起来照样超——实测就是
         `fact_en` 158 + `hook_en` 179 = 337，两个单字段截断器一次都没触发。
         钩子先让位（事实是核心），钩子压到下限后事实再让位。
+
+        2026-10-18（写手验收 brief-21 发现）：记账基数改为**渲染全文本**——
+        前端 PulseList 渲染为「标签徽标 + fact + 换行 + `→ ` + hook」，
+        标签与接续符的固定开销（en 最长 `Labour ` 7 + `\n→ ` 3 = 10；
+        zh 最长 `冲突 ` 3 + 3 = 6）必须计入预算，否则 fact+hook 合计合规、
+        渲染超长（brief-21 六条 EN 实测 284–290）。这里按最坏情况
+        （en）统一预留 PULSE_RENDER_OVERHEAD，宁紧勿松。
         """
         for fact_field, hook_field, word_safe in (
             ("fact_zh", "hook_zh", False),
@@ -186,18 +197,19 @@ class PulseCard(BaseModel):
         ):
             fact = str(getattr(self, fact_field))
             hook = str(getattr(self, hook_field))
-            if len(fact) + len(hook) <= PULSE_TEXT_BUDGET:
+            usable = PULSE_TEXT_BUDGET - PULSE_RENDER_OVERHEAD
+            if len(fact) + len(hook) <= usable:
                 continue
             # 钩子先让位，但只裁到「剩余空间」为止，不无故压短；
             # 剩余空间连下限都不够时，说明事实太长——保住钩子下限，改裁事实。
-            hook_room = PULSE_TEXT_BUDGET - len(fact)
+            hook_room = usable - len(fact)
             if hook_room >= PULSE_HOOK_FLOOR:
                 hook = _clip_text(hook, hook_room, word_safe=word_safe)
             else:
                 hook = _clip_text(hook, PULSE_HOOK_FLOOR, word_safe=word_safe)
             # 裁剪会补省略号，实际长度可能比传入的 limit 长 1；
             # 所以事实的空间必须按钩子「裁剪后」的真实长度重算，否则会差一个字符。
-            fact_room = PULSE_TEXT_BUDGET - len(hook)
+            fact_room = usable - len(hook)
             if len(fact) > fact_room:
                 fact = _clip_text(fact, max(0, fact_room), word_safe=word_safe)
             setattr(self, fact_field, fact)
