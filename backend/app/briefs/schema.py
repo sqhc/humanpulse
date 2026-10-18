@@ -22,6 +22,17 @@ DEFAULT_HEADINGS: dict[str, tuple[str, str]] = {
 }
 
 
+def _clip_text(text: str, limit: int, *, word_safe: bool) -> str:
+    """裁到目标长度；word_safe=False 按字符截，True 截到最后一个完整词。
+
+    超长时补省略号，标记这是被裁剪过的文本，而不是模型原本就写到这。
+    """
+    if len(text) <= limit:
+        return text
+    head = text[:limit].rsplit(" ", 1)[0].rstrip() if word_safe else text[:limit].rstrip()
+    return (head or text[:limit].rstrip()) + "…"
+
+
 class BriefSection(BaseModel):
     key: SectionKey
     heading_zh: str = Field(default="", max_length=80)
@@ -135,16 +146,28 @@ class PulseCard(BaseModel):
     """
 
     section_key: SectionKey = "other"
-    fact_zh: str = Field(default="", max_length=280)
-    fact_en: str = Field(default="", max_length=280)
-    hook_zh: str = Field(default="", max_length=140)
-    hook_en: str = Field(default="", max_length=140)
+    # 长度上限是「目标长度」而非硬约束：模型偶尔写超一点，不该让整期简报生成失败，
+    # 所以 max_length 放到宽松的兜底值，真正的裁剪由下面的 validator 完成。
+    fact_zh: str = Field(default="", max_length=600)
+    fact_en: str = Field(default="", max_length=1200)
+    hook_zh: str = Field(default="", max_length=300)
+    hook_en: str = Field(default="", max_length=600)
     source_name: str = Field(default="", max_length=120)
 
     @field_validator("fact_zh", "fact_en", "hook_zh", "hook_en", "source_name", mode="before")
     @classmethod
     def _clean(cls, value: object) -> str:
         return " ".join(str(value or "").split())
+
+    @field_validator("fact_zh", "hook_zh", mode="before")
+    @classmethod
+    def _clip_zh(cls, value: object) -> str:
+        return _clip_text(" ".join(str(value or "").split()), 140, word_safe=False)
+
+    @field_validator("fact_en", "hook_en", mode="before")
+    @classmethod
+    def _clip_en(cls, value: object) -> str:
+        return _clip_text(" ".join(str(value or "").split()), 280, word_safe=True)
 
 
 class BriefContent(BaseModel):
