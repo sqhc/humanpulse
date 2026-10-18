@@ -106,6 +106,35 @@ else
   esac
 fi
 
+echo "== 采集新鲜度（worker 是否在跑）=="
+# 教训（2026-10-17）：只有 db 在跑、api/worker 都停了 → 采集静默断了 3.8 天，
+# 数据卡在 10-14，Pulse/Thread 和所有「最近 N 天」视图直接空掉。
+# 关键：这个故障**不会让任何现有检查变红**——health 正常、测试全绿、简报照常生成
+# （只是写「本期没有可用的新内容」）。所以必须单独查「最新文档有多旧」。
+STALE_HOURS=${DOCTOR_STALE_HOURS:-12}
+if ! command -v docker >/dev/null 2>&1 || ! docker info >/dev/null 2>&1; then
+  note "跳过采集新鲜度检查（docker 不可用）"
+else
+  latest=$(docker compose exec -T db psql -U humanpulse -d humanpulse -t -A -c \
+    "SELECT COALESCE(EXTRACT(EPOCH FROM (now() - max(COALESCE(published_at, fetched_at))))/3600, -1) FROM documents WHERE status='enriched';" \
+    2>/dev/null | tr -d '[:space:]' || true)
+  if [ -z "$latest" ]; then
+    note "读不到采集新鲜度（栈未起或 DB 不可达）—— 若要查采集状态，make dev 起栈后复跑"
+  else
+    hours=${latest%%.*}
+    case "$hours" in
+      -1) note "库里没有 enriched 文档，无法判断新鲜度" ;;
+      *)
+        if [ "${hours:-0}" -ge "$STALE_HOURS" ]; then
+          bad "采集已停滞 ${hours} 小时（阈值 ${STALE_HOURS}h）—— 检查 worker：docker compose ps"
+        else
+          ok "采集活跃：最新 enriched 文档 ${hours} 小时前"
+        fi
+        ;;
+    esac
+  fi
+fi
+
 echo "== compose 配置 =="
 if [ -f .env ] && command -v docker >/dev/null 2>&1; then
   if docker compose -f docker-compose.yml config -q >/dev/null 2>&1; then ok "docker-compose.yml 可解析"
