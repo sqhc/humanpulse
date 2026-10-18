@@ -98,3 +98,132 @@ async def test_bozo_without_entries_raises(fresh_settings: None) -> None:
         async with _client(b"not xml at all <<<") as client:
             async for _ in collector.fetch(_source(), client):
                 pass
+
+
+async def test_rss_collector_retry_http_error(
+    fresh_settings: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """测试 HTTP 错误时 RSS 采集器的重试逻辑。"""
+    import httpx
+
+    from app.collectors.rss import RssCollector
+    from app.models.source import Source
+
+    attempt_count = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal attempt_count
+        attempt_count += 1
+        # 第一次失败，第二次成功
+        if attempt_count == 1:
+            return httpx.Response(404, request=request)
+        else:
+            # 返回一个有效的 RSS feed
+            return httpx.Response(
+                200,
+                content=b"""<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>Test Feed</title>
+    <link>https://example.com</link>
+    <description>Test feed</description>
+    <item>
+      <title>Test Entry</title>
+      <link>https://example.com/test</link>
+      <description>Test description</description>
+    </item>
+  </channel>
+</rss>""",
+            )
+
+    collector = RssCollector()
+    source = Source(
+        id=1, name="Test RSS", kind="rss", url="https://example.com/feed.xml", params={}
+    )
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        items = [item async for item in collector.fetch(source, client)]
+
+    # 应该成功获取到一个条目
+    assert len(items) == 1
+    assert items[0].title == "Test Entry"
+    # 应该进行了重试（两次请求：第一次失败，第二次成功）
+    assert attempt_count == 2
+
+
+async def test_rss_retry_parse_error(fresh_settings: None, monkeypatch: pytest.MonkeyPatch) -> None:
+    """测试解析错误时 RSS 采集器的重试逻辑。"""
+    import httpx
+
+    from app.collectors.rss import RssCollector
+    from app.models.source import Source
+
+    attempt_count = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal attempt_count
+        attempt_count += 1
+        # 第一次返回无效 XML，第二次返回有效内容
+        if attempt_count == 1:
+            return httpx.Response(200, content=b"invalid xml <<<")
+        else:
+            # 返回一个有效的 RSS feed
+            return httpx.Response(
+                200,
+                content=b"""<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>Test Feed</title>
+    <link>https://example.com</link>
+    <description>Test feed</description>
+    <item>
+      <title>Test Entry</title>
+      <link>https://example.com/test</link>
+      <description>Test description</description>
+    </item>
+  </channel>
+</rss>""",
+            )
+
+    collector = RssCollector()
+    source = Source(
+        id=1, name="Test RSS", kind="rss", url="https://example.com/feed.xml", params={}
+    )
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        items = [item async for item in collector.fetch(source, client)]
+
+    # 应该成功获取到一个条目
+    assert len(items) == 1
+    assert items[0].title == "Test Entry"
+    # 应该进行了重试（两次请求：第一次解析错误，第二次成功）
+    assert attempt_count == 2
+
+
+async def test_rss_max_retries(fresh_settings: None, monkeypatch: pytest.MonkeyPatch) -> None:
+    """测试达到最大重试次数后抛出异常。"""
+    import httpx
+
+    from app.collectors.rss import RssCollector
+    from app.models.source import Source
+
+    attempt_count = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal attempt_count
+        attempt_count += 1
+        # 总是返回无效 XML，导致解析错误
+        return httpx.Response(200, content=b"invalid xml <<<")
+
+    collector = RssCollector()
+    source = Source(
+        id=1, name="Test RSS", kind="rss", url="https://example.com/feed.xml", params={}
+    )
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        with pytest.raises(RuntimeError, match="RSS 解析异常"):
+            async for _ in collector.fetch(source, client):
+                pass
+
+    # 应该进行了最大重试次数（3次）
+    assert attempt_count == 3
