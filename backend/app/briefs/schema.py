@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 PROMPT_VERSION = "v1"
 
@@ -13,6 +13,12 @@ SECTION_KEYS: tuple[str, ...] = ("conflict", "science", "labor", "other")
 
 # 深挖卡片的张数上限：视频版式是 3 列 × 2 行，多于 6 张会挤爆
 MAX_DEEP_DIVE_FACETS = 6
+
+# 脉搏短讯总长预算（契约：总长 ≤280 字符，含标签与换行，zh/en 同限）。
+# 这是「事实 + 钩子」的合计上限，不是单字段上限——单字段限长挡不住合计超长。
+PULSE_TEXT_BUDGET = 280
+# 超预算时钩子的最低保留长度：钩子是差异化所在，别被压成空字符串。
+PULSE_HOOK_FLOOR = 60
 
 DEFAULT_HEADINGS: dict[str, tuple[str, str]] = {
     "conflict": ("冲突与安全", "Conflict & security"),
@@ -23,14 +29,21 @@ DEFAULT_HEADINGS: dict[str, tuple[str, str]] = {
 
 
 def _clip_text(text: str, limit: int, *, word_safe: bool) -> str:
-    """裁到目标长度；word_safe=False 按字符截，True 截到最后一个完整词。
+    """裁到不超过 limit 个字符；word_safe=True 时截到最后一个完整词。
 
-    超长时补省略号，标记这是被裁剪过的文本，而不是模型原本就写到这。
+    关键约定：**返回值长度一定 <= limit**——省略号也算在这 limit 之内。
+    否则调用方按 limit 预留空间时会差一个字符，边界上就会超出预算。
     """
+    if limit <= 0:
+        return ""
     if len(text) <= limit:
         return text
-    head = text[:limit].rsplit(" ", 1)[0].rstrip() if word_safe else text[:limit].rstrip()
-    return (head or text[:limit].rstrip()) + "…"
+    # 省略号占一个字符，正文只能占 limit - 1
+    room = limit - 1
+    head = text[:room].rsplit(" ", 1)[0].rstrip() if word_safe else text[:room].rstrip()
+    if not head:
+        head = text[:room].rstrip()
+    return head + "…"
 
 
 class BriefSection(BaseModel):
@@ -150,8 +163,8 @@ class PulseCard(BaseModel):
     # 所以 max_length 放到宽松的兜底值，真正的裁剪由下面的 validator 完成。
     fact_zh: str = Field(default="", max_length=600)
     fact_en: str = Field(default="", max_length=1200)
-    hook_zh: str = Field(default="", max_length=300)
-    hook_en: str = Field(default="", max_length=600)
+    hook_zh: str = Field(default="", max_length=600)
+    hook_en: str = Field(default="", max_length=1200)
     source_name: str = Field(default="", max_length=120)
 
     @field_validator("fact_zh", "fact_en", "hook_zh", "hook_en", "source_name", mode="before")
@@ -159,15 +172,37 @@ class PulseCard(BaseModel):
     def _clean(cls, value: object) -> str:
         return " ".join(str(value or "").split())
 
-    @field_validator("fact_zh", "hook_zh", mode="before")
-    @classmethod
-    def _clip_zh(cls, value: object) -> str:
-        return _clip_text(" ".join(str(value or "").split()), 140, word_safe=False)
+    @model_validator(mode="after")
+    def _fit_budget(self) -> PulseCard:
+        """把「事实 + 钩子」裁进短讯总长预算（契约：总长 ≤280 含标签与换行）。
 
-    @field_validator("fact_en", "hook_en", mode="before")
-    @classmethod
-    def _clip_en(cls, value: object) -> str:
-        return _clip_text(" ".join(str(value or "").split()), 280, word_safe=True)
+        为什么不能只按字段设限：两段各自合规、合起来照样超——实测就是
+        `fact_en` 158 + `hook_en` 179 = 337，两个单字段截断器一次都没触发。
+        钩子先让位（事实是核心），钩子压到下限后事实再让位。
+        """
+        for fact_field, hook_field, word_safe in (
+            ("fact_zh", "hook_zh", False),
+            ("fact_en", "hook_en", True),
+        ):
+            fact = str(getattr(self, fact_field))
+            hook = str(getattr(self, hook_field))
+            if len(fact) + len(hook) <= PULSE_TEXT_BUDGET:
+                continue
+            # 钩子先让位，但只裁到「剩余空间」为止，不无故压短；
+            # 剩余空间连下限都不够时，说明事实太长——保住钩子下限，改裁事实。
+            hook_room = PULSE_TEXT_BUDGET - len(fact)
+            if hook_room >= PULSE_HOOK_FLOOR:
+                hook = _clip_text(hook, hook_room, word_safe=word_safe)
+            else:
+                hook = _clip_text(hook, PULSE_HOOK_FLOOR, word_safe=word_safe)
+            # 裁剪会补省略号，实际长度可能比传入的 limit 长 1；
+            # 所以事实的空间必须按钩子「裁剪后」的真实长度重算，否则会差一个字符。
+            fact_room = PULSE_TEXT_BUDGET - len(hook)
+            if len(fact) > fact_room:
+                fact = _clip_text(fact, max(0, fact_room), word_safe=word_safe)
+            setattr(self, fact_field, fact)
+            setattr(self, hook_field, hook)
+        return self
 
 
 class BriefContent(BaseModel):

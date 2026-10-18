@@ -11,9 +11,12 @@ from __future__ import annotations
 
 from app.briefs.schema import (
     MAX_DEEP_DIVE_FACETS,
+    PULSE_HOOK_FLOOR,
+    PULSE_TEXT_BUDGET,
     BriefContent,
     DeepDive,
     DeepDiveFacet,
+    PulseCard,
 )
 
 
@@ -125,3 +128,62 @@ def test_brief_content_round_trips_deep_dive() -> None:
     assert again.deep_dive is not None
     assert again.deep_dive.facets[0].body_zh == "监管方已介入调查。"
     assert again.deep_dive.facets[0].body_en == "Regulators have opened an inquiry."
+
+
+def test_pulse_card_fits_total_length_budget() -> None:
+    """脉搏短讯的总长预算是「事实 + 钩子」合计，不是单字段上限。
+
+    实测踩过的坑：fact_en 158 + hook_en 179 = 337，两段各自都没超单字段上限，
+    合计却超了契约的 ≤280，短讯发出去就是超长文本。
+    """
+    long_fact_en = (
+        "Israeli drone attacks killed six Palestinians across Gaza; UNICEF said more than "
+        "340 children have been killed in Gaza since the ceasefire began. (Al Jazeera)"
+    )
+    long_hook_en = (
+        "Continued civilian deaths during the ceasefire highlight the fragility of the "
+        "situation; next, watch for any Israeli response and independent verification of "
+        "the casualty figures."
+    )
+    card = PulseCard(
+        fact_zh="以色列无人机袭击加沙多地，致6名巴勒斯坦人死亡；UNICEF称停火以来加沙已有超340名儿童丧生。（半岛电视台）",
+        fact_en=long_fact_en,
+        hook_zh="停火期间持续出现平民伤亡，凸显局势脆弱；接下来需观察以色列方面是否回应，以及伤亡数字能否得到独立核实。",
+        hook_en=long_hook_en,
+    )
+
+    assert len(card.fact_zh) + len(card.hook_zh) <= PULSE_TEXT_BUDGET
+    assert len(card.fact_en) + len(card.hook_en) <= PULSE_TEXT_BUDGET
+    # 钩子是差异化的核心，不能被裁成空
+    assert card.hook_zh
+    assert len(card.hook_en) >= PULSE_HOOK_FLOOR
+    assert card.hook_en.endswith("…")
+
+
+def test_pulse_card_keeps_short_text_untouched() -> None:
+    """没超预算时不裁剪，也不该凭空补省略号。"""
+    card = PulseCard(
+        section_key="conflict",
+        fact_zh="事实一句。",
+        fact_en="One fact.",
+        hook_zh="为什么重要。",
+        hook_en="Why it matters.",
+    )
+    assert card.fact_zh == "事实一句。"
+    assert card.hook_en == "Why it matters."
+    assert "…" not in card.fact_en
+
+
+def test_pulse_card_trims_leading_fact_when_hook_needs_floor() -> None:
+    """事实占满预算时，保住钩子下限、改裁事实，而不是把钩子压没。"""
+    card = PulseCard(
+        fact_zh="事实" * 200,
+        fact_en="word " * 200,
+        hook_zh="钩子" * 100,
+        hook_en="hook " * 100,
+    )
+    assert len(card.fact_zh) + len(card.hook_zh) <= PULSE_TEXT_BUDGET
+    assert len(card.fact_en) + len(card.hook_en) <= PULSE_TEXT_BUDGET
+    # 钩子不能被子句压没；英文允许差几个字符——词边界优先于精确下限
+    assert len(card.hook_zh) >= PULSE_HOOK_FLOOR
+    assert len(card.hook_en) >= PULSE_HOOK_FLOOR - 10
