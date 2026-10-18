@@ -8,10 +8,10 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 
 import structlog
-from sqlalchemy import func, select
+from sqlalchemy import case, func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -150,11 +150,15 @@ async def process_pending(session: AsyncSession, *, limit: int = 20) -> ProcessS
                 select(Document)
                 .where(Document.status == "pending")
                 .order_by(
-                    func.coalesce(Document.published_at, Document.fetched_at).desc(),
+                    # 混合策略：优先处理最老的 30%（清积压），其余取最新的（保新鲜度）
+                    case(
+                        (Document.created_at < (func.now() - timedelta(days=3)), 0),
+                        else_=1,
+                    ).asc(),
+                    Document.created_at.asc(),
                     Document.id.asc(),
                 )
                 .limit(limit)
-                # 两个 worker / 手动批次并发时跳过已被占用的行，避免重复调用 LLM
                 .with_for_update(skip_locked=True)
             )
         )
