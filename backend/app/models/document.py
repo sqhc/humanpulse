@@ -6,6 +6,7 @@ from datetime import datetime
 from decimal import Decimal
 
 from sqlalchemy import (
+    ARRAY,
     BigInteger,
     ForeignKey,
     Index,
@@ -66,6 +67,7 @@ class Document(Base, TimestampMixin):
     excerpt: Mapped[str | None] = mapped_column(Text)
     content_hash: Mapped[str | None] = mapped_column(String(64), index=True)
     simhash: Mapped[int | None] = mapped_column(BigInteger, index=True)
+    simhash_blocks: Mapped[list[int] | None] = mapped_column(ARRAY(Integer))
     status: Mapped[str] = mapped_column(
         String(16), default="pending", server_default="pending", index=True
     )

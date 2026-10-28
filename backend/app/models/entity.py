@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import Float, ForeignKey, Index, Integer, String, UniqueConstraint, func
+from sqlalchemy import Boolean, Float, ForeignKey, Index, Integer, String, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base, TimestampMixin
@@ -61,3 +61,22 @@ class EntityMention(Base):
     )
     salience: Mapped[float] = mapped_column(Float, default=0.0, server_default="0")
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+
+
+class AliasReview(Base, TimestampMixin):
+    """实体别名审核队列：存储由判官判定为 'review' 的候选对。"""
+
+    __tablename__ = "alias_reviews"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    kind: Mapped[str] = mapped_column(String(16), index=True)
+    left_id: Mapped[int] = mapped_column(Integer, index=True)
+    right_id: Mapped[int] = mapped_column(Integer, index=True)
+    left_name: Mapped[str] = mapped_column(String(200))
+    right_name: Mapped[str] = mapped_column(String(200))
+    score: Mapped[float] = mapped_column(Float)
+    confidence: Mapped[float | None] = mapped_column(Float)
+    shared_documents: Mapped[int] = mapped_column(Integer)
+    jaccard: Mapped[float] = mapped_column(Float)
+    is_resolved: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
+    resolution: Mapped[str | None] = mapped_column(String(16))  # 'merge' | 'reject'

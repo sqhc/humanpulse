@@ -17,6 +17,8 @@ from app.config import get_settings
 from app.db import session_scope
 from app.judgement import get_judgement_client
 from app.logging import configure_logging
+from app.pipeline.alias_worker import run_alias_discovery
+from app.pipeline.pulse import monitor_pulse
 from app.predictions import resolve_due
 from app.workers.jobs import collect_all, run_brief, run_process
 
@@ -80,6 +82,17 @@ async def main() -> None:
             if now.weekday() == settings.brief_weekday:
                 await run_brief(session, kind="weekly")
 
+    async def alias_discovery_job() -> None:
+        # 别名自动发现：仅在启用且判官可用时运行
+        if not settings.alias_adjudication_enabled or get_judgement_client() is None:
+            return
+        async with session_scope() as session:
+            await run_alias_discovery(session)
+
+    async def pulse_job() -> None:
+        async with session_scope() as session:
+            await monitor_pulse(session)
+
     log.info(
         "worker.start",
         collect_interval_minutes=settings.collect_interval_minutes,
@@ -96,7 +109,15 @@ async def main() -> None:
             resolve_predictions_job,
             stop,
         ),
+        _loop(
+            "alias-discovery",
+            settings.alias_discovery_interval_minutes * 60,
+            alias_discovery_job,
+            stop,
+        ),
+        _loop("pulse", 3600.0, pulse_job, stop),
     )
+
     log.info("worker.stop")
 
 

@@ -13,6 +13,7 @@ from app.config import Settings, get_settings
 from app.llm.base import AnalyzeResult, LlmError, LlmUsage
 from app.llm.pricing import TokenBundle, cost_usd
 from app.llm.prompts import load_prompt
+from app.llm.router import router
 from app.llm.schema import AnalysisOut
 
 
@@ -76,9 +77,11 @@ class DeepSeekClient:
         model: str | None = None,
     ) -> AnalyzeResult:
         self._require_key()
-        chosen_model = model or self._settings.llm_model_bulk
+        # 动态路由：优先使用 router 决定模型
+        chosen_model = model or router.route(kind).model
         # 模板用 str.format 填充，故 md 中除 {title}/{url}/{text} 外的花括号需双写。
         prompt = load_prompt(kind).format(title=title, url=url, text=text)
+
         messages: list[dict[str, str]] = [
             {"role": "system", "content": prompt},
             {"role": "user", "content": f"标题：{title}\n链接：{url}\n正文：\n{text}"},
@@ -100,7 +103,8 @@ class DeepSeekClient:
     ) -> tuple[dict[str, Any], LlmUsage, bool]:
         """通用 JSON 调用：简报组稿等非逐条分析场景用（默认走更强的 brief 模型）。"""
         self._require_key()
-        chosen_model = model or self._settings.llm_model_brief
+        # 动态路由
+        chosen_model = model or router.route(kind).model
         messages: list[dict[str, str]] = [
             {"role": "system", "content": system},
             {"role": "user", "content": user},

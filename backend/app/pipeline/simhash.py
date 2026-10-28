@@ -45,6 +45,18 @@ def simhash64(text: str) -> int:
     return value
 
 
+def split_hash(value: int, num_blocks: int = 4) -> list[int]:
+    """将 64 位哈希拆分为 N 个块，用于多索引过滤（鸽巢原理）。
+    如果两个哈希距离 $\le K$，则它们至少有一个块完全相同（当 $N > K$ 时）。
+    """
+    bits_per_block = 64 // num_blocks
+    blocks = []
+    for i in range(num_blocks):
+        mask = (1 << bits_per_block) - 1
+        blocks.append((value >> (i * bits_per_block)) & mask)
+    return blocks
+
+
 def hamming(a: int, b: int) -> int:
     return ((a ^ b) & MASK64).bit_count()
 

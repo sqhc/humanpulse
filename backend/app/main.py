@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from typing import Any
 
 import structlog
 from fastapi import FastAPI
@@ -14,6 +15,7 @@ from app.api.v1.router import api_router
 from app.config import get_settings
 from app.db import dispose
 from app.logging import configure_logging
+from app.metrics import get_metrics_json
 
 log = structlog.get_logger("api")
 
@@ -61,6 +63,10 @@ def create_app() -> FastAPI:
             "docs": "/docs",
             "health": "/api/v1/health",
         }
+
+    @app.get("/metrics", include_in_schema=False)
+    async def metrics_endpoint() -> dict[str, Any]:
+        return get_metrics_json()
 
     return app
 

@@ -49,21 +49,42 @@ def is_too_old(published_at: datetime | None, *, now: datetime, max_age_days: in
     return now - published_at > timedelta(days=max_age_days)
 
 
-async def _recent_simhashes(session: AsyncSession) -> list[tuple[int, int]]:
-    since = datetime.now(UTC) - timedelta(days=SIMHASH_WINDOW_DAYS)
+async def find_near_duplicates(
+    session: AsyncSession,
+    fingerprint: int,
+    threshold: int,
+) -> int | None:
+    """使用多索引块过滤加速 SimHash 近邻查找。
+
+    原理：如果两个 64 位哈希的汉明距离 $\le K$，则它们在拆分为 $K+1$ 个块时，
+    至少有一个块必须完全相同（鸽巢原理）。
+    """
+    blocks = simhash.split_hash(fingerprint)
+
+    # 构造查询：查找任何一个块匹配的文档
+    # 使用 ANY 运算符匹配 PostgreSQL 数组
     stmt = (
-        select(Document.id, Document.simhash)
-        .where(Document.simhash.is_not(None))
-        .where(Document.fetched_at >= since)
+        select(Document.id)
+        .where(Document.simhash_blocks.is_not(None))
+        .where(Document.simhash_blocks.overlap(blocks))
+        # overlap 在 PG 中检查数组是否有交集
         .order_by(Document.id.desc())
-        .limit(SIMHASH_CANDIDATES_LIMIT)
+        .limit(100)  # 限制候选集，避免极大规模碰撞
     )
+
     rows = (await session.execute(stmt)).all()
-    return [
-        (int(doc_id), simhash.from_signed64(int(value)))
-        for doc_id, value in rows
-        if value is not None
-    ]
+    for (doc_id,) in rows:
+        # 这里的 simhash 可能是 None (因为是新加的列)，处理一下
+        res = await session.get(Document, doc_id)
+        if (
+            res
+            and res.simhash is not None
+            and simhash.is_near_duplicate(
+                fingerprint, simhash.from_signed64(res.simhash), threshold
+            )
+        ):
+            return doc_id
+    return None
 
 
 async def ingest_items(
@@ -76,7 +97,6 @@ async def ingest_items(
     """把一批 RawItem 规范化入库；重复项也落库（status=deduped）以便审计。"""
     settings = get_settings()
     stats = IngestStats()
-    candidates = await _recent_simhashes(session)
     seen_urls: set[str] = set()
 
     for item in items:
@@ -103,11 +123,10 @@ async def ingest_items(
             max_age_days=settings.max_item_age_days,
         )
         fingerprint = simhash.simhash64(f"{title} {excerpt}")
-        near_dup_of: int | None = None
-        for doc_id, other in candidates:
-            if simhash.is_near_duplicate(fingerprint, other, settings.simhash_hamming_threshold):
-                near_dup_of = doc_id
-                break
+        # 使用多索引加速查找
+        near_dup_of = await find_near_duplicates(
+            session, fingerprint, settings.simhash_hamming_threshold
+        )
 
         if near_dup_of is not None:
             status = "deduped"
@@ -132,6 +151,7 @@ async def ingest_items(
             excerpt=excerpt or None,
             content_hash=normalize.content_hash(title, excerpt),
             simhash=simhash.to_signed64(fingerprint),
+            simhash_blocks=simhash.split_hash(fingerprint),
             status=status,
             rejection_reason=rejection_reason,
         )
@@ -145,7 +165,6 @@ async def ingest_items(
             stats.too_old += 1
         else:
             stats.new += 1
-            candidates.append((document.id, fingerprint))
 
     await session.flush()
     return stats

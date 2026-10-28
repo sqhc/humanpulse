@@ -19,6 +19,7 @@ import structlog
 
 from app.briefs.schema import ProjectionChain, ProjectionContent, ProjectionNode
 from app.briefs.select import SelectedItem
+from app.config import get_settings
 from app.judgement import (
     ChoiceQuestion,
     JudgementAnswer,
@@ -29,6 +30,7 @@ from app.judgement import (
     ScoreQuestion,
     get_judgement_client,
 )
+from app.judgement.calibration import Calibrator, IdentityCalibrator
 
 log = structlog.get_logger("briefs.projection")
 
@@ -100,10 +102,13 @@ def build_event_state(item: SelectedItem, *, max_chars: int = DEFAULT_MAX_STATE_
 
 def build_hop1_questions(*, horizon_days: int) -> dict[str, Question]:
     """第一跳：对事件本身扇出三个独立问题（一次调用问完）。"""
+    settings = get_settings()
     return {
         "escalation": ScoreQuestion(
             instructions=(
-                f"未来 {horizon_days} 天内，该事件所涉及的对抗或冲突程度最可能如何变化？"
+                f"未来 {horizon_days} 天内，该事件所涉及的对抗或冲突程度"
+                f"（如报道频率、冲突次数）是否增加 "
+                f"$\\ge {settings.projection_mechanical_clash_threshold}\\%$？"
             ),
             criteria=ESCALATION_SCALE_ZH,
         ),
@@ -113,8 +118,9 @@ def build_hop1_questions(*, horizon_days: int) -> dict[str, Question]:
         ),
         "indicator": NoulQuestion(
             instructions=(
-                f"未来 {horizon_days} 天内是否会出现可观察的先行指标"
-                "（例如官方声明、市场反应、部队调动、立法动作）？"
+                f"未来 {horizon_days} 天内是否会出现 "
+                f"$\\ge {settings.projection_mechanical_source_threshold} 个"
+                "独立来源报道的先行指标（例如官方声明、市场反应、部队调动、立法动作）？"
             )
         ),
     }
@@ -131,11 +137,11 @@ def build_hop2_questions(*, escalation: int, horizon_days: int) -> dict[str, Que
     """第二跳：**按第一跳结论分支**的问题集（意图路由：代码掌权）。"""
     branch = HOP2_ESCALATING if escalation >= 2 else HOP2_CALM
     mapping = {
-        "direct_conflict": f"未来 {horizon_days} 天内是否会出现直接军事对抗或武装冲突？",
-        "energy_shipping": "是否会明显影响能源价格、航运成本或供应链？",
-        "third_party": "是否会出现有实质影响的第三方调停或斡旋？",
-        "negotiation": f"未来 {horizon_days} 天内是否会出现正式谈判或协议进展？",
-        "spillover": "是否会在相邻领域（贸易、科技、法律）产生外溢？",
+        "direct_conflict": f"未来 {horizon_days} 天内是否会出现 $\ge 1$ 次直接军事对抗或武装冲突？",
+        "energy_shipping": "是否会出现 $\ge 1$ 个来源报道明显的能源价格、航运成本或供应链波动？",
+        "third_party": "是否会出现 $\ge 1$ 次有实质影响的第三方调停或斡旋？",
+        "negotiation": f"未来 {horizon_days} 天内是否会出现 $\ge 1$ 次正式谈判或协议进展？",
+        "spillover": "是否会在相邻领域（贸易、科技、法律）出现 $\ge 1$ 个来源的显著外溢报道？",
     }
     return {key: NoulQuestion(instructions=mapping[key]) for key, _, _, _ in branch}
 
@@ -144,7 +150,10 @@ def build_hop3_questions(*, horizon_days: int) -> dict[str, Question]:
     """第三跳：为「到期核对」预埋一个可验证的问题。"""
     return {
         "horizon_realized": NoulQuestion(
-            instructions=(f"到 {horizon_days} 天期限时，上面判断的最可能后果是否已经部分兑现？")
+            instructions=(
+                f"到 {horizon_days} 天期限时，上面判断的最可能后果"
+                f"是否已有 $\ge 1$ 个来源报道已兑现？"
+            )
         ),
     }
 
@@ -161,7 +170,11 @@ def chain_from_responses(
     *,
     horizon_days: int,
     min_confidence: float,
+    calibrator: Calibrator | None = None,
 ) -> ProjectionChain:
+    """把各跳回答组装成一条链路（纯函数，便于用假判官断言）。"""
+    if calibrator is None:
+        calibrator = IdentityCalibrator()
     """把各跳回答组装成一条链路（纯函数，便于用假判官断言）。"""
     escalation_answer = answers.get("escalation")
     level = escalation_level(escalation_answer) if escalation_answer else 0
@@ -208,7 +221,7 @@ def chain_from_responses(
                     f"{label_en} (expected {score_text}/3, probability "
                     f"{escalation_answer.probability():.2f})"
                 ),
-                probability=round(escalation_answer.probability(), 4),
+                probability=round(calibrator.calibrate(escalation_answer.probability()), 4),
                 confidence=escalation_confidence,
                 tentative=tentative(escalation_confidence),
             )
@@ -230,7 +243,7 @@ def chain_from_responses(
                     f"Most likely downstream form: {downstream.choice} "
                     f"(probability {downstream.probability():.2f})"
                 ),
-                probability=round(downstream.probability(), 4),
+                probability=round(calibrator.calibrate(downstream.probability()), 4),
                 confidence=downstream.confidence,
                 tentative=tentative(downstream.confidence),
             )
@@ -251,7 +264,7 @@ def chain_from_responses(
                 statement_en=(
                     f"Probability of an observable leading indicator: {indicator.noul:.2f}"
                 ),
-                probability=round(indicator.noul, 4),
+                probability=round(calibrator.calibrate(indicator.noul), 4),
                 confidence=None,
                 tentative=False,
             )
@@ -269,7 +282,7 @@ def chain_from_responses(
                 label_en=label_en,
                 statement_zh=f"{label_zh}的概率 {answer.noul:.2f}",
                 statement_en=f"Probability of {label_en.lower()}: {answer.noul:.2f}",
-                probability=round(answer.noul, 4),
+                probability=round(calibrator.calibrate(answer.noul), 4),
                 confidence=None,
                 tentative=False,
             )
@@ -290,7 +303,7 @@ def chain_from_responses(
                     f"Probability the above has partly materialised by day "
                     f"{horizon_days}: {horizon.noul:.2f}"
                 ),
-                probability=round(horizon.noul, 4),
+                probability=round(calibrator.calibrate(horizon.noul), 4),
                 confidence=None,
                 tentative=False,
             )
@@ -322,8 +335,13 @@ async def build_chain(
     hops: int,
     min_confidence: float,
     max_state_chars: int = DEFAULT_MAX_STATE_CHARS,
+    calibrator: Calibrator | None = None,
 ) -> ProjectionChain:
     """跑完一条链路：hop1 扇出 → 按结论分支的 hop2 → hop3。"""
+    if calibrator is None:
+        calibrator = IdentityCalibrator()
+    """跑完一条链路：hop1 扇出 → 按结论分支的 hop2 → hop3。"""
+
     state = build_event_state(item, max_chars=max_state_chars)
     answers: dict[str, JudgementAnswer] = {}
 
@@ -346,6 +364,7 @@ async def build_chain(
         answers,
         horizon_days=horizon_days,
         min_confidence=min_confidence,
+        calibrator=calibrator,
     )
 
 
@@ -359,8 +378,17 @@ async def generate_projection(
     client: JudgementClient | None = None,
     calibrated: bool = False,
     max_state_chars: int = DEFAULT_MAX_STATE_CHARS,
+    calibrator: Calibrator | None = None,
 ) -> ProjectionContent | None:
     """对 Top N 事件生成推演。判官不可用时返回 None（调用方维持现状）。
+
+
+    单条事件失败不影响其它事件：推演是增量能力，不能因为一次调用失败让整期简报生成不出来。
+    """
+    if calibrator is None:
+        calibrator = IdentityCalibrator()
+    """对 Top N 事件生成推演。判官不可用时返回 None（调用方维持现状）。
+
 
     单条事件失败不影响其它事件：推演是增量能力，不能因为一次调用失败让整期简报生成不出来。
     """
@@ -383,6 +411,7 @@ async def generate_projection(
                     hops=hops,
                     min_confidence=min_confidence,
                     max_state_chars=max_state_chars,
+                    calibrator=calibrator,
                 )
             )
         except JudgementError as exc:

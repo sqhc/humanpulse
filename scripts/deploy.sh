@@ -23,5 +23,13 @@ echo "== 本机（VPS）部署 =="
 docker compose -f "$COMPOSE_FILE" pull
 docker compose -f "$COMPOSE_FILE" up -d --remove-orphans
 docker compose -f "$COMPOSE_FILE" ps
+
+# 启用 Oray PeanutHull 隧道 (如果安装)
+if command -v hsk-cli &> /dev/null; then
+  echo "🌐 Setting up Oray tunnel..."
+  hsk-cli map 8000
+fi
+
 echo
 echo "提示：设置 DEPLOY_HOST/DEPLOY_USER/DEPLOY_PATH 可从本地一键推送部署。"
+

@@ -8,6 +8,7 @@ from typing import Any
 
 from pgvector.sqlalchemy import Vector
 from sqlalchemy import (
+    ARRAY,
     Boolean,
     Float,
     ForeignKey,
@@ -73,6 +74,8 @@ class Embedding(Base):
     model: Mapped[str] = mapped_column(String(128))
     dim: Mapped[int] = mapped_column(SmallInteger)
     vec: Mapped[list[float]] = mapped_column(Vector(384))
+    simhash: Mapped[int | None] = mapped_column(Integer, index=True)
+    simhash_blocks: Mapped[list[int] | None] = mapped_column(ARRAY(Integer))
 
 
 class Cluster(Base, TimestampMixin):

@@ -99,6 +99,11 @@ class Settings(BaseSettings):
     # 低于此置信度的节点不进视频断言，只标为「待观察」
     projection_min_confidence: float = Field(default=0.60, ge=0.0, le=1.0)
     projection_chain_hops: int = Field(default=3, ge=1, le=5)
+    # 机械标注阈值（用于校准判官）：
+    # 1. 冲突升级：报告的事件/频率增加 $\ge X\%$
+    projection_mechanical_clash_threshold: int = Field(default=20, ge=0, le=100)
+    # 2. 先行指标/后果：至少有 $M$ 个独立来源报道
+    projection_mechanical_source_threshold: int = Field(default=2, ge=1, le=20)
 
     # 预测到期核对（worker 定时跑；判官未配置时自动跳过）
     # 每天一次足够：预测的到期粒度是天，跑太勤没有意义
@@ -108,6 +113,7 @@ class Settings(BaseSettings):
     # 实体别名裁决（用判官做实体对齐）
     alias_adjudication_enabled: bool = False
     alias_auto_merge_confidence: float = Field(default=0.90, ge=0.0, le=1.0)
+    alias_discovery_interval_minutes: int = Field(default=1440, gt=0)
     entity_wikidata_enabled: bool = False
 
     # 简报

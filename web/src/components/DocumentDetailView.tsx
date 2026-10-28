@@ -1,10 +1,13 @@
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 
+
 import type { Lang, Messages } from "../i18n";
 import { createApiClient } from "../lib/api";
 import { formatDateTime, scoreClassName } from "../lib/format";
 import { documentHref } from "../lib/router";
+import { ProjectionGraph } from "./ProjectionGraph";
+
 
 interface DocumentDetailViewProps {
   id: number;
@@ -119,6 +122,22 @@ export function DocumentDetailView({ id, lang, t }: DocumentDetailViewProps) {
           </ul>
         )}
       </section>
+
+      <section className="space-y-3">
+        <h3 className="text-sm font-medium text-ink-muted">Projection Path</h3>
+        <ProjectionGraph
+          nodes={[
+            { id: "0_fact", label: "Event", probability: 1.0, type: "fact" },
+            { id: "1_esc", label: "Escalation", probability: 0.7, type: "effect" },
+            { id: "2_dir", label: "Direct Conflict", probability: 0.4, type: "effect" },
+          ]}
+          edges={[
+            { source: "0_fact", target: "1_esc", probability: 0.7 },
+            { source: "1_esc", target: "2_dir", probability: 0.4 },
+          ]}
+        />
+      </section>
+
     </article>
   );
 }

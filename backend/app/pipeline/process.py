@@ -25,6 +25,7 @@ from app.models.document import Document
 from app.models.ops import LlmUsageDay
 from app.pipeline.dedup import attach_cluster, embedding_text
 from app.pipeline.entities import upsert_entities
+from app.pipeline.simhash import simhash64, split_hash, to_signed64
 
 log = structlog.get_logger("pipeline.process")
 
@@ -251,9 +252,12 @@ async def process_pending(session: AsyncSession, *, limit: int = 20) -> ProcessS
             entities=[entity.model_dump() for entity in data.entities],
         )
 
+        # 向量化与指纹生成
         vector = embedder.embed(
             embedding_text(data.summary_zh, data.summary_en, tags, document.title)
         )
+        sh = simhash64(embedding_text(data.summary_zh, data.summary_en, tags, document.title))
+
         session.add(
             Embedding(
                 analysis_id=analysis.id,
@@ -261,9 +265,12 @@ async def process_pending(session: AsyncSession, *, limit: int = 20) -> ProcessS
                 model=embedder.name,
                 dim=len(vector),
                 vec=vector,
+                simhash=to_signed64(sh),
+                simhash_blocks=split_hash(sh),
             )
         )
         await session.flush()
+
         await attach_cluster(session, document=document, vec=vector, key_terms=data.tags[:3])
         document.status = "enriched"
         stats.enriched += 1
